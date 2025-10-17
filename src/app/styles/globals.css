@@ -1,0 +1,96 @@
+@import url("https://fonts.googleapis.com/css2?family=Domine&family=Meie+Script&family=Mukta:wght@200;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@700&display=swap");
+
+
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+
+.container{
+  width: 100%;
+  height: 100vh;
+
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  
+  
+ 
+}
+
+.container h2{
+  font-size: 30px;
+}
+
+.adminpage{
+  width: 100%;
+  height: 100vh;
+
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  
+}
+.adminpage input{
+  border: 1px solid #d9d9d9;
+  width: 50%;
+
+}
+.adminpage button{
+  font-size: 18px;
+  border-radius: 60px;
+  border: none;
+  background-color: #683610;
+  color: white;
+  margin-top: 30px
+
+
+}
+
+/* login  start */
+
+/* login  end */
+
+/* dashboard start */
+
+
+/* dashboard end */
+
+
+ 
+  /* Form  end here */
+  .form-textfield input[type="text"]{
+    background-color: #ebebeb;
+     
+}
+
+.dashboard-container{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+

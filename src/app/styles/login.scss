@@ -1,0 +1,102 @@
+.login-page {
+    color: #fff;
+    background: url('/space.jpeg') no-repeat center center fixed;
+    width: 100%;
+    min-height: 100vh;
+    background-size: cover;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    row-gap: 20px;
+    // padding-bottom: 100px;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Mukta';
+
+    .login-card {
+        // background: #fff;
+        padding: 2.5rem;
+        border-radius: 12px;
+        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        row-gap: 25px;
+
+        .logo-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            row-gap: 10px;
+
+            .logo {
+                width: 80px;
+                // margin-bottom: 0.5rem;
+            }
+
+            h2 {
+                font-size: 36px;
+                // margin-bottom: 0.25rem;
+                font-family: "forum";
+                // color: #333;
+            }
+
+            p {
+                font-size: 16px;
+                color: #a1cbd9;
+            }
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+
+            input {
+                padding: 0.75rem 1rem;
+                margin-bottom: 1.25rem;
+                border-radius: 30px;
+                border: 1px solid #ccc;
+                font-size: 1rem;
+                transition: 0.3s;
+
+                &:focus {
+                    outline: none;
+                    border-color: #072c50;
+                    box-shadow: 0 0 0 2px rgba(0, 13, 255, 0.2);
+                }
+            }
+
+            .login-btn {
+                background: #fe6f06;
+                color: #fff;
+                padding: 0.75rem;
+                border: none;
+                border-radius: 30px;
+                text-transform: uppercase;
+                font-family: 'Mukta';
+                letter-spacing: 1px;
+                // font-weight: 600;
+                font-size: 1rem;
+                cursor: pointer;
+                transition: 0.3s;
+
+                &:hover {
+                    background: #072c50;
+                }
+
+                &:disabled {
+                    background: #999;
+                    cursor: not-allowed;
+                }
+            }
+        }
+
+        .footer-text {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: #999;
+        }
+    }
+}

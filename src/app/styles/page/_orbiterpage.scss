@@ -1,0 +1,290 @@
+.dashBoardMain {
+    &.profileMainPage {
+        .profile-photo-wrapper {
+            margin-top: 0px;
+        }
+
+        .profile-details {
+            h2 {
+                font-family: $forum;
+                color: $mcolor;
+                font-size: 24px;
+                margin-bottom: 0px;
+            }
+
+            span {
+                color: $pclr
+            }
+        }
+
+        .tab-contents {
+            padding: 0 15px;
+
+            .tab-header {
+                padding-bottom: 0rem;
+            }
+
+            .business-logo-section {
+
+
+                .businessLogo {
+                    overflow: hidden;
+                    border-radius: 10px;
+
+                    img {
+                        width: 100%;
+                    }
+                }
+            }
+
+            .vertical-tabs {
+                row-gap: 15px;
+
+                .tab-btn {
+                    font-family: $mukta;
+                    text-transform: uppercase;
+                    padding: 8px 16px;
+                    border-radius: 10px;
+                }
+            }
+
+            .offerings-section {
+                margin: 0px;
+            }
+
+            .tab-content-area {
+                display: flex;
+                flex-direction: column;
+                row-gap: 15px;
+            }
+
+            .offering-list {
+                display: flex;
+                flex-direction: column;
+                row-gap: 20px;
+                width: 100%;
+                align-items: center;
+                justify-content: center;
+
+
+                .offering-card {
+                    width: 100%;
+                    box-shadow: 0 0px 0px rgba(0, 0, 0, 0.1);
+                    padding: 0px;
+                    border: 0px solid #ccc;
+                    min-height: auto;
+
+                    // padding: 50px;
+                    .nothumbnail {
+                        background-color: $bordercolor;
+                        justify-content: center;
+                        display: flex;
+                        border-radius: 10px;
+                        padding: 50px 0px;
+                        font-size: 60px;
+                        color: $bodytextcolor;
+                    }
+
+                    .offerImage {
+                        img {
+                            width: 100%;
+                        }
+                    }
+
+                    .offerDesc {
+                        padding: 15px;
+                        text-align: left;
+                    }
+
+                    h4 {
+                        margin: 0px;
+                    }
+                }
+            }
+
+        }
+
+        .new-profile-container {
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 400px;
+            margin: auto;
+        }
+    }
+}/* Container */
+.referralTabsWrapper {
+  margin: 20px auto;
+  max-width: 900px;
+  padding: 15px;
+}
+
+/* Container to limit tabs width */
+.referralTabsWrapper {
+  width: 100%;
+  max-width: 100%; /* Don't exceed viewport */
+  box-sizing: border-box;
+  overflow: hidden; /* Prevent tabs from going outside */
+  padding: 0 15px;  /* Optional horizontal padding */
+}
+
+/* Tabs Header (Scrollable) */
+.referralTabsHeader {
+  display: flex;
+  flex-wrap: nowrap;             /* Stay in one line */
+  gap: 10px;
+  border-bottom: 2px solid #e6e9ef;
+  margin-bottom: 20px;
+  overflow-x: auto;              /* Horizontal scroll if needed */
+  -webkit-overflow-scrolling: touch; /* Smooth scroll on mobile */
+  width: 100%;                   /* Full container width */
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #f133 #e6e9ef;
+}
+
+.referralTabsHeader::-webkit-scrollbar {
+  height: 6px; /* horizontal scrollbar height */
+}
+.referralTabsHeader::-webkit-scrollbar-thumb {
+  background: #f133;
+  border-radius: 10px;
+}
+.referralTabsHeader::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+/* Individual Tab Buttons */
+.referralTabButton {
+  flex: 0 0 auto;       /* Prevent shrinking */
+  white-space: nowrap;   /* Prevent text wrap */
+  background: #f6f7fb;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  padding: 10px 18px;
+  font-weight: 600;
+  color: #16274f;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &.active {
+    background: #16274f;
+    color: #fff;
+    box-shadow: 0 -2px 10px rgba(22, 39, 79, 0.25);
+  }
+
+  &:hover {
+    background: #f133;
+    color: #fff;
+  }
+}
+
+/* Optional: make it snap nicely on mobile */
+.referralTabsHeader {
+  scroll-snap-type: x mandatory;
+}
+.referralTabButton {
+  scroll-snap-align: start;
+}
+
+
+/* Tab Content Area */
+.referralTabsContent {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.08);
+  padding: 25px;
+  transition: all 0.3s ease-in-out;
+}
+
+/* Card Layout */
+.referralCard {
+  animation: fadeIn 0.4s ease;
+}
+
+.referralCardTitle {
+  font-size: 1.4rem;
+  color: #16274f;
+  font-weight: 700;
+  margin-bottom: 15px;
+  border-left: 5px solid #f133;
+  padding-left: 10px;
+}
+
+.referralCardBody {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+
+  p {
+    color: #505d69;
+    font-size: 0.95rem;
+    margin: 5px 0;
+
+    span {
+      font-weight: 600;
+      color: #16274f;
+      display: inline-block;
+      min-width: 130px;
+    }
+  }
+}
+
+/* Image Box */
+.referralImageBox {
+  grid-column: span 2;
+  margin-top: 10px;
+
+  img {
+    width: 100%;
+    max-width: 300px;
+    border-radius: 10px;
+    display: block;
+    margin: auto;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 📱 Mobile Responsive */
+@media (max-width: 768px) {
+  .referralTabsHeader {
+    justify-content: space-between;
+    border: none;
+  }
+
+  .referralTabButton {
+    flex: 1;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    padding: 8px;
+  }
+
+  .referralTabsContent {
+    padding: 15px;
+  }
+
+  .referralCardBody {
+    grid-template-columns: 1fr;
+
+    p span {
+      min-width: auto;
+      display: block;
+      margin-bottom: 3px;
+    }
+  }
+
+  .referralImageBox img {
+    max-width: 100%;
+  }
+}

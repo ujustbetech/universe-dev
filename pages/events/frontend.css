@@ -1,0 +1,452 @@
+.event-container {
+  
+    margin: auto;
+  
+    font-family: Arial, sans-serif;
+  }
+  
+  .event-container h1 {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  
+  .event-card {
+    border: 1px solid #ccc;
+    padding: 20px;
+    border-radius: 12px;
+    background-color: #f9f9f9;
+  }
+  
+  .event-card h2 {
+    margin-top: 0;
+    color: #333;
+  }
+  
+  .event-card ul {
+    padding-left: 20px;
+  }
+  
+  .event-card a {
+    color: blue;
+    text-decoration: underline;
+  }
+  
+  
+    .event-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #2c3e50;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid #fe6f06;
+      padding-bottom: 0.5rem;
+    }
+  
+    .section {
+      margin-bottom: 2rem;
+  
+      h3 {
+        font-size: 1.4rem;
+        color: #2980b9;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid #3498db;
+        padding-left: 0.5rem;
+      }
+  
+      ul {
+        list-style-type: disc;
+        margin-left: 1.5rem;
+        line-height: 1.6;
+  
+        li {
+          margin-bottom: 0.5rem;
+  
+          a {
+            color: #1d6fa5;
+            text-decoration: underline;
+  
+            &:hover {
+              color: #145a82;
+            }
+          }
+        }
+      }
+  
+      .doc-description {
+        font-weight: bold;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+      }
+    }
+  
+  .event-container {
+  
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  
+    .event-header {
+      position: relative;
+  
+      .event-image {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+      }
+  
+      .countdown {
+        padding: 20px;
+        text-align: center;
+        margin: 20px 0;
+        position: absolute;
+        top: 100px;
+      
+        .time {
+          font-size: 24px;
+          font-weight: bold;
+          color: #fe6f06;
+        }
+      
+        .labels {
+          font-size: 12px;
+          color: #666;
+        }
+      }
+    }    
+  
+    .event-content {
+      padding: 16px;
+  
+      .event-title {
+        font-size: 20px;
+        font-weight: bold;
+      }
+  
+      .organizer,
+      .event-date,
+      .location-name,
+      .location-address {
+        font-size: 15px;
+        margin-top: 4px;
+        color: #555;
+      }
+  
+      .location-name {
+        color: #3b82f6;
+      }
+  
+     
+      .tabs {
+        display: flex;
+        flex-direction: row;
+        margin-top: 16px;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: thin; /* Firefox */
+        -webkit-overflow-scrolling: touch;
+      
+        &::-webkit-scrollbar {
+          display: none;
+        }
+      }
+      
+      .tab {
+        width: 33.33%; /* Show exactly 3 tabs per screen */
+        padding: 8px 0;
+        text-align: center;
+        border-bottom: 2px solid transparent;
+        color: #999;
+        font-weight: 500;
+        cursor: pointer;
+        background: none;
+        border: none;
+        outline: none;
+        flex-shrink: 0; /* Prevent shrinking when overflowing */
+      }
+      
+      /* Optional active tab styling */
+      .tab.active {
+        border-color: #16274f;
+        color: #16274f;
+      }
+    .tab-content {
+  padding: 10px;
+  font-family: 'Mukta';
+}
+
+.tab-content h3 {
+ font-size: 18px;
+            margin-bottom: 15px;
+            color: #16274f;
+}
+
+.tab-content ul {
+  list-style-type: disc;
+  padding-left: 20px;
+}
+
+.tab-content li {
+  margin-bottom: 8px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.tab-content div {
+  background-color: #f5f9ff;
+  border: 1px solid #cfe0f1;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.tab-content p {
+  margin: 8px 0;
+  font-size: 16px;
+}
+.pdf-icon {
+  color: red;
+  margin-right: 8px;
+}
+.file-link {
+  text-decoration: none;
+  color: #007bff;
+}
+
+.tab-content strong {
+  margin: 8px 0;
+  font-size: 16px;
+  color: #fe6f06;
+}
+.tab-content a {
+  color: #16274f;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.tab-content a:hover {
+  text-decoration: underline;
+  color: #004080;
+}
+  
+    
+    }
+  }
+  .user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin-top: 20px;
+}
+
+.user-table th,
+.user-table td {
+  border: 1px solid #ddd;
+  padding: 12px;
+  text-align: left;
+}
+
+.user-table thead {
+  background-color: #16274f;
+  color: white;
+}
+.meeting-done {
+  font-size: 1.5rem;
+  color: red;
+  font-weight: bold;
+  text-align: center;
+}
+
+.user-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.user-table tr:hover {
+  background-color: #f1f1f1;
+  transition: background-color 0.3s;
+}
+
+  .avatar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-top: 16px;
+  
+    .avatars {
+      display: flex;
+      align-items: center;
+  
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: #16274f;
+        color: #fff;
+        font-size: 12px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: -10px;
+        border: 2px solid #fff;
+        z-index: 1;
+  
+        &:first-child {
+          margin-left: 0;
+        }
+      }
+  
+      .more {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: #d1d5db;
+        color: #000;
+        font-size: 12px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: -10px;
+        border: 2px solid #fff;
+        z-index: 1;
+      }
+    }
+  
+    .info {
+      font-size: 14px;
+      color: #666;
+      padding-top: 10px;
+  
+      span {
+        font-weight: bold;
+        color: #111;
+      }
+    }
+  .registeredusers{
+    display: flex
+;
+    flex-direction: row;
+  }
+    .see-all {
+      font-size: 14px;
+      color: #16274f;
+      cursor: pointer;
+              padding-top: 10px;
+        padding-left: 130px;
+  
+      &:hover {
+          color: #1b47b0;
+      }
+    }
+  }
+ .birthday-page {
+  padding: 2rem;
+  font-family: 'Forum';
+  background: #77cce81f;
+  min-height: 100vh;
+}
+
+.birthday-page h2 {
+  text-align: center;
+  color: #16274f;
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+
+.birthday-section {
+  margin-bottom: 3rem;
+  padding: 1.5rem;
+  border-radius: 15px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.birthday-section h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #16274f;
+  border-left: 4px solid #16274f;
+  padding-left: 10px;
+}
+
+.birthday-card {
+  position: relative;
+  padding: 1rem;
+  padding-right: 100px; /* leave space for the image */
+  border: 1px solid rgb(232, 238, 250);
+  border-radius: 10px;
+  background: #c5e3ed1f;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+}
+
+.birthday-image.top-right {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #004aad;
+}
+
+
+.birthday-card h3 {
+  flex: 1 1 100%;
+  font-size: 1.2rem;
+  margin: 0.5rem 0;
+  color: #333;
+}
+
+.birthday-card p {
+  flex: 1 1 50%;
+  margin: 0.2rem 0;
+  font-size: 16px;
+  color: #302e2e;
+}
+
+
+.birthday-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.send-message-btn {
+  padding: 8px 16px;
+  background-color: #fe6f06;
+  color: #fff;
+  width: 120px;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  font-weight: 500;
+  transition: background-color 0.3s ease;
+}
+
+.send-message-btn:hover {
+  background-color: #b14f0a;
+}
+
+@media (max-width: 600px) {
+  .birthday-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .birthday-card p {
+    flex: 1 1 100%;
+  }
+
+  .birthday-image {
+    margin: 0 auto 1rem auto;
+  }
+}

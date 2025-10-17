@@ -1,0 +1,234 @@
+.p-profile{
+    background-image: url("../../public/images/Backgroundfinal.jpeg");
+     width: 100%;
+     height: 35vh;
+       box-sizing: border-box;
+     background-size: cover;
+     background-position: center center; 
+     background-repeat: no-repeat;
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+     justify-content: center;
+     position: relative;
+   
+       @media screen and (max-width: "400px") {
+     
+       
+               padding: 15px;
+         }
+         .profilePic{
+   
+             position: absolute;
+             bottom: 0;
+             left: 0;
+             display: flex;
+             justify-content: flex-end;
+             column-gap: 20px;
+             align-items: center;
+             width: 600px;
+             transform: translateY(50%);
+             z-index: 9;
+   
+           .custom-profile{
+               width: 150px;
+               height: 150px;
+               border-radius: 50%;
+               overflow: hidden;
+               border: 5px solid #dae4f4;
+               position: relative;
+           
+               // transform: translate(50%, 50%);
+   
+               // width: 250px;
+               // height: 250px;
+               // border-radius: 50%;
+               // overflow: hidden;
+               // border: 4px solid #dae4f4;
+               // position: absolute;
+               // // top: -50%;
+               // // left: -50%;
+               // transform: translate(50%, -50%);
+               // text-align: center;
+               img{
+                   width: 100%;
+                   background-color: aliceblue;
+   
+               }
+             input[type="file"] {
+           display: none;
+         }
+               label{
+                   position: absolute;
+                   width: 100%;
+                   height: 60px;
+                   left: 0;
+                   bottom: 0;
+                   padding: 0;
+                   background-color: rgba(0,0,0,.6);
+                   align-items: center;
+                   justify-content: center;
+                   display: flex;
+                   span{
+                      
+                       font-size: 40px;
+                       line-height: 30px;
+                       // margin-top: 6px;
+                       color: #fff;
+                   }
+                   
+               }
+           }
+           .profile-name{
+               color: aqua;
+               // padding-left: 20px;
+               // margin-bottom: 100px;
+               // line-height: 20px;
+               h2{
+                   font-size: 36px;
+                   text-transform: capitalize;
+                   font-weight: 500;
+                   margin-bottom: 6px;
+                   font-family: $forum;
+                   color: #fff;
+               }
+               p{
+                   font-size: 26px;
+                   text-align: left;
+                   color: #fe6f06;
+                   // font-weight: 500;
+                   margin-bottom: 15px;
+               }
+           }
+         
+          
+          
+           // border-radius: 50%;
+           // overflow: hidden;
+           // display: flex;
+     
+           // align-items: center;
+           // background-color: #fff;
+           // border: 5px solid #d7e9ff;
+           // max-width: 500px;
+           // height: 500px;
+         }
+   
+    
+   }
+   
+   .card-main{
+       .BadgesData{
+           display: flex;
+          position: relative;
+           flex-direction: column;
+           width: 100%;
+           max-width: 1080px;
+           padding: 0 15px;
+           margin: 0 auto;
+           box-sizing: border-box;
+   
+           .card-container{
+               background-color: #fff;
+               margin-top: 150px;
+               display: flex;
+               flex-direction: column;
+               margin-top: 150px;
+               column-gap: 22px;
+               flex-wrap: wrap;
+               padding:50px;
+   
+               h2{
+                   text-transform: capitalize;
+                   font-size: 48px;
+                   font-family: $forum;
+                   font-weight: 500;
+                   margin-bottom: 30px;
+                   font-weight: 800;
+   
+               }
+   
+               // card-data
+               .card-data{
+                   position: relative;
+                   
+                   background-color:#FFF; 
+                   display: flex;
+   
+                   // margin-top: 150px;
+                   // justify-content: space-between;
+                   column-gap: 22px;
+                   flex-wrap: wrap;    
+                   padding: 30px 50px;
+              
+                   li{
+                    
+                       width: calc(33.33% - 15px);
+                       margin-bottom: 50px;
+                       .p-cardBox{
+                           width: 100%;
+                           position: relative;
+                           border: 1px solid #ccc;
+                           box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+       
+                          
+                           .cardImg{
+                                   position: relative;
+                                   z-index: 2;
+                                   overflow: hidden;
+                                   img{
+                                   width: 100%;
+                                   transition: all 1s ease-in-out;
+                               }
+                           }
+                           .cardContent{
+                               background-color: #072c50;
+                               // position: absolute;
+                               // left: 0;
+                               // bottom: 0;
+                               padding: 12px;
+                               width: 100%;       
+                               height: calc(100% - 80px);
+                               // display: flex;
+                               // flex-direction: column;
+                               align-items: flex-end;
+                               // justify-content: space-between;
+       
+                               h3{
+                                   color: #fff;
+                                   font-size: 22px;
+                                   text-transform: capitalize;
+                                   font-family: $forum;
+                                   margin-bottom: 5px;
+                                   cursor: pointer;
+                               }
+                               p{
+                                   color: #a1cbd9;
+                                   font-size:14px;
+                                   display: flex;
+                                   flex-wrap: wrap;
+                                   text-transform: lowercase;
+                               }
+                           }
+                      
+                       }
+                   }
+               }  
+               
+               // upper footer
+               .upper-footer{
+                   position: relative;
+                   ul{
+                       display: flex;
+   
+                       li{
+                           img{
+                               width: 100%;
+                           }
+                       }
+                   }
+               }
+           }
+       }
+         
+   }

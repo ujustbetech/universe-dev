@@ -1,0 +1,161 @@
+.OffersList {
+    // display: flex;
+    // flex-wrap: wrap;
+    column-gap: 15px;
+    row-gap: 15px;
+    padding: 0 15px;
+    width: 100%;
+    column-count: 2;
+    column-gap: 16px;
+
+    .cardsDiv {
+        border-radius: 10px;
+        background-color: #fff;
+        // width: calc(50% - 10px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: auto; // fixed card height
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        display: inline-block;
+        /* keeps each card as a block inside column */
+        width: 100%;
+        margin-bottom: 16px;
+
+        &:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .cardImg {
+            width: 100%;
+            height: 130px; // fixed image height
+            overflow: hidden;
+            position: relative;
+
+            img {
+                width: 100%;
+                // height: 100%;
+                object-fit: cover; // makes all images cover the box without distortion
+            }
+        }
+
+        .wdp_ribbon {
+            display: inline-block;
+            padding: 2px 15px;
+            position: absolute;
+            right: 0px;
+            top: 20px;
+            line-height: 24px;
+            height: 24px;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: .25em;
+            border-radius: 0;
+            text-shadow: none;
+            font-weight: normal;
+            background-color: #fe6f06 !important;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .wdp_ribbon:before,
+        .wdp_ribbon:before {
+            display: inline-block;
+            content: "";
+            position: absolute;
+            left: -14px;
+            top: 0;
+            border: 9px solid transparent;
+            border-width: 14px 8px;
+            border-right-color: #893b02;
+        }
+
+        .wdp_ribbon:before {
+            border-color: #fe6f06;
+            border-left-color: transparent !important;
+            left: -9px;
+        }
+
+        .thumbnail_NA {
+            background-color: #f1f1f1;
+            font-size: 32px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #bbb;
+            width: 100%;
+            height: 200px; // same as image height
+        }
+
+        .description {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+
+            h4 {
+                font-size: 18px;
+                font-weight: 600;
+                color: #0c4a6e;
+                line-height: 20px;
+                margin: 0;
+            }
+
+            .percentageTag {
+                background: linear-gradient(135deg, #bae6fd, #38bdf8); // Gradient for a modern look
+                color: #064e3b; // Dark green text for contrast
+                font-weight: 600;
+                font-size: 12px;
+                padding: 3px 10px;
+                border-radius: 16px;
+                display: inline-block;
+                letter-spacing: 0.3px;
+                margin-top: 4px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); // subtle shadow
+                text-transform: uppercase;
+            }
+
+
+            .ownerInfo {
+                font-size: 13px;
+                color: #555;
+                font-style: italic;
+                margin: 0;
+            }
+
+            button {
+                margin-top: auto;
+                padding: 8px 8px;
+                background-color: #16274f;
+                color: #fff;
+                border: none;
+                border-radius: 20px;
+                cursor: pointer;
+                letter-spacing: 1px;
+                font-size: 11px;
+                text-transform: uppercase;
+                font-weight: 700;
+                transition: background-color 0.2s ease, transform 0.2s ease;
+
+                &:hover {
+                    background-color: #0284c7;
+                    transform: translateY(-2px);
+                }
+            }
+        }
+    }
+}
+
+.filters {
+    display: flex;
+    flex-direction: column;
+    row-gap: 10px;
+    width: 100%;
+    padding: 15px;
+    background-color: #16274f;
+    margin-top: -20px;
+}

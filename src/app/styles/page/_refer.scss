@@ -1,0 +1,718 @@
+/* Modal Overlay */
+.ref-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    font-family: 'Mukta';
+
+
+}
+
+/* Modal Box */
+.ref-modal-content {
+    width: 90%;
+    max-width: 400px;
+    background: white;
+    border-radius: 16px;
+    padding: 15px 0;
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.3s ease-in-out;
+    text-align: center;
+    height: 90vh;
+    overflow-y: hidden;
+
+    .businessLogo {
+        width: 80px;
+        height: 80px;
+        background-color: #e7e7e7;
+        border-radius: 50%;
+        font-size: 30px;
+        display: flex;
+        align-items: center;
+        color: #222;
+        background: url('/space.jpeg') no-repeat;
+        border: 1px solid $bordercolor;
+        color: $pclr;
+        overflow: hidden;
+
+        img {
+            width: 100%;
+            object-fit: cover;
+        }
+    }
+}
+
+/* Header */
+.ref-modal-content .modelheader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 10px 15px;
+    color: #000;
+}
+
+.ref-modal-content .back-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+/* Profile Section */
+.ref-modal-content .profile-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    // background: white;
+    // padding: 10px;
+    // margin-bottom: 20px;
+    // border-radius: 10px;
+    // box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.ref-modal-content .profile-img {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.dropdownMain {
+    position: relative;
+    width: 100%;
+
+    .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        width: 100%;
+        display: flex;
+        background-color: #e7e7e7;
+        flex-direction: column;
+        row-gap: 5px;
+        text-align: left;
+        padding: 15px;
+        border-radius: 5px;
+    }
+
+}
+
+
+
+.ref-modal-content .profile-name {
+    // font-weight: bold;
+    color: #003366;
+    font-family: "Forum", serif;
+    margin-bottom: 0px;
+}
+
+/* Form Container */
+.ref-modal-content .form-container {
+    // background: white;
+    // padding: 15px;
+    border-radius: 10px;
+    // box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Dropdown and Description */
+.ref-modal-content .dropdown-btn,
+.ref-modal-content .description-input {
+    width: 100%;
+    padding: 10px;
+    // margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    text-align: left;
+}
+
+.ref-modal-content .dropdown-menu {
+    color: #555;
+}
+
+.ref-modal-content .description-input {
+    resize: vertical;
+}
+
+/* Selection Container */
+.ref-modal-content .selection-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    // margin: 20px 0;
+}
+
+.ref-modal-content .selection-icon img {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 10px;
+}
+
+/* Border Buttons */
+.ref-modal-content .buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    row-gap: 15px;
+    width: 100%;
+
+    // max-width: 300px;
+    button {
+        width: 100%;
+    }
+}
+
+.ref-modal-content .border-btn {
+
+    padding: 10px 15px;
+    border-radius: 24px;
+    border: 1px solid #003366;
+    background-color: #fff;
+    color: #003366;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    transition: background-color 0.3s, color 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+}
+
+.ref-modal-content .border-btn.active,
+.ref-modal-content .border-btn:hover {
+    background-color: #003366;
+    color: #fff;
+
+}
+
+/* Submit Button */
+.ref-modal-content .submit-btn {
+    width: 100%;
+    padding: 5px 12px;
+    background: $mcolor;
+    color: white;
+    // font-weight: bold;
+    border: none;
+    border-radius: 5px;
+    font-size: 18px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: $mukta ;
+    // margin-top: 10px;
+}
+
+/* Dropdown arrow */
+.ref-modal-content .dropdown-btn:after {
+    content: "▼";
+    float: right;
+}
+
+.loader {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    // padding-left: 400px;
+    height: 100vh;
+    background: url('/space.jpeg') no-repeat center center fixed;
+    padding-top: 200px;
+}
+
+.loader2 {
+    width: 48px;
+    height: 48px;
+    border: 5px solid #f0f4fd;
+    border-bottom-color: #fe6f06;
+    border-radius: 50%;
+    align-items: center;
+    display: inline-block;
+
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+}
+
+.file-input-hidden {
+    display: none;
+}
+
+.upload-label {
+    cursor: pointer;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    display: inline-block;
+}
+
+.businessLogo {
+    display: flex;
+    justify-content: center;
+    // margin-bottom: 10px;
+}
+
+.logoImg {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    border-radius: 50%;
+    border: 1px solid #ddd;
+}
+
+.refer-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    background-color: #003366;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.refer-btn:hover {
+    background-color: #0055aa;
+}
+
+.cosmoCard {
+    background: #fff;
+    border-radius: 10px;
+    padding: 15px;
+    // margin-bottom: 15px;
+    box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.cosmoCard-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .cardLogo {
+        width: 60px;
+        height: 60px;
+        background-color: $blueclr;
+        border-radius: 50%;
+        font-size: 30px;
+        justify-content: center;
+        display: flex;
+        align-items: center;
+        color: $pclr;
+        overflow: hidden;
+        background: url('/space.jpeg') no-repeat;
+        border: 1px solid $bordercolor;
+
+        img {
+            object-fit: cover;
+            width: 100%;
+        }
+    }
+}
+
+.businessDetailsPage {
+    padding-bottom: 140px;
+}
+
+.cosmoCard-logo {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.cosmoCard-info {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    row-gap: 5px;
+}
+
+.cosmoCard-category {
+    font-size: 12px;
+    font-weight: 400;
+    color: #b88a44;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+}
+
+.cosmoCard-owner {
+    margin: 2px 0;
+    font-size: 14px;
+    line-height: 20px;
+    text-transform: capitalize;
+    // font-weight: bold;
+    color: #003366;
+}
+
+.cosmoCard-location {
+    font-size: 13px;
+    display: flex;
+    color: #555;
+    column-gap: 10px;
+    vertical-align: top;
+    align-items: flex-start;
+
+    >div {
+        margin-top: 4px;
+    }
+
+    p {
+        color: #555;
+        line-height: 16px;
+    }
+}
+
+.cosmoCard-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.cosmoCard-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #333;
+}
+
+.cosmoCard-referBtn {
+    background: #003366;
+    color: white;
+    font-weight: bold;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.cosmoCard-referBtn:hover {
+    background: #0055aa;
+}
+
+/* From Uiverse.io by joe-watson-sbf */
+.search {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+    // background-color: #fff;
+    padding: 0 15px;
+    position: relative;
+}
+
+.search__input {
+    font-family: inherit;
+    font-size: inherit;
+    // background-color: #FFF;
+    border: none;
+    color: #646464;
+    padding: 0.7rem 1rem;
+    border-radius: 30px;
+    width: 100%;
+    transition: all ease-in-out .5s;
+    // margin-right: -2rem;
+}
+
+.search__input:hover,
+.search__input:focus {
+    box-shadow: 0 0 1em #00000013;
+}
+
+.search__input:focus {
+    outline: none;
+    background-color: #f0eeee;
+}
+
+.search__input::-webkit-input-placeholder {
+    font-weight: 100;
+    color: #ccc;
+}
+
+.search__input:focus+.search__button {
+    background-color: #f0eeee;
+}
+
+.search__button {
+    border: none;
+    // background-color: #f4f2f2;
+    margin-top: .1em;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 30px;
+}
+
+.search__button:hover {
+    cursor: pointer;
+}
+
+.search__icon {
+    height: 1.3em;
+    width: 1.3em;
+    fill: #b4b4b4;
+}
+
+.modelContent {
+    height: calc(100% - 100px);
+    overflow-y: scroll;
+    padding: 15px;
+    background-color: #f2f2f2;
+    display: flex;
+    flex-direction: column;
+    row-gap: 10px;
+
+    .ref-section {
+        padding: 15px;
+        background-color: $pclr;
+        border-radius: 7px;
+        display: flex;
+        flex-direction: column;
+        row-gap: 10px;
+        width: 100%;
+        margin-bottom: 0px;
+
+        h4 {
+            color: $bluecolor;
+            text-align: left;
+            font-family: $forum;
+            font-size: 20px;
+        }
+
+    }
+
+}
+
+.profile-header.businessProfile {
+    position: relative;
+
+    .profile-round-image {
+        position: absolute;
+        transform: translateY(-50%);
+        background-color: #FFF;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        // color: $blueclr;
+        background: url('/space.jpeg') no-repeat;
+        border: 1px solid $bordercolor;
+        color: $pclr;
+        width: 100px;
+        height: 100px;
+        overflow: hidden;
+
+        img {
+            width: 100%;
+        }
+    }
+}
+
+.businessDetail {
+    padding: 0px;
+    row-gap: 0px;
+    padding-top: 50px !important;
+    padding-bottom: 30px !important;
+    position: relative;
+    top: 0px;
+
+    .businessCode {
+        position: absolute;
+        padding: 10px 15px;
+        width: 100%;
+        top: 0px;
+        left: 0px;
+        display: flex;
+        justify-content: space-between;
+        font-style: italic;
+
+        p {
+            color: $bodytextcolor;
+            font-size: 12px;
+        }
+    }
+
+    .custom-tabs {
+        display: flex;
+        justify-content: center;
+        border-bottom: 1px solid $bordercolor;
+        // border-top: 1px solid $bordercolor;
+        margin: 20px 0;
+        gap: 30px;
+    }
+
+    .eventinnerContent {
+        width: 100%;
+        background-color: #f2f2f2;
+        padding: 15px;
+        border-bottom-left-radius: 10px;
+        border-bottom-right-radius: 10px;
+    }
+
+    .tabs {
+        display: flex;
+        flex-direction: column;
+        margin-left: 0px;
+        margin-right: 0px;
+        overflow-x: auto;
+        white-space: wrap;
+        scrollbar-width: thin;
+        text-align: justify;
+        row-gap: 10px;
+        -webkit-overflow-scrolling: touch;
+        padding: 5px;
+        color: $bodytextcolor;
+
+        p {
+            color: $bodytextcolor;
+            line-height: 18px;
+        }
+    }
+
+    h4 {
+        font-family: $forum;
+        font-size: 20px;
+        color: $blueclr;
+    }
+
+    .productImage {
+
+        font-size: 60px;
+        border-radius: 10px;
+        overflow: hidden;
+        list-style: 0px;
+
+        img {
+            width: 100%;
+        }
+
+        // padding: 50px;
+        .nothumbnail {
+            background-color: $bordercolor;
+            justify-content: center;
+            display: flex;
+            border-radius: 10px;
+            padding: 50px 0px;
+            font-size: 60px;
+            color: $bodytextcolor;
+        }
+    }
+
+    .profile-info-card {
+        margin: 0px;
+        margin-bottom: 15px;
+        padding: 0 15px;
+
+        h2 {
+            font-family: $forum;
+            font-size: 24px;
+            color: $blueclr;
+            margin-bottom: 0px;
+        }
+
+        .profile-business-owner {
+            margin: 0px;
+        }
+
+        p {
+            color: $blueclr;
+            font-size: 14px;
+        }
+
+        .categoryList {
+            display: flex;
+            column-gap: 10px;
+            align-items: center;
+            width: 100%;
+            justify-content: center;
+            margin-top: 10px;
+
+            li {
+                padding: 6px 15px;
+                background: #f2f2f2;
+                font-size: 10px;
+                text-transform: uppercase;
+                border-radius: 20px;
+                color: $bodytextcolor;
+            }
+        }
+    }
+
+    .slick-dots {
+        // background-color: #FFF;
+        background-color: #FFF;
+        width: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 20px;
+        bottom: -30px;
+        padding: 0 15px;
+
+        li {
+            width: 10px;
+            height: 10px;
+            margin: 0 5px;
+            padding: 0;
+            cursor: pointer;
+            background: #CCC;
+            border-radius: 50%;
+
+            &.slick-active {
+                background-color: $blueclr;
+            }
+
+            button {
+                width: 10px;
+                height: 10px;
+                margin-top: 4px;
+                padding: 0px;
+
+                &::before {
+                    width: 15px;
+                    height: 15px;
+                    display: none;
+                }
+            }
+        }
+    }
+
+    .slick-slide {
+        padding: 0px;
+
+        p {
+            color: $bodytextcolor;
+            line-height: 20px;
+        }
+    }
+
+    .custom-tabs {
+        margin: 0px 0;
+    }
+}
+
+.referralBox {
+    background: #fff;
+    border-radius: 10px;
+    padding: 15px;
+    // margin-bottom: 15px;
+    box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    row-gap: 15px;
+    width: 100%;
+    .boxHeader{
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        color: $bodytextcolor;
+    }
+}
