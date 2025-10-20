@@ -51,7 +51,9 @@ useEffect(() => {
           phoneNumber: data["MobileNo"] || '',  // match your Firestore field
           name: data["Name"] || '',             // match your Firestore field
           role: data["Category"] || '',
-          idNumber: data["IDNumber"] || '',     // optional
+          idNumber: data["IDNumber"] || '', 
+     ujbCode: data["UJBCode"] || '',
+
           status: data["ProfileStatus"] || '',
           mentorName: data["Mentor Name"] || '',
           mentorPhone: data["Mentor Phone"] || '',
@@ -104,7 +106,7 @@ useEffect(() => {
     "DOB": formattedDOB,
     "Email": newUser.email,
     "Gender": newUser.gender,
-    "UJB Code": newUser.ujbCode,
+    "UJBCode": newUser.ujbCode,
     "Mentor Name": mentorName,
     "Mentor Phone": mentorPhone,
     "Mentor UJB Code": mentorUjbCode,
@@ -189,6 +191,8 @@ useEffect(() => {
           name: data["Name"] || '',
           role: data["Category"] || '',
           idNumber: data["IDNumber"] || '',
+       ujbCode: data["UJBCode"] || '',
+
           status: data["ProfileStatus"] || '',
           mentorName: data["Mentor Name"] || '',
           mentorPhone: data["Mentor Phone"] || '',
@@ -267,6 +271,8 @@ useEffect(() => {
           role: data["Category"] || '',
           idNumber: data["IDNumber"] || '',
           status: data["ProfileStatus"] || '',
+          ujbCode: data["UJBCode"] || '',
+
           mentorName: data["Mentor Name"] || '',
           mentorPhone: data["Mentor Phone"] || '',
           mentorUjbCode: data["Mentor UJB Code"] || '',
@@ -599,7 +605,7 @@ useEffect(() => {
               </button>
               <button
                 className="m-button-7"
-                onClick={() => window.location.href = `/admin/profile?user=${user.phoneNumber}`}
+                onClick={() => window.location.href = `/admin/profile?user=${user.ujbCode}`}
                 style={{ backgroundColor: "#f16f06", color: "white" }}
               >
                 Edit

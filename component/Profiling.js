@@ -18,7 +18,7 @@ import { useSearchParams } from 'next/navigation';
 
 const UserProfileForm = () => {
   const searchParams = useSearchParams();
-const userPhone = searchParams.get('user');
+const ujbcode = searchParams.get('user');
 const [activeTab, setActiveTab] = useState('Personal Info');
 const [profilePreview, setProfilePreview] = useState('');
 const [businessLogoPreview, setBusinessLogoPreview] = useState('');
@@ -58,9 +58,9 @@ const removeSocialMediaField = (index) => {
 useEffect(() => {
   const fetchUserByPhone = async () => {
     try {
-      if (!userPhone) return;
+      if (!ujbcode) return;
 
-      const q = query(collection(db, 'userdetail'), where('Mobile no', '==', userPhone));
+      const q = query(collection(db, 'usersdetail'), where('UJBCode', '==', ujbcode));
       const snapshot = await getDocs(q);
 
       if (!snapshot.empty) {
@@ -70,8 +70,8 @@ useEffect(() => {
         setFormData(userData);
         setDocId(userDoc.id);
 
-        if (userData['Profile Photo URL']) setProfilePreview(userData['Profile Photo URL']);
-        if (userData['Business Logo']) setBusinessLogoPreview(userData['Business Logo']);
+        if (userData['Profile Photo URL']) setProfilePreview(userData['ProfilePhotoURL']);
+        if (userData['Business Logo']) setBusinessLogoPreview(userData['BusinessLogo']);
 
         // Load services
         if (userData.services?.length > 0) {
@@ -99,16 +99,16 @@ useEffect(() => {
           );
         }
 
-        // Load Business Social Media Pages
-        if (userData['Business Social Media Pages']?.length > 0) {
-          setSocialMediaLinks(
-            userData['Business Social Media Pages'].map((s) => ({
-              platform: socialPlatforms.includes(s.platform) ? s.platform : 'Other',
-              url: s.url,
-              customPlatform: !socialPlatforms.includes(s.platform) ? s.platform : '',
-            }))
-          );
-        }
+   // Load Business Social Media Pages
+if (userData['BusinessSocialMediaPages']?.length > 0) {
+  setSocialMediaLinks(
+    userData['BusinessSocialMediaPages'].map((s) => ({
+      platform: socialPlatforms.includes(s.platform) ? s.platform : 'Other',
+      url: s.url,
+      customPlatform: !socialPlatforms.includes(s.platform) ? s.platform : '',
+    }))
+  );
+}
       }
     } catch (err) {
       console.error('Error fetching user:', err);
@@ -116,7 +116,7 @@ useEffect(() => {
   };
 
   fetchUserByPhone();
-}, [userPhone]);
+}, [ujbcode]);
 
 
   const [allUsers, setAllUsers] = useState([]);
@@ -137,7 +137,7 @@ const handleChange = (e) => {
   if (name === 'Upload Photo') {
     setProfilePic(files[0]);
     setProfilePreview(URL.createObjectURL(files[0])); // preview
-  } else if (name === 'Business Logo') {
+  } else if (name === 'BusinessLogo') {
     setBusinessLogo(files[0]);
     setBusinessLogoPreview(URL.createObjectURL(files[0])); // preview
   } else {
@@ -152,12 +152,12 @@ const handleChange = (e) => {
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, 'userdetail'));
+      const snapshot = await getDocs(collection(db, 'usersdetail'));
       const users = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
         users.push({
-          name: (data[' Name'] || '').trim(),
+          name: (data['Name'] || '').trim(),
           id: docSnap.id,
           data,
         });
@@ -170,8 +170,8 @@ const handleChange = (e) => {
 
  
 useEffect(() => {
-  if (formData['Profile Photo URL']) setProfilePreview(formData['Profile Photo URL']);
-  if (formData['Business Logo']) setBusinessLogoPreview(formData['Business Logo']);
+  if (formData['ProfilePhotoURL']) setProfilePreview(formData['ProfilePhotoURL']);
+  if (formData['BusinessLogo']) setBusinessLogoPreview(formData['BusinessLogo']);
   
   if (formData.services) {
     setServicePreviews(formData.services.map(s => s.imageURL || ''));
@@ -310,12 +310,12 @@ const handleSubmit = async () => {
     // Now declare updatedData
     const updatedData = {
       ...formData,
-      ...(profileURL && { 'Profile Photo URL': profileURL }),
-      ...(businessLogoURL && { 'Business Logo': businessLogoURL }),
+      ...(profileURL && { 'ProfilePhotoURL': profileURL }),
+      ...(businessLogoURL && { 'BusinessLogo': businessLogoURL }),
       ...(serviceData.length > 0 && { services: serviceData }),
       ...(productData.length > 0 && { products: productData }),
       ...(socialMediaLinks.length > 0 && { 
-        'Business Social Media Pages': socialMediaLinks
+        'BusinessSocialMediaPages': socialMediaLinks
           .filter((s) => s.url)
           .map((s) => ({
             platform: s.platform === 'Other' ? s.customPlatform || 'Other' : s.platform,
@@ -324,7 +324,7 @@ const handleSubmit = async () => {
       }),
     };
 
-    const userRef = doc(db, 'userdetail', docId);
+    const userRef = doc(db, 'usersdetail', docId);
     await updateDoc(userRef, updatedData);
 
     alert('Profile updated successfully!');
@@ -338,13 +338,13 @@ const handleSubmit = async () => {
 
 const dropdowns = {
   Gender: ['Male', 'Female', 'Transgender', 'Prefer not to say'],
-  'ID Type': ['Aadhaar', 'PAN', 'Passport', 'Driving License'],
-  'Interest Area': ['Business', 'Education', 'Wellness', 'Technology', 'Art', 'Environment', 'Other'],
+  'IDType': ['Aadhaar', 'PAN', 'Passport', 'Driving License'],
+  'InterestArea': ['Business', 'Education', 'Wellness', 'Technology', 'Art', 'Environment', 'Other'],
   'Current Health Condition': ['Excellent', 'Good', 'Average', 'Needs Attention'],
-  'Marital Status': ['Single', 'Married', 'Widowed', 'Divorced'],
-  'Educational Background': ['SSC', 'HSC', 'Graduate', 'Post-Graduate', 'PhD', 'Other'],
-  'Profile Status': ['Pending', 'In process', 'Submitted', 'Verified', 'Inactive'],
-  'Business Details (Nature & Type)': ['Product', 'Service', 'Both; Proprietorship', 'LLP', 'Pvt Ltd'],
+  'MaritalStatus': ['Single', 'Married', 'Widowed', 'Divorced'],
+  'EducationalBackground': ['SSC', 'HSC', 'Graduate', 'Post-Graduate', 'PhD', 'Other'],
+  'ProfileStatus': ['Pending', 'In process', 'Submitted', 'Verified', 'Inactive'],
+  'BusinessDetails (Nature & Type)': ['Product', 'Service', 'Both; Proprietorship', 'LLP', 'Pvt Ltd'],
 
   // ✅ New dropdowns
   'City': ['Mumbai', 'Pune', 'Delhi', 'Bengaluru', 'Hyderabad', 'Chennai', 'Kolkata', 'Ahmedabad', 'Other'],
@@ -356,55 +356,55 @@ const dropdowns = {
   const contributionOptions = ['Referrals', 'Volunteering', 'RHW Activities', 'Content Creation', 'Mentorship'];
 
 const orbiterFields = [
-  'ID Type', 'ID Number', 'Upload Photo',
+  'IDType', 'ID Number', 'Upload Photo',
   'City', 'State', 'Location', // ✅ Added here
   'Hobbies', 'Interest Area', 'Skills', 'Exclusive Knowledge',
   'Aspirations', 'Health Parameters', 'Current Health Condition',
-  'Family History Summary', 'Marital Status', 'Professional History',
-  'Current Profession', 'Educational Background', 'Languages Known',
-  'Contribution Area in UJustBe', 'Immediate Desire', 'Mastery',
-  'Special Social Contribution', 'Profile Status',  'Business Social Media Pages',  // 👈 add this line
+  'FamilyHistorySummary', 'Marital Status', 'Professional History',
+  'CurrentProfession', 'Educational Background', 'Languages Known',
+  'ContributionAreainUJustBe', 'Immediate Desire', 'Mastery',
+  'SpecialSocialContribution', 'ProfileStatus',  'BusinessSocialMediaPages',  // 👈 add this line
 
 ];
 
 const cosmorbiterFields = [
   ...orbiterFields,
-  'Business Name', 'Business Details (Nature & Type)', 'Business History',
-  'Noteworthy Achievements', 'Clientele Base', 
-  'Website', 'Locality', 'Area of Services', 'USP', 'Business Logo',
-  'Tag Line',  
-  'Established At'
+  'BusinessName', 'BusinessDetails(Nature & Type)', 'BusinessHistory',
+  'NoteworthyAchievements', 'ClienteleBase', 
+  'Website', 'Locality', 'AreaofServices', 'USP', 'BusinessLogo',
+  'TagLine',  
+  'EstablishedAt'
 ];
 
 const fieldGroups = {
   'Personal Info': [
-    'ID Type', 'ID Number', 'Upload Photo',
+    'IDType', 'IDNumber', 'UploadPhoto',
     'City', 'State', 'Location', 
-    'Address (City, State)', 'Marital Status', 'Languages Known'
+    'Address(City, State)', 'MaritalStatus', 'LanguagesKnown'
   ],
-  'Health': ['Health Parameters', 'Current Health Condition', 'Family History Summary'],
-  'Education': ['Educational Background', 'Professional History', 'Current Profession'],
-  'Business Info': [
-  'Business Name',
-  'Business Details (Nature & Type)',
-  'Business History',
-  'Noteworthy Achievements',
-  'Clientele Base',
+  'Health': ['HealthParameters', 'CurrentHealthCondition', 'FamilyHistorySummary'],
+  'Education': ['EducationalBackground', 'ProfessionalHistory', 'CurrentProfession'],
+  'BusinessInfo': [
+  'BusinessName',
+  'BusinessDetails (Nature & Type)',
+  'BusinessHistory',
+  'NoteworthyAchievements',
+  'ClienteleBase',
   'Website',
   'Locality',
-  'Area of Services',
+  'AreaofServices',
   'USP',
-  'Business Logo',
-  'Tag Line',
+  'BusinessLogo',
+  'TagLine',
 
   'Tags',
-  'Established At'
+  'EstablishedAt'
 ],
 
   'Additional Info': [
-    'Hobbies', 'Interest Area', 'Skills', 'Exclusive Knowledge', 'Aspirations',
-    'Contribution Area in UJustBe', 'Immediate Desire', 'Mastery',
-    'Special Social Contribution', 'Profile Status' , 'Business Social Media Pages',
+    'Hobbies', 'InterestArea', 'Skills', 'ExclusiveKnowledge', 'Aspirations',
+    'ContributionAreainUJustBe', 'ImmediateDesire', 'Mastery',
+    'SpecialSocialContribution', 'ProfileStatus' , 'BusinessSocialMediaPages',
   ],
 };
 
@@ -433,7 +433,7 @@ const fieldGroups = {
         </div>
       );
     }
-if (field === 'Business Social Media Pages') {
+if (field === 'BusinessSocialMediaPages') {
   return (
     <div>
       <h4>Business Social Media Pages</h4>
@@ -494,7 +494,7 @@ if (field === 'Business Social Media Pages') {
   );
 }
 
-    if (field === 'Contribution Area in UJustBe') {
+    if (field === 'ContributionAreainUJustBe') {
       return (
         <div className="multi-select">
           {contributionOptions.map((item) => (
@@ -525,7 +525,7 @@ if (field === 'Business Social Media Pages') {
   if (field.toLowerCase().includes('upload') || field.toLowerCase().includes('logo')) {
   const preview =
     field === 'Upload Photo' ? profilePreview :
-    field === 'Business Logo' ? businessLogoPreview : '';
+    field === 'BusinessLogo' ? businessLogoPreview : '';
   
   return (
     <div>
@@ -617,7 +617,7 @@ if (field === 'Business Social Media Pages') {
             <li className="form-row">
               <h4>Mobile</h4>
               <div className="multipleitem">
-                <input type="text" value={formData['Mobile no'] || formData.Mobile || ''} readOnly />
+                <input type="text" value={formData['MobileNo'] || formData.Mobile || ''} readOnly />
               </div>
             </li>
 

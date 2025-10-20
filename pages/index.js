@@ -23,7 +23,7 @@ const HomePage = () => {
   const [upcomingMonthlyMeet, setUpcomingMonthlyMeet] = useState(null);
   const [upcomingNTMeet, setUpcomingNTMeet] = useState(null);
 
-  // ✅ Fetch user info from localStorage
+  // ✅ Fetch user info from localStorage thi for deployment
   useEffect(() => {
     const storedPhone = localStorage.getItem('mmOrbiter');
     if (storedPhone) {
