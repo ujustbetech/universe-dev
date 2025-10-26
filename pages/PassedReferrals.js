@@ -7,6 +7,7 @@ import Headertop from "../component/Header";
 import HeaderNav from "../component/HeaderNav";
 import Link from 'next/link';
 import "../src/app/styles/user.scss";
+import { COLLECTIONS } from "/utility_collection";
 
 const db = getFirestore(app);
 
@@ -25,7 +26,7 @@ const OrbiterReferralView = () => {
                 }
 
                 // ✅ Fetch referrals for logged-in orbiter
-                const q = query(collection(db, "Referral"), where("orbiter.phone", "==", orbiterPhone));
+                const q = query(collection(db, COLLECTIONS.referral), where("orbiter.phone", "==", orbiterPhone));
                 const snapshot = await getDocs(q);
 
                 const data = snapshot.docs.map((doc) => ({

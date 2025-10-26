@@ -6,6 +6,7 @@ import HeaderNav from "../component/HeaderNav";
 import Headertop from "../component/Header";  // 👈 now self-contained
 import "../src/app/styles/user.scss";
 import { FaMapMarkerAlt } from "react-icons/fa";
+import { COLLECTIONS } from "/utility_collection";
 import { IoPlanetOutline } from "react-icons/io5";
 
 const db = getFirestore(app);
@@ -32,7 +33,7 @@ const AllEvents = () => {
   useEffect(() => {
     const fetchCosmOrbiters = async () => {
       try {
-        const snapshot = await getDocs(collection(db, "userdetail"));
+        const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
         const list = [];
 
         snapshot.forEach((doc) => {
@@ -44,17 +45,17 @@ const AllEvents = () => {
           ) {
             list.push({
               id: doc.id,
-              name: data[" Name"] || "Unknown",
-              businessName: data["Business Name"] || "N/A",
-              businessHistory: data["Business History"] || "N/A",
-              tagline: data["Tag Line"] || "",
+              name: data["Name"] || "Unknown",
+              businessName: data["BusinessName"] || "N/A",
+              businessHistory: data["BusinessHistory"] || "N/A",
+              tagline: data["TagLine"] || "",
               city: data.City || "",
               locality: data.Locality || "",
               state: data.State || "",
-              logo: data["Business Logo"] || "",
+              logo: data["BusinessLogo"] || "",
               category: data.Category || "",
-              category1: data["Category 1"] || "",
-              category2: data["Category 2"] || "",
+              category1: data["Category1"] || "",
+              category2: data["Category2"] || "",
             });
           }
         });

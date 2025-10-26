@@ -11,6 +11,7 @@ import '/pages/events/frontend.css';
 import { app } from '../../firebaseConfig';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFilePdf } from '@fortawesome/free-solid-svg-icons';
+import { COLLECTIONS } from "/utility_collection";
 
 const db = getFirestore(app);
 
@@ -56,13 +57,13 @@ export default function EventDetailsPage() {
 
     const fetchEventData = async () => {
       try {
-        const eventDocRef = doc(db, 'MonthlyMeeting', eventId);
+        const eventDocRef = doc(db, COLLECTIONS.monthlyMeeting, eventId);
         const eventSnap = await getDoc(eventDocRef);
         if (eventSnap.exists()) {
           setEventInfo(eventSnap.data());
         }
 
-        const registeredUsersRef = collection(db, `MonthlyMeeting/${eventId}/registeredUsers`);
+        const registeredUsersRef = collection(db, `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`);
         const regUsersSnap = await getDocs(registeredUsersRef);
 
         const userDetails = await Promise.all(

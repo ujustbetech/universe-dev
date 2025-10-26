@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import "../../src/app/styles/main.scss";
 import Layout from "../../component/Layout";
 import ReferralExportButton from "./ExportReferral";
-
+import { COLLECTIONS } from "/utility_collection";
 
 const ManageReferrals = () => {
   const [referrals, setReferrals] = useState([]);
@@ -19,7 +19,7 @@ const handleEdit = (referralId) => {
   useEffect(() => {
     const fetchReferrals = async () => {
       try {
-        const referralSnap = await getDocs(collection(db, "Referral"));
+        const referralSnap = await getDocs(collection(db,COLLECTIONS.referral));
         const data = referralSnap.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
@@ -40,7 +40,7 @@ const handleEdit = (referralId) => {
     if (!confirmed) return;
 
     try {
-      await deleteDoc(doc(db, "Referral", docId));
+      await deleteDoc(doc(db, COLLECTIONS.referral, docId));
       alert("Referral deleted successfully.");
       setReferrals((prev) => prev.filter((ref) => ref.id !== docId));
     } catch (error) {

@@ -13,15 +13,15 @@ const Headertop = () => {
 
   useEffect(() => {
     if (!user) return;
-    fetchCPPoints(user.phoneNumber);
+    // fetchCPPoints(user.phoneNumber);
   }, [user]);
 
-  const fetchCPPoints = async (phone) => {
-    const snap = await getDocs(collection(db, 'Orbiters', phone, 'activities'));
-    let total = 0;
-    snap.forEach(doc => total += Number(doc.data()?.points) || 0);
-    setCPPoints(total);
-  };
+  // const fetchCPPoints = async (phone) => {
+  //   const snap = await getDocs(collection(db, 'Orbiters', phone, 'activities'));
+  //   let total = 0;
+  //   snap.forEach(doc => total += Number(doc.data()?.points) || 0);
+  //   setCPPoints(total);
+  // };
 
   const getInitials = (name) =>
     name ? name.split(" ").map((w) => w[0]).join("") : "";
@@ -47,9 +47,9 @@ const Headertop = () => {
           <div className="beta">BETA</div>
         </div>
         <div className="headerRight">
-          <button onClick={() => router.push(`/cp-details/${user.phoneNumber}`)} className="reward-btn">
+          {/* <button onClick={() => router.push(`/cp-details/${user.phoneNumber}`)} className="reward-btn">
             <BiSolidCoinStack size={18} /> CP: {cpPoints}
-          </button>
+          </button> */}
           <div className="userName" onClick={handleLogout}>
             <span>{getInitials(user.name)}</span>
           </div>

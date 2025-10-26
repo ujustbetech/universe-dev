@@ -4,6 +4,7 @@ import { collection, getDocs,setDoc, deleteDoc, doc } from 'firebase/firestore';
 import "../src/app/styles/main.scss";
 import { FaSearch } from "react-icons/fa";
 import Swal from 'sweetalert2';
+import { COLLECTIONS } from "/utility_collection";
 import ExportButton from '../pages/admin/Export';
 
 const UserList = () => {
@@ -41,7 +42,7 @@ const UserList = () => {
 useEffect(() => {
   const fetchUsers = async () => {
     try {
-      const userCollection = collection(db, 'usersdetail'); // Correct collection
+      const userCollection = collection(db, COLLECTIONS.userDetail); // Correct collection
       const userSnapshot = await getDocs(userCollection);
 
       const userList = userSnapshot.docs.map(doc => {
@@ -114,12 +115,12 @@ useEffect(() => {
 
   try {
     // ✅ Use UJB Code as document ID
-    await setDoc(doc(db, 'usersdetail', newUser.ujbCode), userDoc);
+    await setDoc(doc(db,COLLECTIONS.userDetail, newUser.ujbCode), userDoc);
 
     // ✅ Update mentor's connects if assigned
     if (mentorUjbCode) {
-      const mentorRef = doc(db, 'usersdetail', mentorUjbCode);
-      const mentorSnapshot = await getDocs(collection(db, 'usersdetail'));
+      const mentorRef = doc(db, COLLECTIONS.userDetail, mentorUjbCode);
+      const mentorSnapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
       const mentorData = mentorSnapshot.docs.find(d => d.id === mentorUjbCode)?.data();
       const existingConnects = mentorData?.connects || [];
 
@@ -180,7 +181,7 @@ useEffect(() => {
 useEffect(() => {
   const fetchUsers = async () => {
     try {
-      const userCollection = collection(db, 'usersdetail');
+      const userCollection = collection(db, COLLECTIONS.userDetail);
       const userSnapshot = await getDocs(userCollection);
 
       const userList = userSnapshot.docs.map(doc => {
@@ -239,7 +240,7 @@ const deleteUser = async () => {
   if (userToDelete) {
     try {
       // ✅ Use usersdetail collection and UJB Code as doc ID
-      await deleteDoc(doc(db, 'usersdetail', userToDelete.id));
+      await deleteDoc(doc(db, COLLECTIONS.userDetail, userToDelete.id));
       setUsers(users.filter(user => user.id !== userToDelete.id));
       closeDeleteModal();
       Swal.fire({
@@ -259,7 +260,7 @@ const deleteUser = async () => {
 useEffect(() => {
   const fetchUsers = async () => {
     try {
-      const userCollection = collection(db, 'usersdetail');
+      const userCollection = collection(db, COLLECTIONS.userDetail);
       const userSnapshot = await getDocs(userCollection);
 
       const userList = userSnapshot.docs.map(doc => {

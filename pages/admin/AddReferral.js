@@ -12,6 +12,7 @@ import {
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
 import "../../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 
 const Profiling = () => {
   const [users, setUsers] = useState([]);
@@ -38,7 +39,7 @@ const [otherReferralSource, setOtherReferralSource] = useState("");
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, "userdetail"));
+      const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setUsers(data);
     };
@@ -58,7 +59,7 @@ const [otherReferralSource, setOtherReferralSource] = useState("");
     setServices([]);
     setProducts([]);
 
-    const docRef = doc(db, "userdetail", user.id);
+    const docRef = doc(db, COLLECTIONS.userDetail, user.id);
     const userDoc = await getDoc(docRef);
     if (userDoc.exists()) {
       const userData = userDoc.data();
@@ -73,7 +74,7 @@ const [otherReferralSource, setOtherReferralSource] = useState("");
     const year2 = (now.getFullYear() + 1) % 100;
     const refPrefix = `Ref/${year1}-${year2}/`;
 
-    const q = query(collection(db, "Referral"), orderBy("referralId", "desc"), limit(1));
+    const q = query(collection(db, COLLECTIONS.referral), orderBy("referralId", "desc"), limit(1));
     const snapshot = await getDocs(q);
     let lastNum = 2999;
     if (!snapshot.empty) {
@@ -155,7 +156,7 @@ const [otherReferralSource, setOtherReferralSource] = useState("");
       timestamp: new Date(),
     };
 
-    await addDoc(collection(db, "Referral"), data);
+    await addDoc(collection(db, COLLECTIONS.referral), data);
     alert("Referral submitted successfully!");
 
     // ✅ Send WhatsApp messages

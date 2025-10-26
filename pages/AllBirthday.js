@@ -3,6 +3,7 @@ import { db } from "../firebaseConfig";
 import { collection, getDocs, getDoc, doc } from "firebase/firestore";
 import Layout from "../component/Layout";
 import "../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 
 const BirthdayPage = () => {
   const [allUsers, setAllUsers] = useState([]);
@@ -11,7 +12,7 @@ const BirthdayPage = () => {
   const [selectedMonth, setSelectedMonth] = useState("");
 
   const fetchAllBirthdayUsers = async () => {
-    const querySnapshot = await getDocs(collection(db, "userdetail"));
+    const querySnapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
     const users = [];
 
     for (const docSnap of querySnapshot.docs) {
@@ -28,7 +29,7 @@ const BirthdayPage = () => {
       let imageUrl = "";
 
       try {
-        const birthdayDocRef = doc(db, "birthdaycanva", phone);
+        const birthdayDocRef = doc(db, COLLECTIONS.birthdayCanva, phone);
         const birthdayDocSnap = await getDoc(birthdayDocRef);
         if (birthdayDocSnap.exists()) {
           const birthdayData = birthdayDocSnap.data();

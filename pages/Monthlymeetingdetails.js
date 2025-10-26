@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getFirestore, collection, getDocs,doc,getDoc } from 'firebase/firestore';
 import { app } from '../firebaseConfig'; 
 import '/pages/events/event.css'; 
+import { COLLECTIONS } from "/utility_collection";
 
 import { useRouter } from 'next/router';
 import Link from 'next/link'
@@ -14,7 +15,7 @@ const AllEvents = () => {
   useEffect(() => {
     const fetchAllEvents = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'MonthlyMeeting'));
+        const querySnapshot = await getDocs(collection(db,COLLECTIONS.monthlyMeeting));
         const eventList = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),

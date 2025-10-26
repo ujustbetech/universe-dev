@@ -1,71 +1,85 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { doc, getDoc, collection, setDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(null); // { phoneNumber, name, ujbCode }
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // ✅ On mount, check localStorage
   useEffect(() => {
     const storedPhone = localStorage.getItem("mmOrbiter");
-    if (storedPhone) fetchUser(storedPhone);
-    else setLoading(false);
+    const storedUJBCode = localStorage.getItem("mmUJBCode");
+
+    if (storedPhone && storedUJBCode) {
+      setUser({ phoneNumber: storedPhone, ujbCode: storedUJBCode, name: "User" });
+      setLoading(false);
+    } else {
+      setLoading(false);
+    }
   }, []);
 
+  // ✅ Fetch user by phone using query
   const fetchUser = async (phone) => {
     try {
-      const userRef = doc(db, "userdetails", phone);
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists()) {
-        const name = userDoc.data()[" Name"] || "User";
-        setUser({ phoneNumber: phone, name });
-        logLoginEvent(phone, name);
+      const q = query(collection(db, "userdetail_dev"), where("MobileNo", "==", phone));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const matchedDoc = querySnapshot.docs[0];
+        const data = matchedDoc.data();
+        const name = data["Name"] || data[" Name"] || "User";
+        const ujbCode = matchedDoc.id;
+
+        setUser({ phoneNumber: phone, name, ujbCode });
+        localStorage.setItem("mmOrbiter", phone);
+        localStorage.setItem("mmUJBCode", ujbCode);
+
+        logLoginEvent(phone, name, ujbCode);
+        return { phone, name, ujbCode };
+      } else {
+        throw new Error("User not found");
       }
     } catch (err) {
       console.error("Error fetching user:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const login = async (phone) => {
-    try {
-      const userRef = doc(db, "userdetails", phone);
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists()) {
-        const name = userDoc.data()[" Name"] || "User";
-        localStorage.setItem("mmOrbiter", phone);
-        setUser({ phoneNumber: phone, name });
-        logLoginEvent(phone, name);
-        router.push("/");
-      } else throw new Error("User not found");
-    } catch (err) {
-      console.error("Login failed:", err);
       throw err;
     }
   };
 
+  // ✅ Login function
+  const login = async (phone) => {
+    const userData = await fetchUser(phone);
+    setUser(userData);
+    router.push("/");
+  };
+
+  // ✅ Logout function
   const logout = () => {
     localStorage.removeItem("mmOrbiter");
+    localStorage.removeItem("mmUJBCode");
     setUser(null);
     router.push("/login");
   };
 
-  const logLoginEvent = async (phoneNumber, name) => {
+  // ✅ Log login event
+  const logLoginEvent = async (phoneNumber, name, ujbCode) => {
     try {
       const deviceInfo = navigator.userAgent;
       let ipAddress = "Unknown";
+
       try {
         const res = await fetch("https://api.ipify.org?format=json");
         ipAddress = (await res.json()).ip;
       } catch {}
+
       await setDoc(doc(collection(db, "LoginLogs")), {
         phoneNumber,
         name,
+        ujbCode,
         loginTime: new Date(),
         deviceInfo,
         ipAddress,

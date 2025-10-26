@@ -6,6 +6,7 @@ import Link from 'next/link';
 import '../../src/app/styles/user.scss';
 import HeaderNav from '../../component/HeaderNav';
 import Headertop from '../../component/Header';
+import { COLLECTIONS } from "/utility_collection";
 
 const db = getFirestore(app);
 
@@ -27,7 +28,7 @@ const { id: conclaveId } = router.query; // Use `id` as `conclaveId`
 
   const fetchConclave = async () => {
     try {
-      const conclaveRef = doc(db, 'Conclaves', id);
+      const conclaveRef = doc(db, COLLECTIONS.conclaves, id);
       const conclaveSnap = await getDoc(conclaveRef);
       if (conclaveSnap.exists()) {
         setConclave(conclaveSnap.data());
@@ -38,7 +39,7 @@ const { id: conclaveId } = router.query; // Use `id` as `conclaveId`
   };
   const fetchMeetings = async () => {
     try {
-      const meetingsRef = collection(db, 'Conclaves', id, 'meetings');
+      const meetingsRef = collection(db, COLLECTIONS.conclaves, id, 'meetings');
       const meetingsSnap = await getDocs(meetingsRef);
       const list = meetingsSnap.docs.map(doc => ({
         id: doc.id,

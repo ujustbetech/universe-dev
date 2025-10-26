@@ -5,6 +5,7 @@ import { db } from "../firebaseConfig";
 import axios from "axios";
 import "../pages/events/frontend.css"; // Make sure to import your SCSS file
 import Layout from '../component/Layout'
+import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/main.scss";
 
 const BirthdayPage = () => {
@@ -21,7 +22,7 @@ const BirthdayPage = () => {
 const [sentMessages, setSentMessages] = useState([]);
 
   const fetchBirthdayUsers = async () => {
-    const querySnapshot = await getDocs(collection(db, "birthdaycanva"));
+    const querySnapshot = await getDocs(collection(db, COLLECTIONS.birthdayCanva));
     const birthdayUsers = [];
 
     querySnapshot.forEach((doc) => {
@@ -128,7 +129,7 @@ Happy Birthday!!!🥳🎂🎊🎊🎂🎉`);
 
 
     // 🎉 Fetch mentor details
-    const mentorDocRef = doc(db, "userdetail", originalPhone);
+    const mentorDocRef = doc(db,COLLECTIONS.userDetail, originalPhone);
     const mentorSnap = await getDoc(mentorDocRef);
 
     if (mentorSnap.exists()) {

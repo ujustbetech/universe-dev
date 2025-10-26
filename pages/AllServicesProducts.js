@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast';
 import { FaFilter } from 'react-icons/fa';
 import Headertop from '../component/Header';
 import HeaderNav from '../component/HeaderNav';
+import { COLLECTIONS } from "/utility_collection";
 
 const db = getFirestore();
 
@@ -59,7 +60,7 @@ const AllServicesProducts = ({
         const fetchData = async () => {
             setLoading(true);
             try {
-                const snapshot = await getDocs(collection(db, 'userdetail'));
+                const snapshot = await getDocs(collection(db, "userdetail"));
                 const list = [];
 
                 snapshot.forEach((doc) => {

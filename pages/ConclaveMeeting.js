@@ -7,6 +7,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link'
 import HeaderNav from '../component/HeaderNav';
 import Headertop from '../component/Header';
+import { COLLECTIONS } from "/utility_collection";
 const db = getFirestore(app);
 
 const AllEvents = () => {
@@ -22,7 +23,7 @@ const [leaderNames, setLeaderNames] = useState({});
  
 const fetchAllConclaves = async () => {
   try {
-    const conclaveSnapshot = await getDocs(collection(db, 'Conclaves'));
+    const conclaveSnapshot = await getDocs(collection(db, COLLECTIONS.conclaves));
 
     const conclaveList = conclaveSnapshot.docs.map(docSnap => {
       const data = docSnap.data();

@@ -9,7 +9,7 @@ import styles from '../src/app/styles/Offercard.module.scss';
 import "../src/app/styles/user.scss";
 import { CiImageOff, CiImageOn } from "react-icons/ci";
 import { MdArrowBack } from "react-icons/md";
-
+import { COLLECTIONS } from "/utility_collection";
 const db = getFirestore(app);
 
 const AllServicesProducts = () => {
@@ -36,7 +36,7 @@ const AllServicesProducts = () => {
   useEffect(() => {
   const fetchData = async () => {
     try {
-      const snapshot = await getDocs(collection(db, "userdetail"));
+      const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
       const list = [];
 
       // Allowed categories
@@ -111,7 +111,7 @@ const openReferralModal = async (item) => {
   setSelectedOption(item.name); // Preselect the clicked service/product
 
   // Fetch CosmOrbiter details by their ID
-  const snap = await getDoc(doc(db, "userdetail", item.id));
+  const snap = await getDoc(doc(db, COLLECTIONS.userDetail, item.id));
   if (snap.exists()) {
     const data = snap.data();
     setUserDetails({
@@ -142,7 +142,7 @@ const openReferralModal = async (item) => {
   // Orbiter details from localStorage
   const storedPhone = localStorage.getItem("mmOrbiter");
   if (storedPhone) {
-    const orbSnap = await getDoc(doc(db, "userdetail", storedPhone.trim()));
+    const orbSnap = await getDoc(doc(db, COLLECTIONS.userDetail, storedPhone.trim()));
     if (orbSnap.exists()) {
       const d = orbSnap.data();
       setOrbiterDetails({
@@ -164,7 +164,7 @@ const openReferralModal = async (item) => {
     const year2 = (now.getFullYear() + 1) % 100;
     const refPrefix = `Ref/${year1}-${year2}/`;
 
-    const snapshot = await getDocs(collection(db, "Referral"));
+    const snapshot = await getDocs(collection(db, COLLECTIONS.referral));
     let maxNum = 2999;
     snapshot.forEach(doc => {
       const rId = doc.data().referralId;
@@ -242,7 +242,7 @@ const openReferralModal = async (item) => {
     };
 
     try {
-      await addDoc(collection(db, "Referral"), data);
+      await addDoc(collection(db, COLLECTIONS.referral), data);
       alert("Referral passed successfully!");
 
       setSelectedOption(null);

@@ -54,6 +54,75 @@ const removeSocialMediaField = (index) => {
   setSocialMediaLinks(updated);
 };
 
+function getStoragePath(UJBCode, mobileNumber, category, description, extension) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const timestamp = now.toISOString().replace(/[-:]/g, '').split('.')[0]; // YYYYMMDDTHHMMSS
+
+  const userFolder = `${UJBCode}_${mobileNumber}`;
+  const filename = `${UJBCode}_${timestamp}_${category}_${description}.${extension}`;
+  const path = `UserAssets/${year}/${userFolder}/${filename}`;
+
+  return path;
+}
+const uploadProfilePhoto = async () => {
+  if (!profilePic || !docId || !mobileNumber || !ujbCode) return '';
+
+  const ext = profilePic.name.split('.').pop();
+  const path = getStoragePath(ujbCode, mobileNumber, 'Profile', 'profile_photo', ext);
+
+  const fileRef = ref(storage, path);
+  await uploadBytes(fileRef, profilePic);
+
+  Swal.fire({
+    icon: 'success',
+    title: 'Profile Photo Uploaded!',
+    text: 'Your profile photo has been successfully uploaded.',
+    timer: 2000,
+    showConfirmButton: false
+  });
+
+  return await getDownloadURL(fileRef);
+};
+const uploadFile = async (file, category, description) => {
+  if (!file || !docId || !mobileNumber || !ujbCode) return '';
+
+  const ext = file.name.split('.').pop();
+  const path = getStoragePath(ujbCode, mobileNumber, category, description, ext);
+
+  const fileRef = ref(storage, path);
+  await uploadBytes(fileRef, file);
+
+  Swal.fire({
+    icon: 'success',
+    title: 'File Uploaded!',
+    text: `${description} uploaded successfully.`,
+    timer: 2000,
+    showConfirmButton: false
+  });
+
+  return await getDownloadURL(fileRef);
+};
+const uploadBusinessLogo = async () => {
+  if (!businessLogo || !docId || !mobileNumber || !ujbCode) return '';
+
+  const ext = businessLogo.name.split('.').pop();
+  const path = getStoragePath(ujbCode, mobileNumber, 'BusinessProfile', 'business_logo', ext);
+
+  const fileRef = ref(storage, path);
+  await uploadBytes(fileRef, businessLogo);
+
+  Swal.fire({
+    icon: 'success',
+    title: 'Business Logo Uploaded!',
+    text: 'Your business logo has been successfully uploaded.',
+    timer: 2000,
+    showConfirmButton: false
+  });
+
+  return await getDownloadURL(fileRef);
+};
 
 useEffect(() => {
   const fetchUserByPhone = async () => {
@@ -198,19 +267,7 @@ useEffect(() => {
       }));
     }
   };
-const uploadProfilePhoto = async () => {
-  if (!profilePic || !docId) return '';
-  const fileRef = ref(storage, `profilePhotos/${docId}/${profilePic.name}`);
-  await uploadBytes(fileRef, profilePic);
-  Swal.fire({
-    icon: 'success',
-    title: 'Profile Photo Uploaded!',
-    text: 'Your profile photo has been successfully uploaded.',
-    timer: 2000,
-    showConfirmButton: false
-  });
-  return await getDownloadURL(fileRef);
-};
+
 
 const uploadImage = async (file, path) => {
   const fileRef = ref(storage, path);

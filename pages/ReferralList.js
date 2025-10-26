@@ -17,6 +17,7 @@ import { app } from "../firebaseConfig";
 import Link from 'next/link';
 import HeaderNav from "../component/HeaderNav";
 import Headertop from "../component/Header";
+import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/user.scss";
 import { HiOutlineMail } from "react-icons/hi";
 import { IoIosCall } from "react-icons/io";
@@ -105,53 +106,54 @@ const UserReferrals = () => {
 
 
 
-    useEffect(() => {
-        const fetchReferrals = async () => {
-            try {
-                setLoading(true);
-                const storedPhoneNumber = localStorage.getItem("mmOrbiter");
-                if (!storedPhoneNumber) {
-                    console.warn("Phone number not found in localStorage");
-                    setLoading(false);
-                    return;
-                }
+useEffect(() => {
+    const fetchReferrals = async () => {
+        try {
+            setLoading(true);
 
-                const referralsCol = collection(db, "Referral");
-
-                // My Referrals
-                const myQuery = query(
-                    referralsCol,
-                    where("cosmoOrbiter.phone", "==", storedPhoneNumber),
-                    orderBy("timestamp", "desc")
-                );
-                const mySnapshot = await getDocs(myQuery);
-                const myReferrals = mySnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
-
-                // Passed Referrals
-                const passedQuery = query(
-                    referralsCol,
-                    where("orbiter.phone", "==", storedPhoneNumber),
-                    orderBy("timestamp", "desc")
-                );
-                const passedSnapshot = await getDocs(passedQuery);
-                const passedReferrals = passedSnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
-
-                setAllReferrals({ my: myReferrals, passed: passedReferrals });
-            } catch (error) {
-                console.error("Error fetching referrals:", error);
-            } finally {
+            const storedUJB = localStorage.getItem("mmUJBCode");
+            if (!storedUJB) {
+                console.warn("UJB code not found in localStorage");
                 setLoading(false);
+                return;
             }
-        };
 
-        fetchReferrals();
-    }, []);
+            const referralsCol = collection(db, COLLECTIONS.referral);
+
+            // My Referrals (cosmoOrbiter.ujbCode)
+            const myQuery = query(
+                referralsCol,
+                where("cosmoOrbiter.ujbCode", "==", storedUJB),
+                orderBy("timestamp", "desc")
+            );
+            const mySnapshot = await getDocs(myQuery);
+            const myReferrals = mySnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+
+            // Passed Referrals (orbiter.ujbCode)
+            const passedQuery = query(
+                referralsCol,
+                where("orbiter.ujbCode", "==", storedUJB),
+                orderBy("timestamp", "desc")
+            );
+            const passedSnapshot = await getDocs(passedQuery);
+            const passedReferrals = passedSnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+
+            setAllReferrals({ my: myReferrals, passed: passedReferrals });
+        } catch (error) {
+            console.error("Error fetching referrals:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    fetchReferrals();
+}, []);
 
     // ✅ WhatsApp sending
     const sendWhatsAppTemplate = async (phone, name, message) => {
@@ -186,7 +188,7 @@ const UserReferrals = () => {
             const ref = referrals.find((r) => r.id === referralId);
             if (!ref) return;
 
-            const docRef = doc(db, "Referral", referralId);
+            const docRef = doc(db, COLLECTIONS.referral, referralId);
             const statusLog = { status: newStatus, updatedAt: Timestamp.now() };
 
             await updateDoc(docRef, {
@@ -278,7 +280,7 @@ const UserReferrals = () => {
                                             ? ref.timestamp.toDate().toLocaleString()
                                             : "N/A"}
                                     </div>
-                                    <div> <span class="meetingLable"> {ref.dealStatus}</span></div>
+                                    <div> <span class="meetingLable">  {ref.cosmoOrbiter?.dealStatus || "-"}</span></div>
 
                                 </div>
                                 <div className="cosmoCard-info">
@@ -288,7 +290,7 @@ const UserReferrals = () => {
                                     <h3 className="cosmoCard-owner">{ref.orbiter?.name}</h3>
 
                                     {/* ✅ Hide or blur contact info if Deal Lost */}
-                                    {ref.dealStatus === "Deal Lost" ? (
+                                    { ref.cosmoOrbiter?.dealStatus === "Deal Lost" ? (
                                         <p className="text-gray-400 italic">
                                             Contact details hidden (Deal Lost)
                                         </p>

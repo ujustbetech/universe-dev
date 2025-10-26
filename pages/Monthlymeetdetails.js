@@ -7,6 +7,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link'
 import HeaderNav from '../component/HeaderNav';
 import Headertop from '../component/Header';
+import { COLLECTIONS } from "/utility_collection";
 const db = getFirestore(app);
 
 const AllEvents = () => {
@@ -28,13 +29,13 @@ const fetchAllEvents = async () => {
       return; // Stop the function if there's no phone number
     }
 
-    const querySnapshot = await getDocs(collection(db, 'MonthlyMeeting'));
+    const querySnapshot = await getDocs(collection(db, COLLECTIONS.monthlyMeeting));
 
     const eventList = await Promise.all(
       querySnapshot.docs.map(async (eventDoc) => {
         const eventData = { id: eventDoc.id, ...eventDoc.data() };
 
-        const regUserRef = doc(db, 'MonthlyMeeting', eventDoc.id, 'registeredUsers', storedPhoneNumber);
+        const regUserRef = doc(db, COLLECTIONS.monthlyMeeting, eventDoc.id, 'registeredUsers', storedPhoneNumber);
         const regUserSnap = await getDoc(regUserRef);
 
         eventData.isUserRegistered = regUserSnap.exists();

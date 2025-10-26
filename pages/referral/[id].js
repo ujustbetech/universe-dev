@@ -4,6 +4,7 @@ import { doc, getDoc, updateDoc, Timestamp, arrayUnion } from "firebase/firestor
 import { db } from "../../firebaseConfig";
 import Layouts from "../../component/Layouts";
 import "../../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/user.scss";
 const TABS = ["Referral Info", "Orbiter", "CosmoOrbiter", "Service/Product", "Follow Up", "Payment History"];
 
@@ -75,7 +76,7 @@ const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
     const distribution = calculateDistribution();
     try {
       const updatedLogs = [...dealLogs, distribution];
-      const docRef = doc(db, "Referral", id);
+      const docRef = doc(db,COLLECTIONS.referral, id);
       await updateDoc(docRef, { dealLogs: updatedLogs });
       setDealLogs(updatedLogs);
       setShowModal(false); // close modal
@@ -91,7 +92,7 @@ const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
 
    const fetchReferral = async () => {
   try {
-    const docRef = doc(db, "Referral", id);
+    const docRef = doc(db, COLLECTIONS.referral, id);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -154,7 +155,7 @@ if (data.cosmoOrbiter?.phone) {
   const handleAddPayment = async () => {
     try {
       const updatedPayments = [...payments, newPayment];
-      const docRef = doc(db, "Referral", id);
+      const docRef = doc(db, COLLECTIONS.referral, id);
       await updateDoc(docRef, {
         payments: updatedPayments,
       });
@@ -189,7 +190,7 @@ if (data.cosmoOrbiter?.phone) {
     try {
       const updatedFollowups = [...followups, newFollowup];
 
-      const docRef = doc(db, "Referral", id);
+      const docRef = doc(db, COLLECTIONS.referral, id);
       await updateDoc(docRef, {
         followups: updatedFollowups,
       });
@@ -229,7 +230,7 @@ if (data.cosmoOrbiter?.phone) {
     e.preventDefault();
 
     try {
-      const docRef = doc(db, "Referral", id);
+      const docRef = doc(db,COLLECTIONS.referral, id);
 
       const newLog = {
         status: formState.dealStatus,

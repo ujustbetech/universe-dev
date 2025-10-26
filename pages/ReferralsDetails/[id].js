@@ -7,6 +7,7 @@ import { app } from '../../firebaseConfig';
 import Headertop from '../../component/Header';
 import HeaderNav from '../../component/HeaderNav';
 import '../../src/app/styles/user.scss';
+import { COLLECTIONS } from "/utility_collection";
 
 const db = getFirestore(app);
 
@@ -22,7 +23,7 @@ const ReferralDetails = () => {
 
     const fetchReferral = async () => {
       try {
-        const docRef = doc(db, 'Referral', id);
+        const docRef = doc(db,COLLECTIONS.referral, id);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -106,7 +107,7 @@ const ReferralDetails = () => {
         <h3 className="referralCardTitle">Referral Information</h3>
         <div className="referralCardBody">
           <p><span>Referral ID:</span> {referral.referralId || "N/A"}</p>
-          <p><span>Deal Status:</span> {referral.dealStatus || "N/A"}</p>
+          <p><span>Deal Status:</span> { referral.cosmoOrbiter?.dealStatus || "N/A"}</p>
           <p><span>Type:</span> {referral.referralType || "N/A"}</p>
           <p><span>Source:</span> {referral.referralSource || "N/A"}</p>
           <p><span>Last Updated:</span> {referral.lastUpdated?.toDate

@@ -4,6 +4,7 @@ import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import "../src/app/styles/main.scss";
 import Layout from '../component/Layout';
+import { COLLECTIONS } from "/utility_collection";
 
 const AddBirthday = () => {
   const [userList, setUserList] = useState([]);
@@ -19,7 +20,7 @@ const AddBirthday = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const userRef = collection(db, 'userdetails');
+        const userRef = collection(db, COLLECTIONS.userDetail);
         const snapshot = await getDocs(userRef);
         const data = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -88,7 +89,7 @@ const convertToInputDateFormat = (dobStr) => {
         registeredAt: new Date()
       };
 
-      await setDoc(doc(db, 'birthdaycanva', phone), data);
+      await setDoc(doc(db, COLLECTIONS.birthdayCanva, phone), data);
 
       alert("User registered successfully in birthdaycanva!");
 
