@@ -603,14 +603,25 @@ useEffect(() => {
                 style={{ backgroundColor: "#f14506ff", color: "white", marginRight: "5px" }}
               >
                 Delete
-              </button>
-              <button
-                className="m-button-7"
-                onClick={() => window.location.href = `/admin/profile?user=${user.ujbCode}`}
-                style={{ backgroundColor: "#f16f06", color: "white" }}
-              >
-                Edit
-              </button>
+              </button><button
+  className="m-button-7"
+  onClick={() => {
+    const ujb =
+      user.ujbCode ||    // some users have lowercase
+      user.UJBCode || ""; // some have uppercase
+    
+    if (!ujb) {
+      alert("UJB Code is missing for this user!");
+      return;
+    }
+
+    window.location.href = `/admin/profile?user=${ujb}`;
+  }}
+  style={{ backgroundColor: "#f16f06", color: "white" }}
+>
+  Edit
+</button>
+
             </div>
           </td>
         </tr>

@@ -7,6 +7,8 @@ import "../../src/app/styles/main.scss";
 import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/user.scss";
 const TABS = ["Referral Info", "Orbiter", "CosmoOrbiter", "Service/Product", "Follow Up", "Payment History"];
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "../../firebaseConfig";
 
 
 const ReferralDetails = () => {
@@ -152,33 +154,55 @@ if (data.cosmoOrbiter?.phone) {
     setNewPayment({ ...newPayment, [e.target.name]: e.target.value });
   };
 
-  const handleAddPayment = async () => {
-    try {
-      const updatedPayments = [...payments, newPayment];
-      const docRef = doc(db, COLLECTIONS.referral, id);
-      await updateDoc(docRef, {
-        payments: updatedPayments,
-      });
+const handleAddPayment = async () => {
+  try {
+    let paymentInvoiceURL = "";
 
-      setPayments(updatedPayments);
-    setNewPayment({
-  paymentFrom: "CosmoOrbiter",
-  paymentTo: "UJustBe",
-  ujbShareType: "UJustBe",
-  modeOfPayment: "",
-  transactionRef: "",
-  comment: "",
-  paymentDate: "",
-  amountReceived: "",
-});
-
-
-      alert("Payment added successfully.");
-    } catch (err) {
-      console.error("Error adding payment:", err);
-      alert("Failed to add payment.");
+    // ✅ Upload the invoice file if provided
+    if (newPayment.paymentInvoice) {
+      const fileRef = ref(
+        storage,
+        `paymentInvoices/${id}/${Date.now()}_${newPayment.paymentInvoice.name}`
+      );
+      await uploadBytes(fileRef, newPayment.paymentInvoice);
+      paymentInvoiceURL = await getDownloadURL(fileRef);
     }
-  };
+
+    const paymentData = {
+      ...newPayment,
+      paymentInvoiceURL, // ✅ save storage file URL in Firestore
+    };
+
+    const updatedPayments = [...payments, paymentData];
+
+    const docRef = doc(db, COLLECTIONS.referral, id);
+
+    await updateDoc(docRef, {
+      payments: updatedPayments,
+    });
+
+    setPayments(updatedPayments);
+
+    // ✅ Reset form
+    setNewPayment({
+      paymentFrom: "CosmoOrbiter",
+      paymentTo: "UJustBe",
+      ujbShareType: "UJustBe",
+      modeOfPayment: "",
+      transactionRef: "",
+      comment: "",
+      paymentDate: "",
+      amountReceived: "",
+      paymentInvoice: null,
+    });
+
+    alert("Payment added successfully ✅");
+    
+  } catch (err) {
+    console.error("Error adding payment:", err);
+    alert("Failed to add payment ❌");
+  }
+};
 
   const handleChange = (e) => {
     setFormState({ ...formState, [e.target.name]: e.target.value });
@@ -742,6 +766,19 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
         />
       </label>
     )}
+<label>
+  Upload Invoice:
+  <input
+    type="file"
+    accept="image/*,application/pdf"
+    onChange={(e) =>
+      setNewPayment({
+        ...newPayment,
+        paymentInvoice: e.target.files[0],
+      })
+    }
+  />
+</label>
 
     {newPayment.modeOfPayment === "Other" && (
       <label>
