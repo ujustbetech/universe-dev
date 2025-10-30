@@ -709,10 +709,111 @@
     flex-direction: column;
     row-gap: 15px;
     width: 100%;
-    .boxHeader{
+
+    .cosmoCard-contactDetails {
+        color: #333;
+
+        ul {
+            display: flex;
+            column-gap: 10px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+
+            li {
+                display: flex;
+                align-items: center;
+                column-gap: 5px;
+            }
+        }
+    }
+
+    .cosmoCard-actions {
+        display: flex;
+        justify-content: flex-end;
+
+        .viewDetails {
+            text-decoration: none;
+            color: #d45e00;
+        }
+
+        .m-button-5 {
+            width: 6em;
+            height: 2em;
+            border-radius: 30em;
+            /* font-size: 15px; */
+            /* font-family: inherit; */
+            padding: 0 30px;
+            border: none;
+            position: relative;
+            overflow: hidden;
+            color: #16274f;
+            z-index: 1;
+            border: 1px solid #16274f;
+            background-color: transparent;
+            display: flex;
+            column-gap: 10px;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            font-family: 'Mukta', sans-serif;
+            font-size: 16px;
+            transition: .5s ease;
+            cursor: pointer;
+            text-decoration: none;
+            // float: right;
+            // top: -36px;
+        }
+
+        .m-button-5::before {
+            content: '';
+            width: 0;
+            height: 2em;
+            border-radius: 30em;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-image: linear-gradient(to right, #a2cbda 0%, #16274f 100%);
+            transition: .5s ease;
+            display: block;
+            z-index: -1;
+        }
+
+        .m-button-5:hover::before {
+            width: 100%;
+        }
+
+        .m-button-5:hover {
+            /* width:100%; */
+            color: #FFF;
+        }
+    }
+
+    .boxHeader {
         width: 100%;
         display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        row-gap: 5px;
         justify-content: space-between;
         color: $bodytextcolor;
+
+        .statuslabel {
+            display: flex;
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+        .referralDetails {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            width: 100%;
+            row-gap: 0px;
+
+            abbr {
+                font-size: 12px;
+            }
+        }
     }
 }

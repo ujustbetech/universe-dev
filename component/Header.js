@@ -8,22 +8,35 @@ import { BiSolidCoinStack } from "react-icons/bi";
 
 const Headertop = () => {
   const { user, logout } = useAuth();
+
   const [cpPoints, setCPPoints] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
     if (!user) return;
-    // fetchCPPoints(user.phoneNumber);
+    console.log("user not there");
+    
+     fetchCPPoints(user.phoneNumber);
   }, [user]);
 
-  // const fetchCPPoints = async (phone) => {
-  //   const snap = await getDocs(collection(db, 'Orbiters', phone, 'activities'));
-  //   let total = 0;
-  //   snap.forEach(doc => total += Number(doc.data()?.points) || 0);
-  //   setCPPoints(total);
-  // };
+ const fetchCPPoints = async (phone) => {
+  if (!phone) return;
+
+  const activitiesRef = collection(doc(db, 'Orbiters', phone), 'activities');
+  const snap = await getDocs(activitiesRef);
+
+  let total = 0;
+  snap.forEach(doc => {
+    const pts = Number(doc.data()?.points) || 0;
+    total += pts;
+  });
+
+  setCPPoints(total);
+};
+
 
   const getInitials = (name) =>
+   
     name ? name.split(" ").map((w) => w[0]).join("") : "";
 
   const handleLogout = () => {
@@ -47,9 +60,9 @@ const Headertop = () => {
           <div className="beta">BETA</div>
         </div>
         <div className="headerRight">
-          {/* <button onClick={() => router.push(`/cp-details/${user.phoneNumber}`)} className="reward-btn">
+          <button onClick={() => router.push(`/cp-details/${user.phoneNumber}`)} className="reward-btn">
             <BiSolidCoinStack size={18} /> CP: {cpPoints}
-          </button> */}
+          </button>
           <div className="userName" onClick={handleLogout}>
             <span>{getInitials(user.name)}</span>
           </div>

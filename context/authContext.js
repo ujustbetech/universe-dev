@@ -10,18 +10,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // ✅ On mount, check localStorage
-  useEffect(() => {
-    const storedPhone = localStorage.getItem("mmOrbiter");
-    const storedUJBCode = localStorage.getItem("mmUJBCode");
+ useEffect(() => {
+  const storedPhone = localStorage.getItem("mmOrbiter");
+  const storedUJBCode = localStorage.getItem("mmUJBCode");
+  const storedName = localStorage.getItem("nameOrbiter");
 
-    if (storedPhone && storedUJBCode) {
-      setUser({ phoneNumber: storedPhone, ujbCode: storedUJBCode, name: "User" });
-      setLoading(false);
-    } else {
-      setLoading(false);
-    }
-  }, []);
+  if (storedPhone && storedUJBCode && storedName) {
+    setUser({ 
+      phoneNumber: storedPhone, 
+      ujbCode: storedUJBCode, 
+      name: storedName 
+    });
+  }
+  setLoading(false);
+}, []);
+
 
   // ✅ Fetch user by phone using query
   const fetchUser = async (phone) => {
@@ -32,10 +35,15 @@ export const AuthProvider = ({ children }) => {
       if (!querySnapshot.empty) {
         const matchedDoc = querySnapshot.docs[0];
         const data = matchedDoc.data();
+        console.log("userdetails", data);
+        
         const name = data["Name"] || data[" Name"] || "User";
+        console.log("Name", name);
         const ujbCode = matchedDoc.id;
 
         setUser({ phoneNumber: phone, name, ujbCode });
+      
+        localStorage.setItem("nameOrbiter", name);
         localStorage.setItem("mmOrbiter", phone);
         localStorage.setItem("mmUJBCode", ujbCode);
 
@@ -54,6 +62,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (phone) => {
     const userData = await fetchUser(phone);
     setUser(userData);
+    console.log("User Details",user);
+    
     router.push("/");
   };
 
@@ -61,6 +71,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem("mmOrbiter");
     localStorage.removeItem("mmUJBCode");
+    localStorage.removeItem("nameOrbiter");
     setUser(null);
     router.push("/login");
   };

@@ -107,14 +107,13 @@ const handleLogin = async (e) => {
         ...doc.data(),
         time: doc.data().time?.toDate?.() || new Date(0)
       }));
-      setMonthlyMetCount(monthlySnapshot.size);
+    
       const futureMonthly = monthlyEvents.filter(e => e.time > now).sort((a, b) => a.time - b.time);
       setUpcomingMonthlyMeet(futureMonthly[0] || null);
 
       // Conclaves & NT Meetings
       const conclaveSnapshot = await getDocs(collection(db, COLLECTIONS.conclaves));
-      setNtMeetCount(conclaveSnapshot.size);
-
+     
       let allNTMeetings = [];
       for (const conclaveDoc of conclaveSnapshot.docs) {
         const meetingsSnapshot = await getDocs(collection(db, COLLECTIONS.conclaves, conclaveDoc.id, "meetings"));
@@ -128,6 +127,38 @@ const handleLogin = async (e) => {
 
     fetchData();
   }, []);
+// ✅ Referral Count Logic
+useEffect(() => {
+  const fetchReferralData = async () => {
+    const storedUjb = localStorage.getItem('mmUJBCode');
+    if (!storedUjb) return;
+
+    const referralSnap = await getDocs(collection(db, "Referraldev"));
+
+    let myReferral = 0;
+    let passedReferral = 0;
+
+    referralSnap.forEach(doc => {
+      const data = doc.data();
+
+      // ✅ My Referral → logged-in user's UJB is inside cosmoOrbiter
+      if (data.cosmoOrbiter?.ujbCode === storedUjb) {
+        myReferral++;
+      }
+
+      // ✅ Passed Referral → logged-in user's UJB is inside orbiter
+      if (data.orbiter?.ujbCode === storedUjb) {
+        passedReferral++;
+      }
+    });
+
+    setNtMeetCount(myReferral);        // ✅ My Referral
+    setMonthlyMetCount(passedReferral); // ✅ Passed Referral
+  };
+
+  fetchReferralData();
+}, []);
+
 
   if (!isLoggedIn) {
     return (
@@ -171,12 +202,20 @@ const handleLogin = async (e) => {
           <SummaryCard  className="completed" count={monthlyMetCount} label="Passed Referrals" href="/PassedReferrals" />
         </section>
 
-        <section className="upcoming-events">
-          <h2>Upcoming Events</h2>
-          {upcomingMonthlyMeet && <MeetingCard meeting={upcomingMonthlyMeet} type="monthly" />}
-          {upcomingNTMeet && <MeetingCard meeting={upcomingNTMeet} type="nt" />}
-          {!upcomingMonthlyMeet && !upcomingNTMeet && <p className="noMeetings">No upcoming meetings</p>}
-        </section>
+  {(upcomingMonthlyMeet || upcomingNTMeet) && (
+  <section className="upcoming-events">
+    <h2>Upcoming Events</h2>
+
+    {upcomingMonthlyMeet && (
+      <MeetingCard meeting={upcomingMonthlyMeet} type="monthly" />
+    )}
+
+    {upcomingNTMeet && (
+      <MeetingCard meeting={upcomingNTMeet} type="nt" />
+    )}
+  </section>
+)}
+
 
         <AllServicesProducts pageHeading="Top Services & Products" hideFilters={true} enableInfiniteScroll={false} maxItems={12} hideHeaderFooter={true} extraSectionClass="homepage-preview" />
 

@@ -73,7 +73,32 @@
   padding-top: 6px;
   font-weight: 500;
 }
-
+.meetingLable-pending {
+  padding: 3px 8px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #fffffd;
+  font-family: "Mukta", serif;
+  border-radius: 20px;
+  background-color: #ecd60f;
+  line-height: 10px;
+  padding-top: 6px;
+  font-weight: 500;
+}
+.meetingLable-rejected {
+  padding: 3px 8px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #f0ebea;
+  font-family: "Mukta", serif;
+  border-radius: 20px;
+  background-color: #dc1212;
+  line-height: 10px;
+  padding-top: 6px;
+  font-weight: 500;
+}
 .container {
   width: 100%;
   padding: 0 15px;

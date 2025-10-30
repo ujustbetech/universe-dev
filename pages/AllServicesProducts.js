@@ -7,6 +7,8 @@ import ServiceProductCard from '../component/ServiceProductCard';
 import ReferralModal from '../component/ReferralModal';
 import { toast } from 'react-hot-toast';
 import { FaFilter } from 'react-icons/fa';
+import { useRouter } from "next/navigation";
+
 import Headertop from '../component/Header';
 import HeaderNav from '../component/HeaderNav';
 import { COLLECTIONS } from "/utility_collection";
@@ -49,6 +51,7 @@ const AllServicesProducts = ({
     const [selectedCategory, setSelectedCategory] = useState('');
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+const router = useRouter();
 
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -56,52 +59,57 @@ const AllServicesProducts = ({
     const [showFilters, setShowFilters] = useState(false);
 
     // Fetch items from Firestore
-    useEffect(() => {
+     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const snapshot = await getDocs(collection(db, "userdetail"));
+                const snapshot = await getDocs(collection(db, "userdetail_dev"));
                 const list = [];
 
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    const category1 = data['Category 1']?.trim();
-                    const category2 = data['Category 2']?.trim();
+                    const category1 = data['Category1']?.trim();
+                    const category2 = data['Category2']?.trim();
 
                     if (!(allowedCategories.includes(category1) || allowedCategories.includes(category2))) return;
 
-                    const ownerName = data[' Name'] || '—';
-                    const businessName = data['Business Name'] || '—';
+                    const ownerName = data['Name'] || '—';
+                    const businessName = data['BusinessName'] || '—';
 
-                    (Array.isArray(data.services) ? data.services : []).forEach((s) =>
-                        list.push({
-                            id: doc.id,
-                            type: 'Service',
-                            name: s.name || '—',
-                            description: s.description || '—',
-                            imageURL: s.imageURL || '',
-                            percentage: s.percentage || '',
-                            keywords: s.keywords || '',
-                            ownerName,
-                            businessName,
-                            category: category1 || category2 || '',
-                        })
-                    );
+                   const ujbCode = data['ujbCode'] || data['UJB'] || data['ujb'] || data['ujb_code'] || doc.id;
 
-                    (Array.isArray(data.products) ? data.products : []).forEach((p) =>
-                        list.push({
-                            id: doc.id,
-                            type: 'Product',
-                            name: p.name || '—',
-                            description: p.description || '—',
-                            imageURL: p.imageURL || '',
-                            percentage: p.percentage || '',
-                            keywords: p.keywords || '',
-                            ownerName,
-                            businessName,
-                            category: category1 || category2 || '',
-                        })
-                    );
+(Array.isArray(data.services) ? data.services : []).forEach((s) =>
+  list.push({
+    id: doc.id,
+    ujb: ujbCode,
+    type: 'Service',
+    name: s.name || '—',
+    description: s.description || '—',
+    imageURL: s.imageURL || '',
+    percentage: s.percentage || '',
+    keywords: s.keywords || '',
+    ownerName,
+    businessName,
+    category: category1 || category2 || '',
+  })
+);
+
+// same for products...
+(Array.isArray(data.products) ? data.products : []).forEach((p) =>
+  list.push({
+    id: doc.id,
+    ujb: ujbCode,
+    type: 'Product',
+    name: p.name || '—',
+    description: p.description || '—',
+    imageURL: p.imageURL || '',
+    percentage: p.percentage || '',
+    keywords: p.keywords || '',
+    ownerName,
+    businessName,
+    category: category1 || category2 || '',
+  })
+);
                 });
 
                 setItems(shuffleArray(list));
@@ -115,6 +123,7 @@ const AllServicesProducts = ({
 
         fetchData();
     }, []);
+
 
     // Initialize displayed items
     useEffect(() => {
@@ -247,6 +256,7 @@ const AllServicesProducts = ({
 
             {modalOpen && (
                 <ReferralModal
+                
                     item={selectedItem}
                     onClose={() => setModalOpen(false)}
                     userCache={userCache}

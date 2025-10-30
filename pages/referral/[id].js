@@ -112,7 +112,7 @@ const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
       });
 
      if (data.orbiter?.phone) {
-  const orbiterSnap = await getDoc(doc(db, "userdetail", data.orbiter.phone));
+  const orbiterSnap = await getDoc(doc(db, "userdetail_dev", data.orbiter.phone));
   if (orbiterSnap.exists()) {
     const orbiterData = orbiterSnap.data();
     setOrbiter({
@@ -121,10 +121,45 @@ const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
       profilePic: orbiterData["Profile Photo URL"] || orbiterData["Business Logo"] || "", // normalize
     });
   }
+}// ✅ Fetch ORBITER details using UJB Code as doc ID
+if (data.orbiter?.ujbCode) {
+  const orbiterRef = doc(db, "userdetail_dev", data.orbiter.ujbCode);
+  const orbiterSnap = await getDoc(orbiterRef);
+
+  if (orbiterSnap.exists()) {
+    const orbiterData = orbiterSnap.data();
+    setOrbiter({
+      ...data.orbiter,
+      ...orbiterData,
+      profilePic:
+        orbiterData["ProfilePhotoURL"] ||
+        orbiterData["BusinessLogo"] ||
+        "",
+    });
+  }
 }
 
+// ✅ Fetch COSMO details using UJB Code as doc ID
+if (data.cosmoOrbiter?.ujbCode) {
+  const cosmoRef = doc(db, "userdetail_dev", data.cosmoOrbiter.ujbCode);
+  const cosmoSnap = await getDoc(cosmoRef);
+
+  if (cosmoSnap.exists()) {
+    const cosmoData = cosmoSnap.data();
+    setCosmoOrbiter({
+      ...data.cosmoOrbiter,
+      ...cosmoData,
+      profilePic:
+        cosmoData["ProfilePhotoURL"] ||
+        cosmoData["BusinessLogo"] ||
+        "",
+    });
+  }
+}
+
+
 if (data.cosmoOrbiter?.phone) {
-  const cosmoSnap = await getDoc(doc(db, "userdetail", data.cosmoOrbiter.phone));
+  const cosmoSnap = await getDoc(doc(db, "userdetail_dev", data.cosmoOrbiter.phone));
   if (cosmoSnap.exists()) {
     const cosmoData = cosmoSnap.data();
     setCosmoOrbiter({
@@ -154,11 +189,13 @@ if (data.cosmoOrbiter?.phone) {
     setNewPayment({ ...newPayment, [e.target.name]: e.target.value });
   };
 
+
+
 const handleAddPayment = async () => {
   try {
     let paymentInvoiceURL = "";
 
-    // ✅ Upload the invoice file if provided
+    // 1️⃣ Upload file if any
     if (newPayment.paymentInvoice) {
       const fileRef = ref(
         storage,
@@ -168,22 +205,67 @@ const handleAddPayment = async () => {
       paymentInvoiceURL = await getDownloadURL(fileRef);
     }
 
+    // 2️⃣ Remove file object
+    const { paymentInvoice, ...restPayment } = newPayment;
+
+    // 3️⃣ Create payment data
     const paymentData = {
-      ...newPayment,
-      paymentInvoiceURL, // ✅ save storage file URL in Firestore
+      ...restPayment,
+      paymentFromName: mapToActualName(newPayment.paymentFrom),
+      paymentToName: mapToActualName(newPayment.paymentTo),
+      paymentInvoiceURL,
+      createdAt: Timestamp.now(),
     };
 
+    // 4️⃣ Update Referral payment list
     const updatedPayments = [...payments, paymentData];
-
-    const docRef = doc(db, COLLECTIONS.referral, id);
-
-    await updateDoc(docRef, {
-      payments: updatedPayments,
-    });
-
+    const docRef = doc(db, "Referraldev", id);
+    await updateDoc(docRef, { payments: updatedPayments });
     setPayments(updatedPayments);
 
-    // ✅ Reset form
+    // 5️⃣ ✅ Adjust orbiter payment if applicable
+    const orbiterDocRef = doc(db, "userdetail_dev", orbiter?.ujbCode);
+    const orbiterSnap = await getDoc(orbiterDocRef);
+
+    if (orbiterSnap.exists()) {
+      const orbiterData = orbiterSnap.data();
+      const orbiterPayment = orbiterData?.payment?.orbiter || {};
+      let currentAmount = orbiterPayment.amount || 0;
+      let currentStatus = orbiterPayment.status || "pending";
+
+      // Only adjust if status is "adjusted"
+      if (currentStatus === "adjusted") {
+        const received = Number(newPayment.amountReceived || 0);
+        let newAmount = currentAmount - received;
+        let newStatus = newAmount <= 0 ? "paid" : "adjusted";
+
+        if (newAmount < 0) newAmount = 0;
+
+        // Create log entry
+        const logEntry = {
+          date: new Date().toISOString(),
+          receivedAmount: received,
+          remainingAmount: newAmount,
+          fromReferral: id,
+          paymentMode: newPayment.modeOfPayment,
+          transactionRef: newPayment.transactionRef || "",
+        };
+
+        // Update orbiter data
+        await updateDoc(orbiterDocRef, {
+          "payment.orbiter.amount": newAmount,
+          "payment.orbiter.status": newStatus,
+          "payment.orbiter.lastUpdated": new Date().toISOString(),
+          "payment.orbiter.adjustmentLogs": arrayUnion(logEntry),
+        });
+
+        console.log(
+          `✅ Orbiter ${orbiter?.name} adjusted. Remaining: ${newAmount}, Status: ${newStatus}`
+        );
+      }
+    }
+
+    // 6️⃣ Reset form
     setNewPayment({
       paymentFrom: "CosmoOrbiter",
       paymentTo: "UJustBe",
@@ -196,11 +278,29 @@ const handleAddPayment = async () => {
       paymentInvoice: null,
     });
 
-    alert("Payment added successfully ✅");
-    
+    alert("Payment added & Orbiter adjustment updated ✅");
   } catch (err) {
     console.error("Error adding payment:", err);
     alert("Failed to add payment ❌");
+  }
+};
+
+
+// put this above handleAddPayment (so it's defined before use)
+const mapToActualName = (key) => {
+  switch (key) {
+    case "Orbiter":
+      return orbiter?.name || "Orbiter";
+    case "OrbiterMentor":
+      return orbiter?.mentorName || "Orbiter Mentor";
+    case "CosmoOrbiter":
+      return cosmoOrbiter?.name || "CosmoOrbiter";
+    case "CosmoMentor":
+      return cosmoOrbiter?.mentorName || "Cosmo Mentor";
+    case "UJustBe":
+      return "UJustBe";
+    default:
+      return key || "";
   }
 };
 
@@ -769,15 +869,13 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
 <label>
   Upload Invoice:
   <input
-    type="file"
-    accept="image/*,application/pdf"
-    onChange={(e) =>
-      setNewPayment({
-        ...newPayment,
-        paymentInvoice: e.target.files[0],
-      })
-    }
-  />
+  type="file"
+  accept="image/*,application/pdf"
+  onChange={(e) =>
+    setNewPayment({ ...newPayment, paymentInvoice: e.target.files[0] })
+  }
+/>
+
 </label>
 
     {newPayment.modeOfPayment === "Other" && (

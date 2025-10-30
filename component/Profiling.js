@@ -464,6 +464,43 @@ const updatedData = {
   }
 };
 
+const handleBusinessApprove = async () => {
+  try {
+    const today = new Date();
+    const startDate = today.toISOString().split('T')[0];
+
+    const nextYear = new Date(today);
+    nextYear.setFullYear(today.getFullYear() + 1);
+    const nextRenewalDate = nextYear.toISOString().split('T')[0];
+
+    const subscriptionData = {
+      subscription: {
+        startDate,
+        nextRenewalDate,
+        status: 'active'
+      }
+    };
+
+    const userRef = doc(db, 'userdetail_dev', docId);
+    await updateDoc(userRef, subscriptionData);
+
+    Swal.fire({
+      icon: "success",
+      title: "Business Approved ✅",
+      text: `Next Renewal: ${nextRenewalDate}`,
+      timer: 2000,
+      showConfirmButton: false
+    });
+
+    setFormData((prev) => ({
+      ...prev,
+      subscription: subscriptionData.subscription
+    }));
+
+  } catch (err) {
+    console.error("Subscription update error:", err);
+  }
+};
 
 
 const dropdowns = {
@@ -1185,6 +1222,25 @@ if (field === 'BusinessSocialMediaPages') {
             </div>
           </>
         )}
+        {formData.Category === 'CosmOrbiter' &&
+ payment.cosmo?.status === 'paid' && (
+  <>
+    {!formData.subscription?.startDate ? (
+      <button
+        onClick={handleBusinessApprove}
+        className="approve-btn"
+      >
+        Approve Business
+      </button>
+    ) : (
+      <p className="approved-status">
+        ✅ Business Approved on {formData.subscription.startDate}<br/>
+        🔄 Renew on {formData.subscription.nextRenewalDate}
+      </p>
+    )}
+  </>
+)}
+
       </div>
     )}
   </div>
