@@ -8,6 +8,7 @@ export default function ImportReferrals() {
 
   const handleFileSelect = () => fileInputRef.current.click();
 
+  // 🕒 Helper to handle Excel date conversion
   const parseExcelDate = (value) => {
     if (!value) return Timestamp.now();
     if (value instanceof Date && !isNaN(value)) return Timestamp.fromDate(value);
@@ -74,6 +75,85 @@ export default function ImportReferrals() {
           percentage: row["Agreed Percentage/ amount "]?.toString() || "",
         };
 
+        // ✅ Payments map (array)
+        const payments = [
+          // 1️⃣ Amount received by CosmOrbiter
+          {
+            paymentFrom: "CosmoOrbiter",
+            paymentFromName: cosmoOrbiter.name || "",
+            paymentTo: "UJustBe",
+            paymentToName: "UJustBe",
+            paymentDate: row["Payment Date"] || "",
+            modeOfPayment: row["Payment Mode"] || "",
+            amountReceived: row["Amount Recieved by CosmOrbiter"]?.toString() || "0",
+            comment: "",
+            ujbShareType: "UJustBe",
+            createdAt: Timestamp.now(),
+            paymentInvoiceURL: "",
+            transactionRef: "",
+          },
+          // 2️⃣ Amount transferred to UJB for this deal
+          {
+            paymentFrom: "CosmoOrbiter",
+            paymentFromName: cosmoOrbiter.name || "",
+            paymentTo: "UJustBe",
+            paymentToName: "UJustBe",
+            paymentDate: row["Payment Date"] || "",
+            modeOfPayment: row["Payment Mode"] || "",
+            amountReceived: row["Amount Transfered to ujb for this deal"]?.toString() || "0",
+            comment: "",
+            ujbShareType: "UJustBe",
+            createdAt: Timestamp.now(),
+            paymentInvoiceURL: "",
+            transactionRef: "",
+          },
+          // 3️⃣ UJB transferred to Orbiter
+          {
+            paymentFrom: "UJustBe",
+            paymentFromName: "UJustBe",
+            paymentTo: "Orbiter",
+            paymentToName: orbiter.name || "",
+            paymentDate: row["Orbiter Payment Date"] || "",
+            modeOfPayment: row["Orbiter Payment Mode"] || "",
+            amountReceived: row["Amount UJb transfered to Orbiter"]?.toString() || "0",
+            comment: "",
+            ujbShareType: "Orbiter",
+            createdAt: Timestamp.now(),
+            paymentInvoiceURL: "",
+            transactionRef: "",
+          },
+          // 4️⃣ UJB transferred to Orbiter mentor
+          {
+            paymentFrom: "UJustBe",
+            paymentFromName: "UJustBe",
+            paymentTo: "Orbiter Mentor",
+            paymentToName: orbiter.mentorName || "",
+            paymentDate: row["Orbiter mentor Payment Date"] || "",
+            modeOfPayment: row["Orbiter mentor Payment Mode"] || "",
+            amountReceived: row["Amount Ujb transfered to Orbiter mentor"]?.toString() || "0",
+            comment: "",
+            ujbShareType: "Orbiter Mentor",
+            createdAt: Timestamp.now(),
+            paymentInvoiceURL: "",
+            transactionRef: "",
+          },
+          // 5️⃣ UJB transferred to CosmoOrbiter mentor
+          {
+            paymentFrom: "UJustBe",
+            paymentFromName: "UJustBe",
+            paymentTo: "CosmoOrbiter Mentor",
+            paymentToName: cosmoOrbiter.mentorName || "",
+            paymentDate: row["CosmOrbiter mentor Payment Date"] || "",
+            modeOfPayment: row["CosmOrbiter mentor Payment Mode"] || "",
+            amountReceived: row["Amount ujb transfered to CosmOrbiter mentor"]?.toString() || "0",
+            comment: "",
+            ujbShareType: "CosmoOrbiter Mentor",
+            createdAt: Timestamp.now(),
+            paymentInvoiceURL: "",
+            transactionRef: "",
+          },
+        ];
+
         // ✅ Main referral document
         const referralDoc = {
           referralId: row["Referral Id"] || "",
@@ -86,6 +166,8 @@ export default function ImportReferrals() {
           cosmoOrbiter,
           orbiter,
           product,
+          payments, // 💰 Added payment details here
+          balanceRemainingWithUJB: row["Balance remaining with UJB"]?.toString() || "0",
         };
 
         const docRef = doc(collection(db, "Referraldev"));
@@ -93,10 +175,10 @@ export default function ImportReferrals() {
         importedCount++;
       }
 
-      alert(`✅ ${importedCount} referrals imported successfully!`);
+      alert(`✅ ${importedCount} referrals imported successfully with payments!`);
     } catch (error) {
       console.error("❌ Error importing referrals:", error);
-      alert("❌ Failed to import referrals. Check console.");
+      alert("❌ Failed to import referrals. Check console for details.");
     }
   };
 

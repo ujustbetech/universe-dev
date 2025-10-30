@@ -1246,6 +1246,58 @@ if (field === 'BusinessSocialMediaPages') {
     )}
   </div>
 )}
+{activeTab === "Payment" && (
+  <div className="payment-section">
+    <h3>Payment Details</h3>
+
+    
+
+    {/* ✅ Adjustment Logs for Orbiter */}
+    {formData.payment?.orbiter?.adjustmentLogs?.length > 0 && (
+      <div className="adjustment-section" style={{ marginTop: "30px" }}>
+        <h3>Adjustment Logs</h3>
+        <table
+          className="adjustment-table"
+          border="1"
+          cellPadding="8"
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            background: "#fff",
+            borderRadius: "8px",
+            overflow: "hidden",
+          }}
+        >
+          <thead style={{ backgroundColor: "#f3f3f3" }}>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Received Amount (₹)</th>
+              <th>Remaining Amount (₹)</th>
+              <th>Payment Mode</th>
+              <th>Transaction Ref</th>
+              <th>Referral ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {formData.payment.orbiter.adjustmentLogs.map((log, index) => (
+              <tr key={index}>
+                <td>{index + 1}</td>
+                <td>{new Date(log.date).toLocaleString()}</td>
+                <td>{log.receivedAmount || "-"}</td>
+                <td>{log.remainingAmount || "-"}</td>
+                <td>{log.paymentMode || "-"}</td>
+                <td>{log.transactionRef || "-"}</td>
+                <td>{log.referralId || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+)}
+
 
 
         {/* --- OTHER TABS: HEALTH, EDUCATION, ETC. --- */}
