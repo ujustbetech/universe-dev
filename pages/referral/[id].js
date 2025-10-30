@@ -9,7 +9,7 @@ import "../../src/app/styles/user.scss";
 const TABS = ["Referral Info", "Orbiter", "CosmoOrbiter", "Service/Product", "Follow Up", "Payment History"];
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../firebaseConfig";
-
+import Swal from "sweetalert2";
 
 const ReferralDetails = () => {
   const router = useRouter();
@@ -39,6 +39,21 @@ const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
     amountReceived: "",
     modeOfPayment: "GPay",
   });
+const closeForm = () => {
+  setShowAddPaymentForm(false);
+  setEditIndex(null);
+  setNewPayment({
+    paymentFrom: "CosmoOrbiter",
+    paymentTo: "UJustBe",
+    ujbShareType: "UJustBe",
+    modeOfPayment: "",
+    transactionRef: "",
+    comment: "",
+    paymentDate: "",
+    amountReceived: "",
+    paymentInvoice: null,
+  });
+};
 
 
   const [formState, setFormState] = useState({
@@ -50,6 +65,7 @@ const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
   const [followups, setFollowups] = useState([]);
 
 
+const [editIndex, setEditIndex] = useState(null);
 
   const [referralData, setReferralData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -191,8 +207,163 @@ if (data.cosmoOrbiter?.phone) {
 
 
 
+
+
+// 🧾 EDIT PAYMENT
+const handleEditPayment = async (index, updatedPayment) => {
+  try {
+    const referralDocRef = doc(db, "Referraldev", id);
+    const updatedPayments = [...payments];
+    updatedPayments[index] = {
+      ...updatedPayments[index],
+      ...updatedPayment,
+      updatedAt: Timestamp.now(),
+    };
+
+    await updateDoc(referralDocRef, { payments: updatedPayments });
+    setPayments(updatedPayments);
+
+    Swal.fire({
+      icon: "success",
+      title: "Payment Updated",
+      text: "Payment details have been successfully updated.",
+    });
+  } catch (err) {
+    console.error("Error updating payment:", err);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Failed to update payment. Please try again later.",
+    });
+  }
+};
+
+// ❌ DELETE PAYMENT
+const handleDeletePayment = async (index) => {
+  try {
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Delete this payment?",
+      text: "This action cannot be undone.",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    const referralDocRef = doc(db, "Referraldev", id);
+    const updatedPayments = payments.filter((_, i) => i !== index);
+
+    await updateDoc(referralDocRef, { payments: updatedPayments });
+    setPayments(updatedPayments);
+
+    Swal.fire({
+      icon: "success",
+      title: "Deleted",
+      text: "Payment entry has been deleted.",
+    });
+  } catch (err) {
+    console.error("Error deleting payment:", err);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Failed to delete payment. Please try again later.",
+    });
+  }
+};
+const handleEditClick = (index, payment) => {
+  setEditIndex(index);
+  setNewPayment({
+    ...payment,
+    paymentInvoice: null, // optional - reset invoice file upload
+  });
+  setShowAddPaymentForm(true); // open the form for editing
+};
+
 const handleAddPayment = async () => {
   try {
+    // 🧾 Basic field validation
+    if (
+      !newPayment.paymentFrom ||
+      !newPayment.paymentTo ||
+      !newPayment.modeOfPayment ||
+      !newPayment.paymentDate ||
+      !newPayment.amountReceived
+    ) {
+      Swal.fire({
+        icon: "warning",
+        title: "Missing Fields",
+        text: "Please fill in all required fields before submitting.",
+      });
+      return;
+    }
+
+    // 🗓️ Prevent future date
+    const today = new Date().toISOString().split("T")[0];
+    if (newPayment.paymentDate > today) {
+      Swal.fire({
+        icon: "error",
+        title: "Invalid Date",
+        text: "Payment date cannot be in the future.",
+      });
+      return;
+    }
+// ✏️ If editing an existing payment
+if (editIndex !== null) {
+  const updatedPayments = [...payments];
+  updatedPayments[editIndex] = {
+    ...updatedPayments[editIndex],
+    ...newPayment,
+    updatedAt: Timestamp.now(),
+  };
+
+  await updateDoc(doc(db, "Referraldev", id), { payments: updatedPayments });
+  setPayments(updatedPayments);
+  setEditIndex(null);
+  setShowAddPaymentForm(false);
+
+  Swal.fire({
+    icon: "success",
+    title: "Payment Updated!",
+    text: "The payment details were successfully updated.",
+  });
+  return;
+}
+
+    // 💸 Amount validation
+    if (isNaN(newPayment.amountReceived) || newPayment.amountReceived <= 0) {
+      Swal.fire({
+        icon: "error",
+        title: "Invalid Amount",
+        text: "Please enter a valid positive amount.",
+      });
+      return;
+    }
+
+    // 🔢 Transaction reference validation
+    if (
+      ["GPay", "Razorpay", "Bank Transfer", "Other"].includes(newPayment.modeOfPayment) &&
+      !newPayment.transactionRef
+    ) {
+      Swal.fire({
+        icon: "warning",
+        title: "Transaction Reference Required",
+        text: "Please provide the transaction reference number.",
+      });
+      return;
+    }
+
+    // 📝 Comment validation (for 'Other' mode)
+    if (newPayment.modeOfPayment === "Other" && !newPayment.comment) {
+      Swal.fire({
+        icon: "warning",
+        title: "Comment Required",
+        text: "Please add a comment for 'Other' payment mode.",
+      });
+      return;
+    }
+
     let paymentInvoiceURL = "";
 
     // 1️⃣ Upload file if any
@@ -234,7 +405,7 @@ const handleAddPayment = async () => {
         let currentAmount = Number(orbiterPayment.amount || 0);
         let currentStatus = orbiterPayment.status || "pending";
 
-        // ✅ Only adjust if status is "adjustment"
+        // ✅ Only adjust if status is "adjusted"
         if (currentStatus === "adjusted") {
           const received = Number(newPayment.amountReceived || 0);
           let newAmount = currentAmount - received;
@@ -286,10 +457,19 @@ const handleAddPayment = async () => {
       paymentInvoice: null,
     });
 
-    alert("✅ Payment added and CosmoOrbiter adjustment updated successfully!");
+    Swal.fire({
+      icon: "success",
+      title: "Payment Added!",
+      text: "Payment has been added and CosmoOrbiter adjustment updated successfully.",
+      confirmButtonColor: "#3085d6",
+    });
   } catch (err) {
     console.error("🔥 Error adding payment:", err);
-    alert("❌ Failed to add payment");
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Failed to add payment. Please try again later.",
+    });
   }
 };
 
@@ -777,30 +957,48 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
         </div>
 
 
-        {/* Sliding Sheet */}
-        <div className={`PaymentSheet ${showPaymentSheet ? "open" : ""}`}>
-          <div className="sheetHeader">
-            <h3>{showAddPaymentForm ? "Add Payment" : "Payment History"}</h3>
-            <button onClick={() => setShowPaymentSheet(false)}>✕</button>
-          </div>
+{/* Sliding Sheet */}
+<div className={`PaymentSheet ${showPaymentSheet ? "open" : ""}`}>
+  <div className="sheetHeader">
+    <h3>{showAddPaymentForm ? "Add Payment" : "Payment History"}</h3>
+    <button onClick={() => setShowPaymentSheet(false)}>✕</button>
+  </div>
 
-          {/* HISTORY VIEW */}
-          {!showAddPaymentForm && (
-            <>
-              {payments.length > 0 ? (
-                payments.map((payment, idx) => (
-                  <div className="paymentCard" key={idx}>
-                    <h4>₹{payment.amountReceived}</h4>
-                    <p><strong>From:</strong> {mapPaymentLabel(payment.paymentFrom)}</p>
-                    <p><strong>To:</strong> {mapPaymentLabel(payment.paymentTo)}</p>
-                    <p><strong>Mode:</strong> {payment.modeOfPayment}</p>
-                    <p><strong>Date:</strong> {payment.paymentDate}</p>
-                    <p><strong>Description:</strong> {payment.description}</p>
-                  </div>
-                ))
-              ) : (
-                <p>No payments yet.</p>
-              )}
+  {/* HISTORY VIEW */}
+  {!showAddPaymentForm && (
+    <>
+      {payments.length > 0 ? (
+        payments.map((payment, idx) => (
+         <div className="paymentCard" key={idx}>
+  <div className="paymentCardHeader">
+    <h4>₹{payment.amountReceived}</h4>
+    <div className="paymentActions">
+      <button
+        className="editBtn"
+        onClick={() => handleEditClick(idx, payment)}
+      >
+        ✏️
+      </button>
+      <button
+        className="deleteBtn"
+        onClick={() => handleDeletePayment(idx)}
+      >
+        🗑️
+      </button>
+    </div>
+  </div>
+  <p><strong>From:</strong> {mapPaymentLabel(payment.paymentFrom)}</p>
+  <p><strong>To:</strong> {mapPaymentLabel(payment.paymentTo)}</p>
+  <p><strong>Mode:</strong> {payment.modeOfPayment}</p>
+  <p><strong>Date:</strong> {payment.paymentDate}</p>
+  <p><strong>Description:</strong> {payment.description}</p>
+</div>
+
+        ))
+      ) : (
+        <p>No payments yet.</p>
+      )}
+    
 
               {/* Add Payment Button */}
               <button
@@ -812,16 +1010,18 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
             </>
           )}
 
-          {/* ADD PAYMENT FORM */}
-      {showAddPaymentForm && (
+      {/* ADD PAYMENT FORM */}
+{showAddPaymentForm && (
   <div className="addPaymentForm">
     <label>
-      Payment From:
+      Payment From: <span style={{ color: "red" }}>*</span>
       <select
         name="paymentFrom"
         value={newPayment.paymentFrom}
         onChange={handlePaymentChange}
+        required
       >
+        <option value="">-- Select --</option>
         <option value="CosmoOrbiter">
           {cosmoOrbiter?.name || "CosmoOrbiter"}
         </option>
@@ -830,12 +1030,14 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
     </label>
 
     <label>
-      Payment To:
+      Payment To: <span style={{ color: "red" }}>*</span>
       <select
         name="paymentTo"
         value={newPayment.paymentTo}
         onChange={handlePaymentChange}
+        required
       >
+        <option value="">-- Select --</option>
         <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
         <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
         <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
@@ -844,12 +1046,14 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
     </label>
 
     <label>
-      Mode of Payment:
+      Mode of Payment: <span style={{ color: "red" }}>*</span>
       <select
         name="modeOfPayment"
         value={newPayment.modeOfPayment}
         onChange={handlePaymentChange}
+        required
       >
+        <option value="">-- Select Mode --</option>
         <option value="GPay">GPay</option>
         <option value="Razorpay">Razorpay</option>
         <option value="Bank Transfer">Bank Transfer</option>
@@ -864,55 +1068,61 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
       newPayment.modeOfPayment === "Bank Transfer" ||
       newPayment.modeOfPayment === "Other") && (
       <label>
-        Transaction Reference Number:
+        Transaction Reference Number: <span style={{ color: "red" }}>*</span>
         <input
           type="text"
           name="transactionRef"
           value={newPayment.transactionRef || ""}
           onChange={handlePaymentChange}
-        />
-      </label>
-    )}
-<label>
-  Upload Invoice:
-  <input
-  type="file"
-  accept="image/*,application/pdf"
-  onChange={(e) =>
-    setNewPayment({ ...newPayment, paymentInvoice: e.target.files[0] })
-  }
-/>
-
-</label>
-
-    {newPayment.modeOfPayment === "Other" && (
-      <label>
-        Comment:
-        <textarea
-          name="comment"
-          value={newPayment.comment || ""}
-          onChange={handlePaymentChange}
+          required
         />
       </label>
     )}
 
     <label>
-      Payment Date:
+      Upload Invoice:
+      <input
+        type="file"
+        accept="image/*,application/pdf"
+        onChange={(e) =>
+          setNewPayment({ ...newPayment, paymentInvoice: e.target.files[0] })
+        }
+      />
+    </label>
+
+    {newPayment.modeOfPayment === "Other" && (
+      <label>
+        Comment: <span style={{ color: "red" }}>*</span>
+        <textarea
+          name="comment"
+          value={newPayment.comment || ""}
+          onChange={handlePaymentChange}
+          required
+        />
+      </label>
+    )}
+
+    <label>
+      Payment Date: <span style={{ color: "red" }}>*</span>
       <input
         type="date"
         name="paymentDate"
         value={newPayment.paymentDate}
         onChange={handlePaymentChange}
+        max={new Date().toISOString().split("T")[0]} // Prevent future dates
+        required
       />
     </label>
 
     <label>
-      Amount Received:
+      Amount : <span style={{ color: "red" }}>*</span>
       <input
         type="number"
         name="amountReceived"
         value={newPayment.amountReceived}
         onChange={handlePaymentChange}
+        min="1"
+        required
       />
     </label>
 

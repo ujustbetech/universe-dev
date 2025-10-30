@@ -2626,3 +2626,43 @@ input[type="file"] {
 .status.inactive { color: gray; font-weight: 600; }
 .status.verified { color: green; font-weight: 600; }
 .incomplete { color: red; font-weight: 600; }
+.paymentCard {
+  background: #f9fafb;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease;
+}
+
+.paymentCard:hover {
+  transform: translateY(-2px);
+}
+
+.paymentCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.paymentActions {
+  display: flex;
+  gap: 8px;
+}
+
+.editBtn, .deleteBtn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  transition: 0.2s;
+}
+
+.editBtn:hover {
+  color: #007bff;
+}
+
+.deleteBtn:hover {
+  color: #e63946;
+}

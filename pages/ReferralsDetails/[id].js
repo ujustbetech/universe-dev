@@ -154,7 +154,7 @@ const ReferralDetails = () => {
         <div className="referralCardBody">
           <p><span>Name:</span> {referral.product?.name || referral.service?.name || "N/A"}</p>
           <p><span>Description:</span> {referral.product?.description || referral.service?.description || "N/A"}</p>
-          <p><span>Percentage:</span> {referral.product?.percentage || "N/A"}%</p>
+          <p><span>Percentage:</span> {referral.product?.percentage || "N/A"}</p>
 
           {referral.product?.imageURL && (
             <div className="referralImageBox">
