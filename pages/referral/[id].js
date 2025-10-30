@@ -217,52 +217,60 @@ const handleAddPayment = async () => {
       createdAt: Timestamp.now(),
     };
 
-    // 4️⃣ Update Referral payment list
+    // 4️⃣ Update Referral payments list
     const updatedPayments = [...payments, paymentData];
-    const docRef = doc(db, "Referraldev", id);
-    await updateDoc(docRef, { payments: updatedPayments });
+    const referralDocRef = doc(db, "Referraldev", id);
+    await updateDoc(referralDocRef, { payments: updatedPayments });
     setPayments(updatedPayments);
 
-    // 5️⃣ ✅ Adjust orbiter payment if applicable
-    const orbiterDocRef = doc(db, "userdetail_dev", orbiter?.ujbCode);
-    const orbiterSnap = await getDoc(orbiterDocRef);
+    // 5️⃣ ✅ Update CosmoOrbiter’s own doc (not the Orbiter’s)
+    if (cosmoOrbiter?.ujbCode) {
+      const cosmoDocRef = doc(db, "userdetail_dev", cosmoOrbiter.ujbCode);
+      const cosmoSnap = await getDoc(cosmoDocRef);
 
-    if (orbiterSnap.exists()) {
-      const orbiterData = orbiterSnap.data();
-      const orbiterPayment = orbiterData?.payment?.orbiter || {};
-      let currentAmount = orbiterPayment.amount || 0;
-      let currentStatus = orbiterPayment.status || "pending";
+      if (cosmoSnap.exists()) {
+        const cosmoData = cosmoSnap.data();
+        const orbiterPayment = cosmoData?.payment?.orbiter || {};
+        let currentAmount = Number(orbiterPayment.amount || 0);
+        let currentStatus = orbiterPayment.status || "pending";
 
-      // Only adjust if status is "adjusted"
-      if (currentStatus === "adjusted") {
-        const received = Number(newPayment.amountReceived || 0);
-        let newAmount = currentAmount - received;
-        let newStatus = newAmount <= 0 ? "paid" : "adjusted";
+        // ✅ Only adjust if status is "adjustment"
+        if (currentStatus === "adjusted") {
+          const received = Number(newPayment.amountReceived || 0);
+          let newAmount = currentAmount - received;
+          if (newAmount < 0) newAmount = 0;
 
-        if (newAmount < 0) newAmount = 0;
+          const newStatus = newAmount === 0 ? "paid" : "adjusted";
 
-        // Create log entry
-        const logEntry = {
-          date: new Date().toISOString(),
-          receivedAmount: received,
-          remainingAmount: newAmount,
-          fromReferral: id,
-          paymentMode: newPayment.modeOfPayment,
-          transactionRef: newPayment.transactionRef || "",
-        };
+          // Log entry
+          const logEntry = {
+            date: new Date().toISOString(),
+            receivedAmount: received,
+            remainingAmount: newAmount,
+            referralId: id,
+            paymentMode: newPayment.modeOfPayment,
+            transactionRef: newPayment.transactionRef || "",
+          };
 
-        // Update orbiter data
-        await updateDoc(orbiterDocRef, {
-          "payment.orbiter.amount": newAmount,
-          "payment.orbiter.status": newStatus,
-          "payment.orbiter.lastUpdated": new Date().toISOString(),
-          "payment.orbiter.adjustmentLogs": arrayUnion(logEntry),
-        });
+          // Update Cosmo doc
+          await updateDoc(cosmoDocRef, {
+            "payment.orbiter.amount": newAmount,
+            "payment.orbiter.status": newStatus,
+            "payment.orbiter.lastUpdated": new Date().toISOString(),
+            "payment.orbiter.adjustmentLogs": arrayUnion(logEntry),
+          });
 
-        console.log(
-          `✅ Orbiter ${orbiter?.name} adjusted. Remaining: ${newAmount}, Status: ${newStatus}`
-        );
+          console.log(
+            `✅ Updated CosmoOrbiter: ${cosmoOrbiter.name}, Remaining: ${newAmount}, Status: ${newStatus}`
+          );
+        } else {
+          console.log("ℹ️ No update — payment.orbiter status is not 'adjustment'.");
+        }
+      } else {
+        console.log("❌ CosmoOrbiter doc not found in userdetail_dev:", cosmoOrbiter.ujbCode);
       }
+    } else {
+      console.log("❌ No CosmoOrbiter ujbCode available.");
     }
 
     // 6️⃣ Reset form
@@ -278,13 +286,12 @@ const handleAddPayment = async () => {
       paymentInvoice: null,
     });
 
-    alert("Payment added & Orbiter adjustment updated ✅");
+    alert("✅ Payment added and CosmoOrbiter adjustment updated successfully!");
   } catch (err) {
-    console.error("Error adding payment:", err);
-    alert("Failed to add payment ❌");
+    console.error("🔥 Error adding payment:", err);
+    alert("❌ Failed to add payment");
   }
 };
-
 
 // put this above handleAddPayment (so it's defined before use)
 const mapToActualName = (key) => {

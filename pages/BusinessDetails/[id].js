@@ -185,45 +185,47 @@ const handlePassReferral = async () => {
     const selectedService = services.find((s) => s.name === selectedOption) || null;
     const selectedProduct = products.find((p) => p.name === selectedOption) || null;
 
-    const data = {
-      referralId,
-      referralSource: "R",
-      referralType: selectedFor === "self" ? "Self" : "Others",
-      leadDescription,
-      dealStatus: "Pending",
-      lastUpdated: new Date(),
-      timestamp: new Date(),
-      cosmoOrbiter: {
-        name: userDetails.name,
-        email: userDetails.email,
-        phone: userDetails.phone,
-        mentorName: userDetails.mentorName || null,
-        mentorPhone: userDetails.mentorPhone || null,
-      },
-      orbiter:
-        selectedFor === "self"
-          ? orbiterDetails
-          : { name: otherName, phone: otherPhone, email: otherEmail },
-      product: selectedProduct
-        ? {
-            name: selectedProduct.name,
-            description: selectedProduct.description,
-            imageURL: selectedProduct.imageURL || "",
-            percentage: selectedProduct.percentage || "0",
-          }
-        : null,
-      service: selectedService
-        ? {
-            name: selectedService.name,
-            description: selectedService.description,
-            imageURL: selectedService.imageURL || "",
-            percentage: selectedService.percentage || "0",
-          }
-        : null,
-      dealLogs: [],
-      followups: [],
-      statusLogs: [],
-    };
+   const data = {
+  referralId,
+  referralSource: "R",
+  referralType: selectedFor === "self" ? "Self" : "Others",
+  leadDescription,
+  dealStatus: "Pending",
+  lastUpdated: new Date(),
+  timestamp: new Date(),
+  cosmoUjbCode: userDetails.ujbCode, // ✅ added field
+  cosmoOrbiter: {
+    name: userDetails.name,
+    email: userDetails.email,
+    phone: userDetails.phone,
+    ujbCode: userDetails.ujbCode,
+    mentorName: userDetails.mentorName || null,
+    mentorPhone: userDetails.mentorPhone || null,
+  },
+  orbiter:
+    selectedFor === "self"
+      ? orbiterDetails
+      : { name: otherName, phone: otherPhone, email: otherEmail },
+  product: selectedProduct
+    ? {
+        name: selectedProduct.name,
+        description: selectedProduct.description,
+        imageURL: selectedProduct.imageURL || "",
+        percentage: selectedProduct.percentage || "0",
+      }
+    : null,
+  service: selectedService
+    ? {
+        name: selectedService.name,
+        description: selectedService.description,
+        imageURL: selectedService.imageURL || "",
+        percentage: selectedService.percentage || "0",
+      }
+    : null,
+  dealLogs: [],
+  followups: [],
+  statusLogs: [],
+};
 
     await addDoc(collection(db,COLLECTIONS.referral), data);
 
