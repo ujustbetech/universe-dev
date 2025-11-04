@@ -29,26 +29,33 @@ const UserPayments = () => {
     const fetchPayments = async () => {
       try {
         setLoading(true);
-        const storedUJB = localStorage.getItem("mmUJBCode");
+
+        // ✅ Ensure localStorage is available only in browser
+        const storedUJB =
+          typeof window !== "undefined" ? localStorage.getItem("mmUJBCode") : null;
+
+        console.log("🔹 UJB from localStorage:", storedUJB);
         if (!storedUJB) {
-          console.warn("UJB code not found in localStorage");
+          console.warn("⚠️ UJB code not found in localStorage");
           setLoading(false);
           return;
         }
 
         setUserUJB(storedUJB);
 
-        // ✅ Step 1: Fetch user category from userdetails
+        // ✅ Step 1: Fetch user category from usersdetail
         const userDocRef = doc(db, "usersdetail", storedUJB);
         const userSnap = await getDoc(userDocRef);
         if (!userSnap.exists()) {
-          console.warn("User not found in userdetails");
+          console.warn("⚠️ User not found in usersdetail:", storedUJB);
           setLoading(false);
           return;
         }
+
         const userData = userSnap.data();
         const category = userData?.Category || "";
         setUserCategory(category);
+        console.log("🔹 User Category:", category);
 
         // ✅ Step 2: Fetch payments from Referraldev
         const referralCol = collection(db, "Referraldev");
@@ -62,62 +69,65 @@ const UserPayments = () => {
           const orbiterUjb = data?.orbiter?.ujbCode;
           const cosmoUjb = data?.cosmoOrbiter?.ujbCode;
 
-          // ✅ only include referrals where this user is involved
+          // ✅ Only include referrals related to this user
           if (storedUJB === orbiterUjb || storedUJB === cosmoUjb) {
-           if (Array.isArray(data.payments)) {
-  data.payments.forEach((p) => {
-    const isReceiver = p.paymentTo === category;
-    const isSender = p.paymentFrom === category;
+            if (Array.isArray(data.payments)) {
+              data.payments.forEach((p) => {
+                const isReceiver = p.paymentTo === category;
+                const isSender = p.paymentFrom === category;
 
-    // ✅ include only if the user is sender or receiver
-    if (isReceiver || isSender) {
-      userPayments.push({
-        referralId: p.referralId || docSnap.id,
-        paymentFrom: p.paymentFrom || "-",
-        paymentFromName: p.paymentFromName || "-",
-        paymentTo: p.paymentTo || "-",
-        paymentToName: p.paymentToName || "-",
-        amountReceived: p.amountReceived || 0,
-        adjustedAmount: p.adjustedAmount || 0,
-        actualReceived: p.actualReceived || 0,
-        modeOfPayment: p.modeOfPayment || "-",
-        paymentDate: p.paymentDate || "-",
-        feeType: p.feeType || "-",
-        transactionRef: p.transactionRef || "-",
-      });
-    }
-  });
-}
-
+                if (isReceiver || isSender) {
+                  userPayments.push({
+                    referralId: p.referralId || docSnap.id,
+                    paymentFrom: p.paymentFrom || "-",
+                    paymentFromName: p.paymentFromName || "-",
+                    paymentTo: p.paymentTo || "-",
+                    paymentToName: p.paymentToName || "-",
+                    amountReceived: p.amountReceived || 0,
+                    adjustedAmount: p.adjustedAmount || 0,
+                    actualReceived: p.actualReceived || 0,
+                    modeOfPayment: p.modeOfPayment || "-",
+                    paymentDate: p.paymentDate || "-",
+                    feeType: p.feeType || "-",
+                    transactionRef: p.transactionRef || "-",
+                  });
+                }
+              });
+            }
           }
         });
+
+        console.log("🔹 User payments count:", userPayments.length);
 
         // ✅ Step 3: Calculate totals based on user’s category
         let totalReceivedAmt = 0;
         let totalSentAmt = 0;
 
         userPayments.forEach((p) => {
-          // If user is the receiver
-          if (p.paymentTo === userCategory) {
+          if (p.paymentTo === category) {
             totalReceivedAmt += (p.actualReceived || 0) + (p.adjustedAmount || 0);
           }
-          // If user is the sender
-          if (p.paymentFrom === userCategory) {
-            totalSentAmt += (p.amountReceived || 0);
+          if (p.paymentFrom === category) {
+            totalSentAmt += p.amountReceived || 0;
           }
         });
+
+        console.log("✅ Total Received:", totalReceivedAmt);
+        console.log("✅ Total Sent:", totalSentAmt);
 
         setTotalReceived(totalReceivedAmt);
         setTotalSent(totalSentAmt);
         setPayments(userPayments);
       } catch (error) {
-        console.error("Error fetching payments:", error);
+        console.error("❌ Error fetching payments:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchPayments();
+    // Delay ensures localStorage and Firebase are both ready
+    const timer = setTimeout(fetchPayments, 300);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
