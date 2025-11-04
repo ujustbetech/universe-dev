@@ -465,11 +465,17 @@ const handleAccept = async (ref) => {
 
                                 </div>
                             
-   <div className="cosmoCard-actions">
-  {(!ref.cosmoOrbiter?.dealStatus || ref.cosmoOrbiter?.dealStatus === "Pending") ? (
-    <button className="m-button-5" onClick={() => handleAccept(ref)}>
-      Accept
-    </button>
+ <div className="cosmoCard-actions">
+  {activeTab === "my" ? (
+    (!ref.cosmoOrbiter?.dealStatus || ref.cosmoOrbiter?.dealStatus === "Pending") ? (
+      <button className="m-button-5" onClick={() => handleAccept(ref)}>
+        Accept
+      </button>
+    ) : (
+      <Link href={`/ReferralsDetails/${ref.id}`} className="viewDetails">
+        View Details
+      </Link>
+    )
   ) : (
     <Link href={`/ReferralsDetails/${ref.id}`} className="viewDetails">
       View Details

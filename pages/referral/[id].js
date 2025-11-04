@@ -128,7 +128,7 @@ const [editIndex, setEditIndex] = useState(null);
       });
 
      if (data.orbiter?.phone) {
-  const orbiterSnap = await getDoc(doc(db, "userdetail_dev", data.orbiter.phone));
+  const orbiterSnap = await getDoc(doc(db, COLLECTIONS.userDetail, data.orbiter.phone));
   if (orbiterSnap.exists()) {
     const orbiterData = orbiterSnap.data();
     setOrbiter({
@@ -139,7 +139,7 @@ const [editIndex, setEditIndex] = useState(null);
   }
 }// ✅ Fetch ORBITER details using UJB Code as doc ID
 if (data.orbiter?.ujbCode) {
-  const orbiterRef = doc(db, "userdetail_dev", data.orbiter.ujbCode);
+  const orbiterRef = doc(db, COLLECTIONS.userDetail, data.orbiter.ujbCode);
   const orbiterSnap = await getDoc(orbiterRef);
 
   if (orbiterSnap.exists()) {
@@ -157,7 +157,7 @@ if (data.orbiter?.ujbCode) {
 
 // ✅ Fetch COSMO details using UJB Code as doc ID
 if (data.cosmoOrbiter?.ujbCode) {
-  const cosmoRef = doc(db, "userdetail_dev", data.cosmoOrbiter.ujbCode);
+  const cosmoRef = doc(db, COLLECTIONS.userDetail, data.cosmoOrbiter.ujbCode);
   const cosmoSnap = await getDoc(cosmoRef);
 
   if (cosmoSnap.exists()) {
@@ -175,7 +175,7 @@ if (data.cosmoOrbiter?.ujbCode) {
 
 
 if (data.cosmoOrbiter?.phone) {
-  const cosmoSnap = await getDoc(doc(db, "userdetail_dev", data.cosmoOrbiter.phone));
+  const cosmoSnap = await getDoc(doc(db, COLLECTIONS.userDetail, data.cosmoOrbiter.phone));
   if (cosmoSnap.exists()) {
     const cosmoData = cosmoSnap.data();
     setCosmoOrbiter({
@@ -309,27 +309,28 @@ const handleAddPayment = async () => {
       });
       return;
     }
-// ✏️ If editing an existing payment
-if (editIndex !== null) {
-  const updatedPayments = [...payments];
-  updatedPayments[editIndex] = {
-    ...updatedPayments[editIndex],
-    ...newPayment,
-    updatedAt: Timestamp.now(),
-  };
 
-  await updateDoc(doc(db, "Referraldev", id), { payments: updatedPayments });
-  setPayments(updatedPayments);
-  setEditIndex(null);
-  setShowAddPaymentForm(false);
+    // ✏️ Edit existing payment
+    if (editIndex !== null) {
+      const updatedPayments = [...payments];
+      updatedPayments[editIndex] = {
+        ...updatedPayments[editIndex],
+        ...newPayment,
+        updatedAt: Timestamp.now(),
+      };
 
-  Swal.fire({
-    icon: "success",
-    title: "Payment Updated!",
-    text: "The payment details were successfully updated.",
-  });
-  return;
-}
+      await updateDoc(doc(db, "Referraldev", id), { payments: updatedPayments });
+      setPayments(updatedPayments);
+      setEditIndex(null);
+      setShowAddPaymentForm(false);
+
+      Swal.fire({
+        icon: "success",
+        title: "Payment Updated!",
+        text: "The payment details were successfully updated.",
+      });
+      return;
+    }
 
     // 💸 Amount validation
     if (isNaN(newPayment.amountReceived) || newPayment.amountReceived <= 0) {
@@ -394,16 +395,62 @@ if (editIndex !== null) {
     await updateDoc(referralDocRef, { payments: updatedPayments });
     setPayments(updatedPayments);
 
-    // 5️⃣ ✅ Update CosmoOrbiter’s own doc (not the Orbiter’s)
-    if (cosmoOrbiter?.ujbCode) {
-      const cosmoDocRef = doc(db, "userdetail_dev", cosmoOrbiter.ujbCode);
-      const cosmoSnap = await getDoc(cosmoDocRef);
+    // 5️⃣ ✅ Update the correct user's document based on paymentTo
+    let targetDocRef = null;
+    let paymentFieldPath = "";
+    let targetUser = null;
 
-      if (cosmoSnap.exists()) {
-        const cosmoData = cosmoSnap.data();
-        const orbiterPayment = cosmoData?.payment?.orbiter || {};
-        let currentAmount = Number(orbiterPayment.amount || 0);
-        let currentStatus = orbiterPayment.status || "pending";
+    switch (newPayment.paymentTo) {
+      case "Orbiter":
+        if (orbiter?.ujbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, orbiter.ujbCode);
+          paymentFieldPath = "payment.orbiter";
+          targetUser = orbiter;
+        }
+        break;
+
+      case "CosmoOrbiter":
+        if (cosmoOrbiter?.ujbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, cosmoOrbiter.ujbCode);
+          paymentFieldPath = "payment.cosmo";
+          targetUser = cosmoOrbiter;
+        }
+        break;
+
+      case "OrbiterMentor":
+        if (orbiter?.mentorUjbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, orbiter.mentorUjbCode);
+          paymentFieldPath = "payment.mentor";
+          targetUser = { name: orbiter.mentorName, ujbCode: orbiter.mentorUjbCode };
+        }
+        break;
+
+      case "CosmoMentor":
+        if (cosmoOrbiter?.mentorUjbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, cosmoOrbiter.mentorUjbCode);
+          paymentFieldPath = "payment.mentor";
+          targetUser = { name: cosmoOrbiter.mentorName, ujbCode: cosmoOrbiter.mentorUjbCode };
+        }
+        break;
+
+      default:
+        console.log("❌ Unknown paymentTo target:", newPayment.paymentTo);
+    }
+
+    if (targetDocRef) {
+      const targetSnap = await getDoc(targetDocRef);
+      if (targetSnap.exists()) {
+        const targetData = targetSnap.data();
+
+        const paymentData =
+          paymentFieldPath.includes("cosmo")
+            ? targetData?.payment?.cosmo || {}
+            : paymentFieldPath.includes("mentor")
+            ? targetData?.payment?.mentor || {}
+            : targetData?.payment?.orbiter || {};
+
+        let currentAmount = Number(paymentData.amount || 0);
+        let currentStatus = paymentData.status || "pending";
 
         // ✅ Only adjust if status is "adjusted"
         if (currentStatus === "adjusted") {
@@ -413,7 +460,6 @@ if (editIndex !== null) {
 
           const newStatus = newAmount === 0 ? "paid" : "adjusted";
 
-          // Log entry
           const logEntry = {
             date: new Date().toISOString(),
             receivedAmount: received,
@@ -423,25 +469,24 @@ if (editIndex !== null) {
             transactionRef: newPayment.transactionRef || "",
           };
 
-          // Update Cosmo doc
-          await updateDoc(cosmoDocRef, {
-            "payment.orbiter.amount": newAmount,
-            "payment.orbiter.status": newStatus,
-            "payment.orbiter.lastUpdated": new Date().toISOString(),
-            "payment.orbiter.adjustmentLogs": arrayUnion(logEntry),
+          await updateDoc(targetDocRef, {
+            [`${paymentFieldPath}.amount`]: newAmount,
+            [`${paymentFieldPath}.status`]: newStatus,
+            [`${paymentFieldPath}.lastUpdated`]: new Date().toISOString(),
+            [`${paymentFieldPath}.adjustmentLogs`]: arrayUnion(logEntry),
           });
 
           console.log(
-            `✅ Updated CosmoOrbiter: ${cosmoOrbiter.name}, Remaining: ${newAmount}, Status: ${newStatus}`
+            `✅ Updated ${newPayment.paymentTo}: ${targetUser.name}, Remaining: ${newAmount}, Status: ${newStatus}`
           );
         } else {
-          console.log("ℹ️ No update — payment.orbiter status is not 'adjustment'.");
+          console.log(`ℹ️ No update — ${newPayment.paymentTo} status is not 'adjusted'.`);
         }
       } else {
-        console.log("❌ CosmoOrbiter doc not found in userdetail_dev:", cosmoOrbiter.ujbCode);
+        console.log(`❌ ${newPayment.paymentTo} doc not found:`, targetUser?.ujbCode);
       }
     } else {
-      console.log("❌ No CosmoOrbiter ujbCode available.");
+      console.log("❌ No target user or ujbCode found for paymentTo:", newPayment.paymentTo);
     }
 
     // 6️⃣ Reset form
@@ -460,7 +505,7 @@ if (editIndex !== null) {
     Swal.fire({
       icon: "success",
       title: "Payment Added!",
-      text: "Payment has been added and CosmoOrbiter adjustment updated successfully.",
+      text: "Payment has been added and the adjustment updated successfully.",
       confirmButtonColor: "#3085d6",
     });
   } catch (err) {
@@ -473,7 +518,7 @@ if (editIndex !== null) {
   }
 };
 
-// put this above handleAddPayment (so it's defined before use)
+
 const mapToActualName = (key) => {
   switch (key) {
     case "Orbiter":
@@ -490,6 +535,7 @@ const mapToActualName = (key) => {
       return key || "";
   }
 };
+
 
   const handleChange = (e) => {
     setFormState({ ...formState, [e.target.name]: e.target.value });

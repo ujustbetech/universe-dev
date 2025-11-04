@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Swal from 'sweetalert2';
-
+import { COLLECTIONS } from "/utility_collection";
 import { db, storage } from '../firebaseConfig';
 import { useSearchParams } from 'next/navigation'; 
 
@@ -107,7 +107,7 @@ useEffect(() => {
     try {
       if (!ujbcode) return;
 
-      const q = query(collection(db, 'userdetail_dev'), where('UJBCode', '==', ujbcode));
+      const q = query(collection(db, COLLECTIONS.userDetail), where('UJBCode', '==', ujbcode));
       const snapshot = await getDocs(q);
 
       if (!snapshot.empty) {
@@ -257,7 +257,7 @@ const handleChange = (e) => {
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, 'userdetail_devb'));
+      const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
       const users = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -454,7 +454,7 @@ const updatedData = {
     // Now declare updatedData
    
 
-    const userRef = doc(db, 'userdetail_dev', docId);
+    const userRef = doc(db, COLLECTIONS.userDetail, docId);
     await updateDoc(userRef, updatedData);
 
     alert('Profile updated successfully!');
@@ -481,7 +481,7 @@ const handleBusinessApprove = async () => {
       }
     };
 
-    const userRef = doc(db, 'userdetail_dev', docId);
+    const userRef = doc(db,COLLECTIONS.userDetail, docId);
     await updateDoc(userRef, subscriptionData);
 
     Swal.fire({
@@ -772,12 +772,22 @@ if (field === 'BusinessSocialMediaPages') {
               </div>
             </li>
 
-            <li className="form-row">
-              <h4>Category</h4>
-              <div className="multipleitem">
-                <input type="text" value={formData.Category || ''} readOnly />
-              </div>
-            </li>
+         <li className="form-row">
+  <h4>Category</h4>
+  <div className="multipleitem">
+    <select
+      name="Category"
+      value={formData.Category || ''}
+      onChange={handleChange}
+      required
+    >
+      <option value="">Select Category</option>
+      <option value="Orbiter">Orbiter</option>
+      <option value="CosmOrbiter">CosmOrbiter</option>
+    </select>
+  </div>
+</li>
+
 
             <li className="form-row">
               <h4>Email</h4>
