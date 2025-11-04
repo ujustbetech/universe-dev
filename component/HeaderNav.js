@@ -19,6 +19,7 @@ const HeaderNav = () => {
     { label: "MM", icon: <MdOutlineBusinessCenter size={26} />, path: "/Monthlymeetdetails" },
     { label: "Conclave", icon: <GrGroup size={26} />, path: "/ConclaveMeeting" },
     { label: "Referrals", icon: <FaPeopleArrows size={26} />, path: `/ReferralList` },
+     { label: "Payments", icon: <FaPeopleArrows size={26} />, path: `/PaymentRec` },
     { label: "Business", icon: <MdBusinessCenter size={26} />, path: "/ReferralDetails" },
     { label: "Profile", icon: <HiUser size={26} />, path: "/ProfilePage" },
   ], [user.phoneNumber]);

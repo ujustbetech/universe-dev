@@ -20,6 +20,11 @@ const ReferralDetails = () => {
   const [showDealCard, setShowDealCard] = useState(false);
 const [orbiter, setOrbiter] = useState(null);
 const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
+const [adjustmentInfo, setAdjustmentInfo] = useState({
+  adjustedAmount: 0,
+  actualReceived: 0,
+});
+
 
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [open, setOpen] = useState(false);
@@ -312,7 +317,8 @@ const handleAddPayment = async () => {
     }
 
     // 💸 Amount validation
-    if (isNaN(newPayment.amountReceived) || newPayment.amountReceived <= 0) {
+    const received = Number(newPayment.amountReceived);
+    if (isNaN(received) || received <= 0) {
       await Swal.fire({
         icon: "error",
         title: "Invalid Amount",
@@ -322,50 +328,17 @@ const handleAddPayment = async () => {
       return;
     }
 
-    // 🔢 Transaction reference validation
-    if (
-      ["GPay", "Razorpay", "Bank Transfer", "Other"].includes(newPayment.modeOfPayment) &&
-      !newPayment.transactionRef
-    ) {
-      await Swal.fire({
-        icon: "warning",
-        title: "Transaction Reference Required",
-        text: "Please provide the transaction reference number.",
-        backdrop: true,
-      });
-      return;
-    }
-
-    // 📝 Comment validation (for 'Other' mode)
-    if (newPayment.modeOfPayment === "Other" && !newPayment.comment) {
-      await Swal.fire({
-        icon: "warning",
-        title: "Comment Required",
-        text: "Please add a comment for 'Other' payment mode.",
-        backdrop: true,
-      });
-      return;
-    }
-
-    // 1️⃣ Upload file if any
-    let paymentInvoiceURL = "";
-    if (newPayment.paymentInvoice) {
-      const fileRef = ref(
-        storage,
-        `paymentInvoices/${id}/${Date.now()}_${newPayment.paymentInvoice.name}`
-      );
-      await uploadBytes(fileRef, newPayment.paymentInvoice);
-      paymentInvoiceURL = await getDownloadURL(fileRef);
-    }
-
-    // 2️⃣ Remove file object
-    const { paymentInvoice, ...restPayment } = newPayment;
-
-    // 3️⃣ Determine correct user document
+    // Initialize adjustment variables
+    let adjustedAmount = 0;
+    let actualReceived = 0;
+    let currentAmount = 0;
+    let currentStatus = "";
+    let feeType = "";
     let targetDocRef = null;
     let paymentFieldPath = "";
     let targetUser = null;
 
+    // 🎯 Determine correct user document
     switch (newPayment.paymentTo) {
       case "Orbiter":
         if (orbiter?.ujbCode) {
@@ -399,51 +372,97 @@ const handleAddPayment = async () => {
         console.log("❌ Unknown paymentTo target:", newPayment.paymentTo);
     }
 
-    // 🧩 Validate fee type before proceeding
-    let adjustedAmount = 0;
-    let actualReceived = 0;
-    let currentAmount = 0;
-    let currentStatus = "";
-
+    // 🧩 Fetch current fee type and adjustment info
     if (targetDocRef) {
       const targetSnap = await getDoc(targetDocRef);
       if (targetSnap.exists()) {
         const targetData = targetSnap.data();
 
-        let paySection = {};
-        if (paymentFieldPath.includes("cosmo")) paySection = targetData?.payment?.cosmo || {};
-        else if (paymentFieldPath.includes("mentor")) paySection = targetData?.payment?.mentor || {};
-        else paySection = targetData?.payment?.orbiter || {};
+        const paySection = paymentFieldPath.includes("cosmo")
+          ? targetData?.payment?.cosmo || {}
+          : paymentFieldPath.includes("mentor")
+          ? targetData?.payment?.mentor || {}
+          : targetData?.payment?.orbiter || {};
 
-        const feeType = paySection?.feeType || "";
+        feeType = paySection?.feeType || "";
         if (!["upfront", "adjustment"].includes(feeType)) {
           await Swal.fire({
             icon: "error",
             title: "Fee Type Not Set",
             text: "Fee type (upfront or adjustment) is not set in the user's profile. Please update their profile first.",
-            allowOutsideClick: true,
             backdrop: true,
           });
-          return; // 🚫 Stop here — don’t save payment
+          return;
         }
 
         currentAmount = Number(paySection.amount || 0);
         currentStatus = paySection.status || "";
 
-        const received = Number(newPayment.amountReceived || 0);
-        if (["adjusted", "unpaid"].includes(currentStatus)) {
+        if (feeType === "adjustment" && ["adjusted", "unpaid"].includes(currentStatus)) {
           if (received <= currentAmount) {
-            adjustedAmount = received;
+            adjustedAmount = received; // 🔹 Fully adjusted
             actualReceived = 0;
           } else {
-            adjustedAmount = currentAmount;
+            adjustedAmount = currentAmount; // 🔸 Partial adjustment
             actualReceived = received - currentAmount;
           }
         }
       }
     }
 
-    // 🧾 Create payment data (include adjusted + actual)
+    // 🧠 Dynamic validation depending on adjustment type
+    if (adjustedAmount > 0 && actualReceived === 0) {
+      // ✅ FULL ADJUSTMENT
+      console.log("✅ Full adjustment — skipping payment details validation.");
+    } else if (adjustedAmount > 0 && actualReceived > 0) {
+      // ⚠️ PARTIAL ADJUSTMENT
+      if (!newPayment.modeOfPayment) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Payment Mode Required",
+          text: "Please select a payment mode for the remaining (non-adjusted) amount.",
+          backdrop: true,
+        });
+        return;
+      }
+      if (
+        ["GPay", "Razorpay", "Bank Transfer", "Other"].includes(newPayment.modeOfPayment) &&
+        !newPayment.transactionRef
+      ) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Transaction Reference Required",
+          text: "Please provide transaction reference for the received portion.",
+          backdrop: true,
+        });
+        return;
+      }
+    } else {
+      // 💰 NORMAL (UPFRONT)
+      if (!newPayment.modeOfPayment) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Payment Mode Required",
+          text: "Please select a payment mode.",
+          backdrop: true,
+        });
+        return;
+      }
+    }
+
+    // 📎 Upload invoice only if external payment exists
+    let paymentInvoiceURL = "";
+    if (newPayment.paymentInvoice && actualReceived > 0) {
+      const fileRef = ref(
+        storage,
+        `paymentInvoices/${id}/${Date.now()}_${newPayment.paymentInvoice.name}`
+      );
+      await uploadBytes(fileRef, newPayment.paymentInvoice);
+      paymentInvoiceURL = await getDownloadURL(fileRef);
+    }
+
+    // 🧾 Prepare payment data
+    const { paymentInvoice, ...restPayment } = newPayment;
     const paymentData = {
       ...restPayment,
       paymentFromName: mapToActualName(newPayment.paymentFrom),
@@ -452,19 +471,17 @@ const handleAddPayment = async () => {
       createdAt: Timestamp.now(),
       adjustedAmount,
       actualReceived,
+      feeType,
     };
 
     // ✅ Add payment to Referraldev
     const updatedPayments = [...payments, paymentData];
-    const referralDocRef = doc(db, "Referraldev", id);
-    await updateDoc(referralDocRef, { payments: updatedPayments });
+    await updateDoc(doc(db, "Referraldev", id), { payments: updatedPayments });
     setPayments(updatedPayments);
 
-    // ✅ Update adjustment if applicable
+    // 🧮 Update adjustment in user details
     if (targetDocRef && currentStatus === "adjusted") {
-      const received = Number(newPayment.amountReceived || 0);
-      let newAmount = currentAmount - received;
-      if (newAmount < 0) newAmount = 0;
+      const newAmount = Math.max(currentAmount - received, 0);
       const newStatus = newAmount === 0 ? "paid" : "adjusted";
 
       const logEntry = {
@@ -472,7 +489,7 @@ const handleAddPayment = async () => {
         receivedAmount: received,
         remainingAmount: newAmount,
         referralId: id,
-        paymentMode: newPayment.modeOfPayment,
+        paymentMode: actualReceived > 0 ? newPayment.modeOfPayment : "Adjusted",
         transactionRef: newPayment.transactionRef || "",
       };
 
@@ -482,13 +499,9 @@ const handleAddPayment = async () => {
         [`${paymentFieldPath}.lastUpdated`]: new Date().toISOString(),
         [`${paymentFieldPath}.adjustmentLogs`]: arrayUnion(logEntry),
       });
-
-      console.log(
-        `✅ Updated ${newPayment.paymentTo}: ${targetUser?.name}, Remaining: ${newAmount}, Status: ${newStatus}`
-      );
     }
 
-    // 🧼 Clear form data after success
+    // 🧼 Reset form
     setNewPayment({
       paymentFrom: "CosmoOrbiter",
       paymentTo: "UJustBe",
@@ -505,13 +518,13 @@ const handleAddPayment = async () => {
     await Swal.fire({
       icon: "success",
       title: "Payment Added!",
-      text: "Payment has been added and the adjustment updated successfully.",
+      text: "Payment has been added and adjustments updated successfully.",
       confirmButtonColor: "#3085d6",
       backdrop: true,
     });
   } catch (err) {
     console.error("🔥 Error adding payment:", err);
-    Swal.fire({
+    await Swal.fire({
       icon: "error",
       title: "Error",
       text: "Failed to add payment. Please try again later.",
@@ -519,6 +532,7 @@ const handleAddPayment = async () => {
     });
   }
 };
+
 
 
 
@@ -1075,9 +1089,11 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
             </>
           )}
 
-      {/* ADD PAYMENT FORM */}
+{/* ADD PAYMENT FORM */}
+{/* ADD PAYMENT FORM */}
 {showAddPaymentForm && (
   <div className="addPaymentForm">
+    {/* 🔹 Payment From */}
     <label>
       Payment From: <span style={{ color: "red" }}>*</span>
       <select
@@ -1087,13 +1103,12 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
         required
       >
         <option value="">-- Select --</option>
-        <option value="CosmoOrbiter">
-          {cosmoOrbiter?.name || "CosmoOrbiter"}
-        </option>
+        <option value="CosmoOrbiter">{cosmoOrbiter?.name || "CosmoOrbiter"}</option>
         <option value="UJustBe">UJustBe</option>
       </select>
     </label>
 
+    {/* 🔹 Payment To */}
     <label>
       Payment To: <span style={{ color: "red" }}>*</span>
       <select
@@ -1110,63 +1125,168 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
       </select>
     </label>
 
+    {/* 🔹 Amount */}
     <label>
-      Mode of Payment: <span style={{ color: "red" }}>*</span>
-      <select
-        name="modeOfPayment"
-        value={newPayment.modeOfPayment}
-        onChange={handlePaymentChange}
-        required
-      >
-        <option value="">-- Select Mode --</option>
-        <option value="GPay">GPay</option>
-        <option value="Razorpay">Razorpay</option>
-        <option value="Bank Transfer">Bank Transfer</option>
-        <option value="Cash">Cash</option>
-        <option value="Other">Other</option>
-      </select>
-    </label>
-
-    {/* Conditional fields */}
-    {(newPayment.modeOfPayment === "GPay" ||
-      newPayment.modeOfPayment === "Razorpay" ||
-      newPayment.modeOfPayment === "Bank Transfer" ||
-      newPayment.modeOfPayment === "Other") && (
-      <label>
-        Transaction Reference Number: <span style={{ color: "red" }}>*</span>
-        <input
-          type="text"
-          name="transactionRef"
-          value={newPayment.transactionRef || ""}
-          onChange={handlePaymentChange}
-          required
-        />
-      </label>
-    )}
-
-    <label>
-      Upload Invoice:
+      Amount: <span style={{ color: "red" }}>*</span>
       <input
-        type="file"
-        accept="image/*,application/pdf"
-        onChange={(e) =>
-          setNewPayment({ ...newPayment, paymentInvoice: e.target.files[0] })
+        type="number"
+        name="amountReceived"
+        value={newPayment.amountReceived}
+      onChange={async (e) => {
+  const value = Number(e.target.value);
+  const updatedPayment = { ...newPayment, amountReceived: value };
+  setNewPayment(updatedPayment);
+
+  // Reset first
+  setAdjustmentInfo({ adjustedAmount: 0, actualReceived: 0 });
+
+  if (updatedPayment.paymentTo && value > 0) {
+    let targetDocRef = null;
+    let paymentFieldPath = "";
+
+    switch (updatedPayment.paymentTo) {
+      case "Orbiter":
+        if (orbiter?.ujbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, orbiter.ujbCode);
+          paymentFieldPath = "payment.orbiter";
         }
+        break;
+      case "CosmoOrbiter":
+        if (cosmoOrbiter?.ujbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, cosmoOrbiter.ujbCode);
+          paymentFieldPath = "payment.cosmo";
+        }
+        break;
+      case "OrbiterMentor":
+        if (orbiter?.mentorUjbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, orbiter.mentorUjbCode);
+          paymentFieldPath = "payment.mentor";
+        }
+        break;
+      case "CosmoMentor":
+        if (cosmoOrbiter?.mentorUjbCode) {
+          targetDocRef = doc(db, COLLECTIONS.userDetail, cosmoOrbiter.mentorUjbCode);
+          paymentFieldPath = "payment.mentor";
+        }
+        break;
+      default:
+        paymentFieldPath = "";
+    }
+
+    if (targetDocRef) {
+      const snap = await getDoc(targetDocRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const paySection =
+          paymentFieldPath.includes("cosmo")
+            ? data?.payment?.cosmo || {}
+            : paymentFieldPath.includes("mentor")
+            ? data?.payment?.mentor || {}
+            : data?.payment?.orbiter || {};
+
+        const currentAmount = Number(paySection.amount || 0);
+        const status = (paySection.status || "").toLowerCase();
+        const feeType = (paySection.feeType || "").toLowerCase();
+
+        // 🧩 Adjustment visibility logic (fixed)
+        if (feeType === "adjustment" && ["adjusted", "unpaid"].includes(status)) {
+          if (value > 0 && value <= currentAmount) {
+            // 🔹 Full adjustment → hide fields
+            setAdjustmentInfo({ adjustedAmount: value, actualReceived: 0 });
+          } else if (value > currentAmount) {
+            // 🔸 Partial adjustment → show remainder fields
+            setAdjustmentInfo({
+              adjustedAmount: currentAmount,
+              actualReceived: value - currentAmount,
+            });
+          } else {
+            // 🟢 No adjustment or zero value
+            setAdjustmentInfo({ adjustedAmount: 0, actualReceived: 0 });
+          }
+        } else {
+          // 💰 Normal upfront payment
+          setAdjustmentInfo({ adjustedAmount: 0, actualReceived: value });
+        }
+      }
+    }
+  }
+}}
+
+        
+        min="1"
+        required
       />
     </label>
 
-    {newPayment.modeOfPayment === "Other" && (
-      <label>
-        Comment: <span style={{ color: "red" }}>*</span>
-        <textarea
-          name="comment"
-          value={newPayment.comment || ""}
-          onChange={handlePaymentChange}
-          required
-        />
-      </label>
+    {/* 💬 Adjustment Message */}
+    {adjustmentInfo.actualReceived === 0 && adjustmentInfo.adjustedAmount > 0 && (
+      <div style={{ marginTop: "10px", color: "#2c7a7b", fontWeight: "500" }}>
+        ✅ This amount will be adjusted internally. No payment details required.
+      </div>
     )}
 
+    {/* 💳 Conditional Payment Fields */}
+    {adjustmentInfo.actualReceived > 0 && (
+      <>
+        <label>
+          Mode of Payment: <span style={{ color: "red" }}>*</span>
+          <select
+            name="modeOfPayment"
+            value={newPayment.modeOfPayment}
+            onChange={handlePaymentChange}
+            required
+          >
+            <option value="">-- Select Mode --</option>
+            <option value="GPay">GPay</option>
+            <option value="Razorpay">Razorpay</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Cash">Cash</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+
+        {(newPayment.modeOfPayment === "GPay" ||
+          newPayment.modeOfPayment === "Razorpay" ||
+          newPayment.modeOfPayment === "Bank Transfer" ||
+          newPayment.modeOfPayment === "Other") && (
+          <label>
+            Transaction Reference Number: <span style={{ color: "red" }}>*</span>
+            <input
+              type="text"
+              name="transactionRef"
+              value={newPayment.transactionRef || ""}
+              onChange={handlePaymentChange}
+              required
+            />
+          </label>
+        )}
+
+        <label>
+          Upload Invoice:
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(e) =>
+              setNewPayment({ ...newPayment, paymentInvoice: e.target.files[0] })
+            }
+          />
+        </label>
+
+        {newPayment.modeOfPayment === "Other" && (
+          <label>
+            Comment: <span style={{ color: "red" }}>*</span>
+            <textarea
+              name="comment"
+              value={newPayment.comment || ""}
+              onChange={handlePaymentChange}
+              required
+            />
+          </label>
+        )}
+      </>
+    )}
+
+    {/* 🗓 Payment Date */}
     <label>
       Payment Date: <span style={{ color: "red" }}>*</span>
       <input
@@ -1174,34 +1294,21 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
         name="paymentDate"
         value={newPayment.paymentDate}
         onChange={handlePaymentChange}
-        max={new Date().toISOString().split("T")[0]} // Prevent future dates
+        max={new Date().toISOString().split("T")[0]}
         required
       />
     </label>
 
-    <label>
-      Amount : <span style={{ color: "red" }}>*</span>
-      <input
-        type="number"
-        name="amountReceived"
-        value={newPayment.amountReceived}
-        onChange={handlePaymentChange}
-        min="1"
-        required
-      />
-    </label>
-
+    {/* Buttons */}
     <div className="formButtons">
       <button onClick={handleAddPayment}>Save Payment</button>
-      <button
-        className="cancelBtn"
-        onClick={() => setShowAddPaymentForm(false)}
-      >
+      <button className="cancelBtn" onClick={() => setShowAddPaymentForm(false)}>
         Cancel
       </button>
     </div>
   </div>
 )}
+
 
         </div>
 
