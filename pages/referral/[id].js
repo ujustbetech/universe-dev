@@ -287,14 +287,14 @@ const handleAddPayment = async () => {
     if (
       !newPayment.paymentFrom ||
       !newPayment.paymentTo ||
-      !newPayment.modeOfPayment ||
       !newPayment.paymentDate ||
       !newPayment.amountReceived
     ) {
-      Swal.fire({
+      await Swal.fire({
         icon: "warning",
         title: "Missing Fields",
         text: "Please fill in all required fields before submitting.",
+        backdrop: true,
       });
       return;
     }
@@ -302,42 +302,22 @@ const handleAddPayment = async () => {
     // 🗓️ Prevent future date
     const today = new Date().toISOString().split("T")[0];
     if (newPayment.paymentDate > today) {
-      Swal.fire({
+      await Swal.fire({
         icon: "error",
         title: "Invalid Date",
         text: "Payment date cannot be in the future.",
-      });
-      return;
-    }
-
-    // ✏️ Edit existing payment
-    if (editIndex !== null) {
-      const updatedPayments = [...payments];
-      updatedPayments[editIndex] = {
-        ...updatedPayments[editIndex],
-        ...newPayment,
-        updatedAt: Timestamp.now(),
-      };
-
-      await updateDoc(doc(db, "Referraldev", id), { payments: updatedPayments });
-      setPayments(updatedPayments);
-      setEditIndex(null);
-      setShowAddPaymentForm(false);
-
-      Swal.fire({
-        icon: "success",
-        title: "Payment Updated!",
-        text: "The payment details were successfully updated.",
+        backdrop: true,
       });
       return;
     }
 
     // 💸 Amount validation
     if (isNaN(newPayment.amountReceived) || newPayment.amountReceived <= 0) {
-      Swal.fire({
+      await Swal.fire({
         icon: "error",
         title: "Invalid Amount",
         text: "Please enter a valid positive amount.",
+        backdrop: true,
       });
       return;
     }
@@ -347,27 +327,28 @@ const handleAddPayment = async () => {
       ["GPay", "Razorpay", "Bank Transfer", "Other"].includes(newPayment.modeOfPayment) &&
       !newPayment.transactionRef
     ) {
-      Swal.fire({
+      await Swal.fire({
         icon: "warning",
         title: "Transaction Reference Required",
         text: "Please provide the transaction reference number.",
+        backdrop: true,
       });
       return;
     }
 
     // 📝 Comment validation (for 'Other' mode)
     if (newPayment.modeOfPayment === "Other" && !newPayment.comment) {
-      Swal.fire({
+      await Swal.fire({
         icon: "warning",
         title: "Comment Required",
         text: "Please add a comment for 'Other' payment mode.",
+        backdrop: true,
       });
       return;
     }
 
-    let paymentInvoiceURL = "";
-
     // 1️⃣ Upload file if any
+    let paymentInvoiceURL = "";
     if (newPayment.paymentInvoice) {
       const fileRef = ref(
         storage,
@@ -380,22 +361,7 @@ const handleAddPayment = async () => {
     // 2️⃣ Remove file object
     const { paymentInvoice, ...restPayment } = newPayment;
 
-    // 3️⃣ Create payment data
-    const paymentData = {
-      ...restPayment,
-      paymentFromName: mapToActualName(newPayment.paymentFrom),
-      paymentToName: mapToActualName(newPayment.paymentTo),
-      paymentInvoiceURL,
-      createdAt: Timestamp.now(),
-    };
-
-    // 4️⃣ Update Referral payments list
-    const updatedPayments = [...payments, paymentData];
-    const referralDocRef = doc(db, "Referraldev", id);
-    await updateDoc(referralDocRef, { payments: updatedPayments });
-    setPayments(updatedPayments);
-
-    // 5️⃣ ✅ Update the correct user's document based on paymentTo
+    // 3️⃣ Determine correct user document
     let targetDocRef = null;
     let paymentFieldPath = "";
     let targetUser = null;
@@ -408,7 +374,6 @@ const handleAddPayment = async () => {
           targetUser = orbiter;
         }
         break;
-
       case "CosmoOrbiter":
         if (cosmoOrbiter?.ujbCode) {
           targetDocRef = doc(db, COLLECTIONS.userDetail, cosmoOrbiter.ujbCode);
@@ -416,7 +381,6 @@ const handleAddPayment = async () => {
           targetUser = cosmoOrbiter;
         }
         break;
-
       case "OrbiterMentor":
         if (orbiter?.mentorUjbCode) {
           targetDocRef = doc(db, COLLECTIONS.userDetail, orbiter.mentorUjbCode);
@@ -424,7 +388,6 @@ const handleAddPayment = async () => {
           targetUser = { name: orbiter.mentorName, ujbCode: orbiter.mentorUjbCode };
         }
         break;
-
       case "CosmoMentor":
         if (cosmoOrbiter?.mentorUjbCode) {
           targetDocRef = doc(db, COLLECTIONS.userDetail, cosmoOrbiter.mentorUjbCode);
@@ -432,64 +395,100 @@ const handleAddPayment = async () => {
           targetUser = { name: cosmoOrbiter.mentorName, ujbCode: cosmoOrbiter.mentorUjbCode };
         }
         break;
-
       default:
         console.log("❌ Unknown paymentTo target:", newPayment.paymentTo);
     }
+
+    // 🧩 Validate fee type before proceeding
+    let adjustedAmount = 0;
+    let actualReceived = 0;
+    let currentAmount = 0;
+    let currentStatus = "";
 
     if (targetDocRef) {
       const targetSnap = await getDoc(targetDocRef);
       if (targetSnap.exists()) {
         const targetData = targetSnap.data();
 
-        const paymentData =
-          paymentFieldPath.includes("cosmo")
-            ? targetData?.payment?.cosmo || {}
-            : paymentFieldPath.includes("mentor")
-            ? targetData?.payment?.mentor || {}
-            : targetData?.payment?.orbiter || {};
+        let paySection = {};
+        if (paymentFieldPath.includes("cosmo")) paySection = targetData?.payment?.cosmo || {};
+        else if (paymentFieldPath.includes("mentor")) paySection = targetData?.payment?.mentor || {};
+        else paySection = targetData?.payment?.orbiter || {};
 
-        let currentAmount = Number(paymentData.amount || 0);
-        let currentStatus = paymentData.status || "pending";
-
-        // ✅ Only adjust if status is "adjusted"
-        if (currentStatus === "adjusted") {
-          const received = Number(newPayment.amountReceived || 0);
-          let newAmount = currentAmount - received;
-          if (newAmount < 0) newAmount = 0;
-
-          const newStatus = newAmount === 0 ? "paid" : "adjusted";
-
-          const logEntry = {
-            date: new Date().toISOString(),
-            receivedAmount: received,
-            remainingAmount: newAmount,
-            referralId: id,
-            paymentMode: newPayment.modeOfPayment,
-            transactionRef: newPayment.transactionRef || "",
-          };
-
-          await updateDoc(targetDocRef, {
-            [`${paymentFieldPath}.amount`]: newAmount,
-            [`${paymentFieldPath}.status`]: newStatus,
-            [`${paymentFieldPath}.lastUpdated`]: new Date().toISOString(),
-            [`${paymentFieldPath}.adjustmentLogs`]: arrayUnion(logEntry),
+        const feeType = paySection?.feeType || "";
+        if (!["upfront", "adjustment"].includes(feeType)) {
+          await Swal.fire({
+            icon: "error",
+            title: "Fee Type Not Set",
+            text: "Fee type (upfront or adjustment) is not set in the user's profile. Please update their profile first.",
+            allowOutsideClick: true,
+            backdrop: true,
           });
-
-          console.log(
-            `✅ Updated ${newPayment.paymentTo}: ${targetUser.name}, Remaining: ${newAmount}, Status: ${newStatus}`
-          );
-        } else {
-          console.log(`ℹ️ No update — ${newPayment.paymentTo} status is not 'adjusted'.`);
+          return; // 🚫 Stop here — don’t save payment
         }
-      } else {
-        console.log(`❌ ${newPayment.paymentTo} doc not found:`, targetUser?.ujbCode);
+
+        currentAmount = Number(paySection.amount || 0);
+        currentStatus = paySection.status || "";
+
+        const received = Number(newPayment.amountReceived || 0);
+        if (["adjusted", "unpaid"].includes(currentStatus)) {
+          if (received <= currentAmount) {
+            adjustedAmount = received;
+            actualReceived = 0;
+          } else {
+            adjustedAmount = currentAmount;
+            actualReceived = received - currentAmount;
+          }
+        }
       }
-    } else {
-      console.log("❌ No target user or ujbCode found for paymentTo:", newPayment.paymentTo);
     }
 
-    // 6️⃣ Reset form
+    // 🧾 Create payment data (include adjusted + actual)
+    const paymentData = {
+      ...restPayment,
+      paymentFromName: mapToActualName(newPayment.paymentFrom),
+      paymentToName: mapToActualName(newPayment.paymentTo),
+      paymentInvoiceURL,
+      createdAt: Timestamp.now(),
+      adjustedAmount,
+      actualReceived,
+    };
+
+    // ✅ Add payment to Referraldev
+    const updatedPayments = [...payments, paymentData];
+    const referralDocRef = doc(db, "Referraldev", id);
+    await updateDoc(referralDocRef, { payments: updatedPayments });
+    setPayments(updatedPayments);
+
+    // ✅ Update adjustment if applicable
+    if (targetDocRef && currentStatus === "adjusted") {
+      const received = Number(newPayment.amountReceived || 0);
+      let newAmount = currentAmount - received;
+      if (newAmount < 0) newAmount = 0;
+      const newStatus = newAmount === 0 ? "paid" : "adjusted";
+
+      const logEntry = {
+        date: new Date().toISOString(),
+        receivedAmount: received,
+        remainingAmount: newAmount,
+        referralId: id,
+        paymentMode: newPayment.modeOfPayment,
+        transactionRef: newPayment.transactionRef || "",
+      };
+
+      await updateDoc(targetDocRef, {
+        [`${paymentFieldPath}.amount`]: newAmount,
+        [`${paymentFieldPath}.status`]: newStatus,
+        [`${paymentFieldPath}.lastUpdated`]: new Date().toISOString(),
+        [`${paymentFieldPath}.adjustmentLogs`]: arrayUnion(logEntry),
+      });
+
+      console.log(
+        `✅ Updated ${newPayment.paymentTo}: ${targetUser?.name}, Remaining: ${newAmount}, Status: ${newStatus}`
+      );
+    }
+
+    // 🧼 Clear form data after success
     setNewPayment({
       paymentFrom: "CosmoOrbiter",
       paymentTo: "UJustBe",
@@ -501,12 +500,14 @@ const handleAddPayment = async () => {
       amountReceived: "",
       paymentInvoice: null,
     });
+    setShowAddPaymentForm(false);
 
-    Swal.fire({
+    await Swal.fire({
       icon: "success",
       title: "Payment Added!",
       text: "Payment has been added and the adjustment updated successfully.",
       confirmButtonColor: "#3085d6",
+      backdrop: true,
     });
   } catch (err) {
     console.error("🔥 Error adding payment:", err);
@@ -514,9 +515,12 @@ const handleAddPayment = async () => {
       icon: "error",
       title: "Error",
       text: "Failed to add payment. Please try again later.",
+      backdrop: true,
     });
   }
 };
+
+
 
 
 const mapToActualName = (key) => {
@@ -1034,10 +1038,25 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
     </div>
   </div>
   <p><strong>From:</strong> {mapPaymentLabel(payment.paymentFrom)}</p>
-  <p><strong>To:</strong> {mapPaymentLabel(payment.paymentTo)}</p>
-  <p><strong>Mode:</strong> {payment.modeOfPayment}</p>
-  <p><strong>Date:</strong> {payment.paymentDate}</p>
-  <p><strong>Description:</strong> {payment.description}</p>
+<p><strong>To:</strong> {mapPaymentLabel(payment.paymentTo)}</p>
+<p><strong>Mode:</strong> {payment.modeOfPayment}</p>
+<p><strong>Date:</strong> {payment.paymentDate}</p>
+
+{/* 💸 Display Adjusted / Actual / Total amounts */}
+<div className="paymentAmounts">
+  <p><strong>Total Amount Received:</strong> ₹{payment.amountReceived || 0}</p>
+  <p><strong>Adjusted Amount:</strong> ₹{payment.adjustedAmount || 0}</p>
+  <p><strong>Actual Received:</strong> ₹{payment.actualReceived || 0}</p>
+</div>
+
+{/* Optional comment or reference */}
+{payment.transactionRef && (
+  <p><strong>Transaction Ref:</strong> {payment.transactionRef}</p>
+)}
+{payment.comment && (
+  <p><strong>Comment:</strong> {payment.comment}</p>
+)}
+
 </div>
 
         ))
