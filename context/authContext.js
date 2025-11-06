@@ -29,13 +29,13 @@ export const AuthProvider = ({ children }) => {
   // ✅ Fetch user by phone using query
   const fetchUser = async (phone) => {
     try {
-      const q = query(collection(db, "userdetail_dev"), where("MobileNo", "==", phone));
+      const q = query(collection(db, "usersdetail"), where("MobileNo", "==", phone));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
         const matchedDoc = querySnapshot.docs[0];
         const data = matchedDoc.data();
-        console.log("userdetails", data);
+        console.log("usersdetail", data);
         
         const name = data["Name"] || data[" Name"] || "User";
         console.log("Name", name);
