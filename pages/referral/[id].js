@@ -940,7 +940,7 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
                 </label>
 
                 <label>
-                  Date:
+                  Next Follow-up Date:
                   <input
                     type="date"
                     name="date"
@@ -990,7 +990,7 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
               followups.map((fup, idx) => (
                 <div className="followupCard" key={idx}>
                   <h3>{fup.priority} Priority</h3>
-                  <p><strong>Date:</strong> {fup.date}</p>
+                  <p><strong>Next Date:</strong> {fup.date}</p>
                   <p><strong>Description:</strong> {fup.description}</p>
                   <p><strong>Status:</strong> {fup.status}</p>
                 </div>

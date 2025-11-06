@@ -53,7 +53,8 @@ useEffect(() => {
           name: data["Name"] || '',             // match your Firestore field
           role: data["Category"] || '',
           idNumber: data["IDNumber"] || '', 
-     ujbCode: data["UJBCode"] || '',
+   ujbCode: data["ujbCode"] || data["UJBCode"] || '',
+
 
           status: data["ProfileStatus"] || '',
           mentorName: data["Mentor Name"] || '',
@@ -73,9 +74,79 @@ useEffect(() => {
 
   fetchUsers();
 }, []);
+// ✅ Fetch Mentors to show suggestion list
+useEffect(() => {
+  const fetchMentors = async () => {
+    try {
+      const mentorCollection = collection(db, COLLECTIONS.userDetail);
+      const snapshot = await getDocs(mentorCollection);
 
-  const handleAddUser = async (e) => {
+     const mentorList = snapshot.docs.map(doc => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    name: data["Name"] || "",
+    phone: data["MobileNo"] || "",
+    ujbCode: data["ujbCode"] || data["UJBCode"] || ""
+  };
+});
+
+
+      setMentors(mentorList);
+    } catch (err) {
+      console.error("Error fetching mentors:", err);
+    }
+  };
+
+  fetchMentors();
+}, []);
+const validateForm = () => {
+  if (!newUser.name.trim()) {
+    Swal.fire("Please enter Name", "", "warning");
+    return false;
+  }
+
+  if (!newUser.phoneNumber.trim() || !/^[6-9]\d{9}$/.test(newUser.phoneNumber)) {
+    Swal.fire("Enter valid 10-digit Mobile Number", "", "warning");
+    return false;
+  }
+
+  if (!newUser.role.trim()) {
+    Swal.fire("Please select Category", "", "warning");
+    return false;
+  }
+
+  if (!newUser.dob.trim()) {
+    Swal.fire("Please select Date of Birth", "", "warning");
+    return false;
+  }
+
+  if (
+    newUser.email.trim() &&
+    !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(newUser.email)
+  ) {
+    Swal.fire("Please enter valid Email address", "", "warning");
+    return false;
+  }
+
+  if (!newUser.gender.trim()) {
+    Swal.fire("Please select gender", "", "warning");
+    return false;
+  }
+
+  if (!newUser.ujbCode.trim()) {
+    Swal.fire("Please enter UJB Code", "", "warning");
+    return false;
+  }
+
+  return true;
+};
+
+ const handleAddUser = async (e) => {
   e.preventDefault();
+
+  if (!validateForm()) return;
+
   const formattedDOB = formatDOB(newUser.dob);
 
   let mentorName = '';
@@ -83,22 +154,28 @@ useEffect(() => {
   let mentorUjbCode = '';
   let mentorId = '';
 
-  if (newUser.mentor) {
-    const selectedMentor = mentors.find((m) => 
-      m.name.toLowerCase() === newUser.mentor.toLowerCase() ||
-      m.phone === newUser.mentor
-    );
-
-    if (selectedMentor) {
-      mentorName = selectedMentor.name;
-      mentorPhone = selectedMentor.phone;
-      mentorUjbCode = selectedMentor.ujbCode;
-      mentorId = selectedMentor.id;
-    } else {
-      Swal.fire("Mentor not found!", "", "error");
-      return;
-    }
+  if (newUser.mentor && !newUser.mentorName) {
+    Swal.fire("Select mentor from dropdown list only", "", "warning");
+    return;
   }
+
+  const selectedMentor = mentors.find((m) =>
+    m.name.toLowerCase() === newUser.mentor.toLowerCase() ||
+    m.phone === newUser.mentor
+  );
+
+  if (selectedMentor) {
+    mentorName = selectedMentor.name;
+    mentorPhone = selectedMentor.phone;
+    mentorUjbCode = selectedMentor.ujbCode;
+    mentorId = selectedMentor.id;
+  } else {
+    Swal.fire("Mentor not found!", "", "error");
+    return;
+  }
+
+  // ✅ NO EXTRA BRACE HERE
+
 
   const userDoc = {
     "Name": newUser.name,
@@ -192,7 +269,7 @@ useEffect(() => {
           name: data["Name"] || '',
           role: data["Category"] || '',
           idNumber: data["IDNumber"] || '',
-       ujbCode: data["UJBCode"] || '',
+     ujbCode: data["ujbCode"] || data["UJBCode"] || '',
 
           status: data["ProfileStatus"] || '',
           mentorName: data["Mentor Name"] || '',
@@ -272,7 +349,8 @@ useEffect(() => {
           role: data["Category"] || '',
           idNumber: data["IDNumber"] || '',
           status: data["ProfileStatus"] || '',
-          ujbCode: data["UJBCode"] || '',
+       ujbCode: data["ujbCode"] || data["UJBCode"] || '',
+
 
           mentorName: data["Mentor Name"] || '',
           mentorPhone: data["Mentor Phone"] || '',
@@ -361,7 +439,7 @@ useEffect(() => {
         <h4>Email<sup>*</sup></h4>
         <div className='multipleitem'>
           <input 
-            type="email" 
+            type="text" 
             placeholder="Email" 
             value={newUser.email} 
             onChange={(e) => setNewUser({...newUser, email: e.target.value})} 
@@ -397,75 +475,48 @@ useEffect(() => {
       </li>
 
       {/* ✅ NEW FIELD: Mentor Search */}
-      <li className='form-row'>
-        <h4>Assign Mentor<sup>*</sup></h4>
-        <div className='multipleitem'>
-          <input
-            type="text"
-            placeholder="Search Mentor by Name or Mobile"
-            value={newUser.mentor}
-            onChange={(e) => setNewUser({ ...newUser, mentor: e.target.value })}
-          />
-          <button
-            type="button"
-            className="m-button-7"
-            style={{ marginLeft: "10px", backgroundColor: "#f16f06", color: "white" }}
-            onClick={async () => {
-              try {
-                const snapshot = await getDocs(collection(db, "userdetail"));
-                const mentors = snapshot.docs.map((doc) => ({
-                  id: doc.id,
-                  ...doc.data(),
-                }));
+     <li className="form-row">
+  <h4>Assign Mentor</h4>
+  <div className="multipleitem" style={{ position: "relative" }}>
 
-                const foundMentor = mentors.find(
-                  (m) =>
-                    m[" Name"]?.toLowerCase() === newUser.mentor.toLowerCase() ||
-                    m["Mobile no"] === newUser.mentor
-                );
+    <input
+      type="text"
+      placeholder="Search Mentor by Name or Mobile"
+      value={newUser.mentor}
+      onChange={(e) => setNewUser({ ...newUser, mentor: e.target.value })}
+      autoComplete="off"
+    />
 
-                if (foundMentor) {
-                  Swal.fire({
-                    icon: "success",
-                    title: "Mentor Found",
-                    text: `${foundMentor[" Name"]} (${foundMentor["Mobile no"]})`,
-                    timer: 2000,
-                    showConfirmButton: false,
-                  });
+    {newUser.mentor && (
+      <ul className="mentor-dropdown">
+        {mentors
+          .filter((m) =>
+            (m.name?.toLowerCase() || "").includes(newUser.mentor.toLowerCase()) ||
+            m.phone?.includes(newUser.mentor)
+          )
+          .slice(0, 8) // show only 8 results
+          .map((m) => (
+            <li
+              key={m.id}
+              onClick={() => {
+                setNewUser({
+                  ...newUser,
+                  mentor: m.name,
+                  mentorName: m.name,
+                  mentorPhone: m.phone,
+                  mentorUjbCode: m.ujbCode,
+                });
+              }}
+            >
+              {m.name}
+            </li>
+          ))}
+      </ul>
+    )}
+  </div>
 
-                setNewUser((prev) => ({
-  ...prev,
-  mentorName: foundMentor[" Name"] || '',
-  mentorPhone: foundMentor["Mobile no"] || '',
-  mentorUjbCode: foundMentor["UJB Code"] || '',
-}));
-
-                } else {
-                  Swal.fire({
-                    icon: "error",
-                    title: "Mentor Not Found",
-                    text: "No matching mentor found in userdetail collection.",
-                  });
-                }
-              } catch (err) {
-                console.error("Error fetching mentor:", err);
-                Swal.fire("Error", "Unable to fetch mentor details", "error");
-              }
-            }}
-          >
-            Search
-          </button>
-        </div>
-
-        {/* ✅ Show mentor details after search */}
-        {newUser.mentorName && (
-          <div className="mentor-details">
-            <p><strong>Mentor Name:</strong> {newUser.mentorName}</p>
-            <p><strong>Mentor Phone:</strong> {newUser.mentorPhone}</p>
-            <p><strong>Mentor UJB Code:</strong> {newUser.mentorUjbCode}</p>
-          </div>
-        )}
-      </li>
+ 
+</li>
 
       <li className='form-row'>
         <div className='multipleitem'>

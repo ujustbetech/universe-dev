@@ -38,16 +38,19 @@ const UploadUserDetails = () => {
         const orbiterName = String(row["Orbiter Name"] || "").trim();
         const mobileNumber = String(row["Mobile Number"] || "").trim();
         const oneTimeFee = Number(row["One time enrollment fees"] || 0);
-        const balanceAmount = Number(row[" Balance Amount "] || 0);
+        const balanceAmount = Number(row["Balance Amount"] || 0);
+        const adjustedAmount = Number(row["Adjusted Amount"] || 0);
 
         if (!ujbCode) {
           console.warn("Skipping row due to missing UJB Code:", row);
           continue;
         }
 
-        const docRef = doc(db, "usersdetail", ujbCode);
+        const docRef = doc(db, "userdetail_dev", ujbCode);
+        const now = new Date().toISOString();
+        const paidDate = now.split("T")[0];
 
-        // ✅ Firestore Data Structure
+        // Firestore data structure
         const userData = {
           ujbCode,
           orbiterName,
@@ -55,15 +58,18 @@ const UploadUserDetails = () => {
           oneTimeEnrollmentFee: oneTimeFee,
           balanceAmount,
           payment: {
-            orbiter: {
-              amount: balanceAmount, // 👈 comes from Balance Amount
-              feeType: "adjustment",
-              paidDate: "",
-              paymentId: "",
-              paymentMode: "",
-              screenshotURL: "",
-              status: "adjusted",
-            },
+            orbiter: [
+              {
+                amount: adjustedAmount,
+                feeType: "adjustment",
+                lastUpdated: now,
+                paidDate,
+                paymentId: "",
+                paymentMode: "",
+                screenshotURL: "",
+                status: "adjusted",
+              },
+            ],
           },
         };
 
@@ -71,7 +77,7 @@ const UploadUserDetails = () => {
         console.log(`✅ Uploaded: ${ujbCode}`);
       }
 
-      alert("🎉 All user details uploaded successfully!");
+      alert("🎉 Data uploaded successfully!");
     } catch (error) {
       console.error("❌ Error uploading data:", error);
       alert("Error uploading data. Check console for details.");
@@ -84,7 +90,6 @@ const UploadUserDetails = () => {
       <button className="m-button-5" onClick={() => window.history.back()}>
         Back
       </button>
-
       <ul>
         <div className="upload-container">
           <input

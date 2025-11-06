@@ -140,11 +140,11 @@ const UserPayments = () => {
           {payments.length > 0 && (
             <div className="totalSummary">
               <p>
-                <strong>💰 Total Received:</strong> ₹{totalReceived.toLocaleString()}
+                <strong> Total Amount:</strong> ₹{totalReceived.toLocaleString()}
               </p>
-              <p>
+              {/* <p>
                 <strong>📤 Total Sent:</strong> ₹{totalSent.toLocaleString()}
-              </p>
+              </p> */}
             </div>
           )}
         </div>

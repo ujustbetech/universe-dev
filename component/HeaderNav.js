@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { FiHome } from "react-icons/fi";
 import { MdOutlineBusinessCenter, MdBusinessCenter } from "react-icons/md";
 import { BiSolidCoinStack } from "react-icons/bi";
+import { MdPayment } from "react-icons/md";
 import { GrGroup } from "react-icons/gr";
 import { HiUser } from "react-icons/hi2";
 import { useAuth } from "../context/authContext";
@@ -19,7 +20,7 @@ const HeaderNav = () => {
     { label: "MM", icon: <MdOutlineBusinessCenter size={26} />, path: "/Monthlymeetdetails" },
     { label: "Conclave", icon: <GrGroup size={26} />, path: "/ConclaveMeeting" },
     { label: "Referrals", icon: <FaPeopleArrows size={26} />, path: `/ReferralList` },
-     { label: "Payments", icon: <FaPeopleArrows size={26} />, path: `/PaymentRec` },
+     { label: "Payments", icon: <MdPayment size={26} />, path: `/PaymentRec` },
     { label: "Business", icon: <MdBusinessCenter size={26} />, path: "/ReferralDetails" },
     { label: "Profile", icon: <HiUser size={26} />, path: "/ProfilePage" },
   ], [user.phoneNumber]);

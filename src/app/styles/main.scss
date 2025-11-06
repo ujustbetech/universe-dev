@@ -2666,3 +2666,28 @@ input[type="file"] {
 .deleteBtn:hover {
   color: #e63946;
 }
+.mentor-dropdown {
+  position: absolute;
+  top: 42px;
+  left: 0;
+  width: 100%;
+  max-height: 160px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  z-index: 5000;
+}
+
+.mentor-dropdown li {
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.mentor-dropdown li:hover {
+  background: #f5f5f5;
+}
