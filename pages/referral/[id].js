@@ -211,6 +211,59 @@ if (data.cosmoOrbiter?.phone) {
   };
 
 
+const handlePaymentToSelect = (selectedValue) => {
+  
+  // ✅ Validate that deal is won
+  if (!formState.dealStatus || formState.dealStatus.toLowerCase() !== "deal won") {
+    Swal.fire({
+      icon: "warning",
+      title: "Deal Not Closed",
+      text: "Please mark the Deal Status as 'Deal Won' and calculate deal distribution before adding payment.",
+      backdrop: true,
+    });
+    return;
+  }
+
+  // ✅ Ensure dealLogs exists
+  if (!dealLogs || dealLogs.length === 0) {
+    Swal.fire({
+      icon: "info",
+      title: "Deal Calculation Required",
+      text: "Deal calculation is not done yet. Please click 'Calculate Deal' to generate shares.",
+      backdrop: true,
+    });
+    return;
+  }
+
+  const deal = dealLogs[dealLogs.length - 1]; // latest log
+
+  let autoAmount = 0;
+
+  switch (selectedValue) {
+    case "Orbiter":
+      autoAmount = deal.orbiterShare;
+      break;
+    case "OrbiterMentor":
+      autoAmount = deal.orbiterMentorShare;
+      break;
+    case "CosmoMentor":
+      autoAmount = deal.cosmoMentorShare;
+      break;
+    case "UJustBe":
+      autoAmount = deal.ujustbeShare;
+      break;
+    default:
+      autoAmount = 0;
+  }
+
+  // ✅ Auto populate state
+  setNewPayment({
+    ...newPayment,
+    paymentTo: selectedValue,
+    paymentFrom: "CosmoOrbiter", // default payer
+    amountReceived: autoAmount || "",
+  });
+};
 
 
 
@@ -1001,24 +1054,27 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
           </div>
         {/* Collapsed Payment Container */}
         {/* Collapsed Payment Container */}
-        <div className="PaymentContainer">
-          <h4>Last Payment</h4>
-          {payments.length > 0 ? (
-            <p>
-              {mapPaymentLabel(payments[payments.length - 1].paymentFrom)} →{" "}
-              {mapPaymentLabel(payments[payments.length - 1].paymentTo)} : ₹
-              {payments[payments.length - 1].amountReceived}
-            </p>
-          ) : (
-            <p>No payments yet</p>
-          )}
-          <button
-            className="viewMoreBtn"
-            onClick={() => setShowPaymentSheet(true)}  // <-- Use correct state here
-          >
-       Payment Details
-          </button>
-        </div>
+ {formState.dealStatus?.toLowerCase().replace(/\s/g, "") === "dealwon" && (
+  <div className="PaymentContainer">
+    <h4>Last Payment</h4>
+    {payments.length > 0 ? (
+      <p>
+        {mapPaymentLabel(payments[payments.length - 1].paymentFrom)} →{" "}
+        {mapPaymentLabel(payments[payments.length - 1].paymentTo)} : ₹
+        {payments[payments.length - 1].amountReceived}
+      </p>
+    ) : (
+      <p>No payments yet</p>
+    )}
+    <button
+      className="viewMoreBtn"
+      onClick={() => setShowPaymentSheet(true)}
+    >
+      Payment Details
+    </button>
+  </div>
+)}
+
 
 
 {/* Sliding Sheet */}
@@ -1111,18 +1167,19 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
     {/* 🔹 Payment To */}
     <label>
       Payment To: <span style={{ color: "red" }}>*</span>
-      <select
-        name="paymentTo"
-        value={newPayment.paymentTo}
-        onChange={handlePaymentChange}
-        required
-      >
-        <option value="">-- Select --</option>
-        <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
-        <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
-        <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
-        <option value="UJustBe">UJustBe</option>
-      </select>
+     <select
+  name="paymentTo"
+  value={newPayment.paymentTo}
+  onChange={(e) => handlePaymentToSelect(e.target.value)}
+  required
+>
+  <option value="">-- Select --</option>
+  <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
+  <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
+  <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
+  <option value="UJustBe">UJustBe</option>
+</select>
+
     </label>
 
     {/* 🔹 Amount */}
