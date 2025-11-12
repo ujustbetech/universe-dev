@@ -507,7 +507,7 @@ const dropdowns = {
   Gender: ['Male', 'Female', 'Transgender', 'Prefer not to say'],
   'IDType': ['Aadhaar', 'PAN', 'Passport', 'Driving License'],
   'InterestArea': ['Business', 'Education', 'Wellness', 'Technology', 'Art', 'Environment', 'Other'],
-  'Current Health Condition': ['Excellent', 'Good', 'Average', 'Needs Attention'],
+  'CurrentHealthCondition': ['Excellent', 'Good', 'Average', 'Needs Attention'],
   'MaritalStatus': ['Single', 'Married', 'Widowed', 'Divorced'],
   'EducationalBackground': ['SSC', 'HSC', 'Graduate', 'Post-Graduate', 'PhD', 'Other'],
   'ProfileStatus': ['Pending', 'In process', 'Submitted', 'Verified', 'Inactive'],
@@ -523,23 +523,30 @@ const dropdowns = {
   const contributionOptions = ['Referrals', 'Volunteering', 'RHW Activities', 'Content Creation', 'Mentorship'];
 
 const orbiterFields = [
-  'IDType', 'ID Number', 'Upload Photo',
+  'IDType', 'IDNumber', 'Upload Photo',
   'City', 'State', 'Location', // ✅ Added here
-  'Hobbies', 'Interest Area', 'Skills', 'Exclusive Knowledge',
-  'Aspirations', 'Health Parameters', 'Current Health Condition',
-  'FamilyHistorySummary', 'Marital Status', 'Professional History',
-  'CurrentProfession', 'Educational Background', 'Languages Known',
-  'ContributionAreainUJustBe', 'Immediate Desire', 'Mastery',
+  'Hobbies', 'InterestArea', 'Skills', 'Exclusive Knowledge',
+  'Aspirations', 'Health Parameters', 'CurrentHealthCondition',
+  'FamilyHistorySummary', 'MaritalStatus', 'ProfessionalHistory',
+  'CurrentProfession', 'EducationalBackground', 'LanguagesKnown',
+  'ContributionAreainUJustBe', 'ImmediateDesire', 'Mastery',
   'SpecialSocialContribution', 'ProfileStatus',  'BusinessSocialMediaPages',  // 👈 add this line
 
 ];
 
 const cosmorbiterFields = [
   ...orbiterFields,
-  'BusinessName', 'BusinessDetails(Nature & Type)', 'BusinessHistory',
-  'NoteworthyAchievements', 'ClienteleBase', 
-  'Website', 'Locality', 'AreaofServices', 'USP', 'BusinessLogo',
-  'TagLine',  
+  'BusinessName',
+  'BusinessDetails (Nature & Type)', // ✅ space added
+  'BusinessHistory',
+  'NoteworthyAchievements',
+  'ClienteleBase',
+  'Website',
+  'Locality',
+  'AreaofServices',
+  'USP',
+  'BusinessLogo',
+  'TagLine',
   'EstablishedAt'
 ];
 
@@ -746,7 +753,7 @@ if (field === 'BusinessSocialMediaPages') {
      
  
  <div className="step-progress-bar">
-  {['Personal Info', 'Health', 'Education', 'Business Info', 'Additional Info','Payment'].map((tab, index) => (
+  {['Personal Info', 'Health', 'Education', 'BusinessInfo', 'Additional Info','Payment'].map((tab, index) => (
     <div key={tab} className="step-container">
       <button
         className={`step ${activeTab === tab ? "active" : ""}`}
@@ -806,7 +813,7 @@ if (field === 'BusinessSocialMediaPages') {
            
           </>
         )}
-{activeTab === 'Business Info' && formData?.Category?.toLowerCase() === 'cosmorbiter' && (
+{activeTab === 'BusinessInfo' && formData?.Category?.toLowerCase() === 'cosmorbiter' && (
   <>
     <div >
       
@@ -1008,7 +1015,11 @@ if (field === 'BusinessSocialMediaPages') {
   </div>
 )}
 </div>
+{/* ✅ BUSINESS INFO FIELDS (Dynamic) */}
+
+
 </>
+
 )}
 {activeTab === 'Payment' && (
   <div>
