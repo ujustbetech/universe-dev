@@ -23,7 +23,8 @@ const WHATSAPP_API_TOKEN = 'Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setStatus(docSnap.data().status || 'No status yet');
-          setDeclineReason(data.declineReason || '');
+       setDeclineReason(docSnap.data().declineReason || '');
+
         }
       } catch (error) {
         console.error('Error fetching status:', error);
