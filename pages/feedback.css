@@ -250,7 +250,7 @@
       gap: 6px;
     }
   }
-  .step-form-container {
+ .step-form-container {
     /* background: #ffffff; */
     border-radius: 12px;
   
@@ -270,13 +270,22 @@
     text-align: center;
     padding: 10px;
   }
-  .step-progress-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 2rem;
-    position: relative;
-  }
+.step-progress-bar {
+  display: flex;
+  justify-content: flex-start; /* keep steps aligned left */
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow-x: auto;  /* allow horizontal scroll */
+  white-space: nowrap; /* prevent wrapping */
+  padding-bottom: 10px; /* little space for scrollbar */
+}
+
+.step-container {
+  flex: 0 0 auto; /* prevent shrinking */
+  margin-right: 20px; /* spacing between steps */
+}
+
   
   .step-progress-bar::before {
     content: "";
@@ -289,12 +298,7 @@
     z-index: 0;
   }
   
-  .step-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    z-index: 1;
-  }
+
   
   .step {
     background: #cfd8dc;
@@ -358,6 +362,7 @@
       transform: translateY(0);
     }
   }
+  
   
   .nav-buttons {
     position: sticky;

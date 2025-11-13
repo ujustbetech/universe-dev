@@ -4,10 +4,12 @@ import { FaPeopleArrows } from "react-icons/fa";
 import { MdEventAvailable, MdImage, MdOutlineKeyboardArrowDown } from "react-icons/md";
 import { RiListSettingsLine } from "react-icons/ri";
 import { FaRegUser } from "react-icons/fa";
-import { BsCake2 } from "react-icons/bs";
+import { BsCake2, BsEggFill } from "react-icons/bs";
 import Link from 'next/link';
+import { FaRegEye } from "react-icons/fa";
 import { useRouter } from "next/router";
 // import { FaPeopleArrows } from "react-icons/fa";
+import { GiCosmicEgg } from "react-icons/gi";
 import { BsCashCoin } from "react-icons/bs";
 import { GrGroup } from "react-icons/gr";
 const Navbar = (props) => {
@@ -24,14 +26,15 @@ const Navbar = (props) => {
                         <li>
                             <Link href="/">
                                 <span className="icons"><MdEventAvailable /></span>
-                                <span className="linklabel">Event</span>
+                                <span className="linklabel">MonthlyMeet</span>
                                 <span className="submenuIcon"><MdOutlineKeyboardArrowDown /></span>
                             </Link>
                             <ul>
-                                <li><Link href="/admin/event/create-event">Add Event</Link></li>
-                                <li><Link href="/admin/event/manageEvent">Manage Event</Link></li>
+                                <li><Link href="/admin/event/create-event">Add Meet</Link></li>
+                                <li><Link href="/admin/event/manageEvent">Manage Meet</Link></li>
                             </ul>
                         </li>
+                         
                             <li>
                             <Link href="/AllBirthday">
                                 <span className="icons"><BsCake2/></span>
@@ -39,8 +42,8 @@ const Navbar = (props) => {
                                 <span className="submenuIcon"><BsCake2/></span>
                             </Link>
                             <ul>
-                                <li><Link href="/SendBirthday">Send Canva</Link></li>
-                                <li><Link href="/AddBirthday">Add Canva</Link></li>
+                                <li><Link href="/SendBirthday">Send Wishes</Link></li>
+                                <li><Link href="/AddBirthday">Add Wishes</Link></li>
                             </ul>
                         </li>
                             <li>
@@ -75,7 +78,17 @@ const Navbar = (props) => {
                                 <li><Link href="/admin/event/userlist">Orbiters Profiling</Link></li>
                             </ul>
                         </li>
-                       
+                          <li>
+                            <Link href=" ">
+                                <span className="icons"><GiCosmicEgg /></span>
+                                <span className="linklabel">Prospects</span>
+                                <span className="submenuIcon"><MdOutlineKeyboardArrowDown /></span>
+                            </Link>
+                            <ul>
+                                <li><Link href="/prospectadmin/event/create-prospect">Add Prospects</Link></li>
+                                <li><Link href="/prospectadmin/event/manageProspect">Manage Prospects</Link></li>
+                            </ul>
+                        </li>
                                      <li>
                             <Link href="">
                                 <span className="icons"><BsCashCoin /></span>
@@ -89,7 +102,7 @@ const Navbar = (props) => {
                             </li>
                          <li>
                             <Link href="/admin/PageVisit">
-                                <span className="icons"><RiListSettingsLine /></span>
+                                <span className="icons"><FaRegEye /></span>
                                 <span className="linklabel">User Logins</span>
                             </Link>
                         </li>
