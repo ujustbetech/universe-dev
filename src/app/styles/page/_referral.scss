@@ -640,21 +640,19 @@ section h4 {
 }
 
 .profileHeaderOneLine {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  /* spacing between items */
-  padding: 10px 20px;
-  width: 80%;
-  background: #fff;
-  margin-bottom: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  font-size: 14px;
-  flex-wrap: nowrap;
-  /* ✅ force single line */
-  overflow-x: auto;
-  /* ✅ allow scrolling if content is too long */
+display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 20px;
+    width: 80%;
+    background: #fff;
+    margin-bottom: 20px;
+    margin-top: 74px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    font-size: 14px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
 }
 
 .profilePhoto {

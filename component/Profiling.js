@@ -50,7 +50,46 @@ const [payment, setPayment] = useState({
 });
 
 const paymentModes = ['UPI', 'Cash', 'Bank Transfer', 'Credit Card', 'Debit Card', 'NEFT/RTGS'];
+const [mode, setMode] = useState("single");
 
+  const [singleData, setSingleData] = useState({
+    type: "",
+    value: "",
+  });
+
+  const [multipleData, setMultipleData] = useState([]);
+
+  // ➤ Add new slab entry
+  const addSlab = () => {
+    setMultipleData([
+      ...multipleData,
+      { mode: "slab", from: "", to: "", type: "", value: "" },
+    ]);
+  };
+
+  // ➤ Add new product entry
+  const addProductEntry = () => {
+    setMultipleData([
+      ...multipleData,
+      { mode: "product", productName: "", type: "", value: "" },
+    ]);
+  };
+
+  // ➤ Remove entry
+  const removeEntry = (index) => {
+    const updated = [...multipleData];
+    updated.splice(index, 1);
+    setMultipleData(updated);
+  };
+
+  // ➤ Update entry
+  const updateEntry = (index, field, value) => {
+    const updated = [...multipleData];
+    updated[index][field] = value;
+    setMultipleData(updated);
+  };
+
+ 
 
 // --- social platform list ---
 const socialPlatforms = [
@@ -101,7 +140,6 @@ const removeSocialMediaField = (index) => {
 };
 
 
-
 useEffect(() => {
   const fetchUserByPhone = async () => {
     try {
@@ -117,10 +155,10 @@ useEffect(() => {
         setFormData(userData);
         setDocId(userDoc.id);
 
-        if (userData['Profile Photo URL']) setProfilePreview(userData['ProfilePhotoURL']);
-        if (userData['Business Logo']) setBusinessLogoPreview(userData['BusinessLogo']);
+        if (userData['ProfilePhotoURL']) setProfilePreview(userData['ProfilePhotoURL']);
+        if (userData['BusinessLogo']) setBusinessLogoPreview(userData['BusinessLogo']);
 
-        // Load services
+        // SERVICES
         if (userData.services?.length > 0) {
           setServices(
             userData.services.map(s => ({
@@ -132,33 +170,34 @@ useEffect(() => {
             }))
           );
         }
-// --- populate payment safely ---
-const incomingPayments = userData.payment || {};
 
-setPayment((prev) => ({
-  orbiter: {
-    feeType: incomingPayments?.orbiter?.feeType || prev.orbiter.feeType || '',
-    amount: incomingPayments?.orbiter?.amount || 1000,
-    status: incomingPayments?.orbiter?.status || prev.orbiter.status || 'unpaid',
-    paidDate: incomingPayments?.orbiter?.paidDate || '',
-    paymentMode: incomingPayments?.orbiter?.paymentMode || '',
-    paymentId: incomingPayments?.orbiter?.paymentId || '',
-    screenshotURL: incomingPayments?.orbiter?.screenshotURL || '',
-    screenshotFile: null,
-    screenshotPreview: incomingPayments?.orbiter?.screenshotURL || ''
-  },
-  cosmo: {
-    amount: incomingPayments?.cosmo?.amount || 5000,
-    status: incomingPayments?.cosmo?.status || prev.cosmo.status || 'unpaid',
-    paidDate: incomingPayments?.cosmo?.paidDate || '',
-    paymentMode: incomingPayments?.cosmo?.paymentMode || '',
-    paymentId: incomingPayments?.cosmo?.paymentId || '',
-    screenshotURL: incomingPayments?.cosmo?.screenshotURL || '',
-    screenshotFile: null,
-    screenshotPreview: incomingPayments?.cosmo?.screenshotURL || ''
-  }
-}));
- // Load products
+        // PAYMENT
+        const incomingPayments = userData.payment || {};
+        setPayment((prev) => ({
+          orbiter: {
+            feeType: incomingPayments?.orbiter?.feeType || prev.orbiter.feeType || '',
+            amount: incomingPayments?.orbiter?.amount || 1000,
+            status: incomingPayments?.orbiter?.status || prev.orbiter.status || 'unpaid',
+            paidDate: incomingPayments?.orbiter?.paidDate || '',
+            paymentMode: incomingPayments?.orbiter?.paymentMode || '',
+            paymentId: incomingPayments?.orbiter?.paymentId || '',
+            screenshotURL: incomingPayments?.orbiter?.screenshotURL || '',
+            screenshotFile: null,
+            screenshotPreview: incomingPayments?.orbiter?.screenshotURL || ''
+          },
+          cosmo: {
+            amount: incomingPayments?.cosmo?.amount || 5000,
+            status: incomingPayments?.cosmo?.status || prev.cosmo.status || 'unpaid',
+            paidDate: incomingPayments?.cosmo?.paidDate || '',
+            paymentMode: incomingPayments?.cosmo?.paymentMode || '',
+            paymentId: incomingPayments?.cosmo?.paymentId || '',
+            screenshotURL: incomingPayments?.cosmo?.screenshotURL || '',
+            screenshotFile: null,
+            screenshotPreview: incomingPayments?.cosmo?.screenshotURL || ''
+          }
+        }));
+
+        // PRODUCTS
         if (userData.products?.length > 0) {
           setProducts(
             userData.products.map(p => ({
@@ -170,27 +209,58 @@ setPayment((prev) => ({
             }))
           );
         }
-// --- When loading user data from Firestore (inside fetchUserByPhone) ---
-const pages = Array.isArray(userData.BusinessSocialMediaPages)
-  ? userData.BusinessSocialMediaPages
-  : [];
 
-setSocialMediaLinks(
-  pages.map((s) => ({
-    platform: s?.platform || '',
-    link: s?.link || ''
-  }))
-);
+        // SOCIAL MEDIA LINKS
+        const pages = Array.isArray(userData.BusinessSocialMediaPages)
+          ? userData.BusinessSocialMediaPages
+          : [];
 
+        setSocialMediaLinks(
+          pages.map((s) => ({
+            platform: s.platform || "",
+            url: s.url || ""
+          }))
+        );
 
+        // -------------------------
+        // LOAD AGREED VALUE HERE
+        // -------------------------
+        if (userData.AgreedValue) {
+          const agreed = userData.AgreedValue;
+
+          setMode(agreed.mode || "single");
+
+          // Load Single
+          if (agreed.mode === "single" && agreed.single) {
+            setSingleData({
+              type: agreed.single.type || "",
+              value: agreed.single.value || ""
+            });
+          }
+
+          // Load Multiple
+          if (agreed.mode === "multiple" && Array.isArray(agreed.multiple)) {
+            setMultipleData(
+              agreed.multiple.map((item) => ({
+                mode: item.mode || "slab",
+                from: item.from || "",
+                to: item.to || "",
+                itemName: item.itemName || "",
+                type: item.type || "",
+                value: item.value || ""
+              }))
+            );
+          }
+        }
       }
     } catch (err) {
-      console.error('Error fetching user:', err);
+      console.error("Error fetching user:", err);
     }
   };
 
   fetchUserByPhone();
 }, [ujbcode]);
+
 
 const handlePaymentScreenshotChange = (feeKey, file) => {
   if (!file) return;
@@ -357,7 +427,6 @@ const handleDynamicChange = (type, index, field, value) => {
     setProducts(updater);
   }
 };
-
 const handleSubmit = async () => {
   try {
     const profileURL = await uploadProfilePhoto();
@@ -376,11 +445,10 @@ const handleSubmit = async () => {
       });
     }
 
-    // First, filter services and products
+    // Services + Products Filtering
     const filteredServices = services.filter(s => s.name.trim() && s.description.trim());
     const filteredProducts = products.filter(p => p.name.trim() && p.description.trim());
 
-    // Upload service images
     const serviceData = await Promise.all(
       filteredServices.map(async (srv, i) => {
         const imgURL = srv.image
@@ -396,7 +464,6 @@ const handleSubmit = async () => {
       })
     );
 
-    // Upload product images
     const productData = await Promise.all(
       filteredProducts.map(async (prd, i) => {
         const imgURL = prd.image
@@ -411,49 +478,96 @@ const handleSubmit = async () => {
         };
       })
     );
-// ✅ FIXED: Save both Orbiter & Cosmo payment separately
-const paymentToSave = {
-  orbiter: {
-    feeType: payment.orbiter?.feeType || 'upfront',
-    amount: 1000,
-    status: payment.orbiter?.status || 'unpaid',
-    paidDate: payment.orbiter?.paidDate || '',
-    paymentMode: payment.orbiter?.paymentMode || '',
-    paymentId: payment.orbiter?.paymentId || '',
-    screenshotURL: payment.orbiter?.screenshotURL || ''
-  },
-  cosmo: {
-    amount: 5000,
-    status: payment.cosmo?.status || 'unpaid',
-    paidDate: payment.cosmo?.paidDate || '',
-    paymentMode: payment.cosmo?.paymentMode || '',
-    paymentId: payment.cosmo?.paymentId || '',
-    screenshotURL: payment.cosmo?.screenshotURL || ''
-  }
-};
 
+    // PAYMENT BLOCK
+    const paymentToSave = {
+      orbiter: {
+        feeType: payment.orbiter?.feeType || 'upfront',
+        amount: 1000,
+        status: payment.orbiter?.status || 'unpaid',
+        paidDate: payment.orbiter?.paidDate || '',
+        paymentMode: payment.orbiter?.paymentMode || '',
+        paymentId: payment.orbiter?.paymentId || '',
+        screenshotURL: payment.orbiter?.screenshotURL || ''
+      },
+      cosmo: {
+        amount: 5000,
+        status: payment.cosmo?.status || 'unpaid',
+        paidDate: payment.cosmo?.paidDate || '',
+        paymentMode: payment.cosmo?.paymentMode || '',
+        paymentId: payment.cosmo?.paymentId || '',
+        screenshotURL: payment.cosmo?.screenshotURL || ''
+      }
+    };
 
-// then include into updatedData
-const updatedData = {
-  ...formData,
-  ...(profileURL && { 'ProfilePhotoURL': profileURL }),
-  ...(businessLogoURL && { 'BusinessLogo': businessLogoURL }),
-  ...(serviceData.length > 0 && { services: serviceData }),
-  ...(productData.length > 0 && { products: productData }),
-  ...(socialMediaLinks.length > 0 && { 
-    'BusinessSocialMediaPages': socialMediaLinks
-      .filter((s) => s.url && (s.platform || s.customPlatform))
-      .map((s) => {
-        const finalPlatform = s.platform === 'Other' ? (s.customPlatform || 'Other') : s.platform;
-        return { platform: finalPlatform, url: s.url };
+    // -------------------------
+    // BUILD slabs / productSlabs FROM multipleData (avoid undefined)
+    // multipleData should be your state array that stores entries added by user
+    // each entry should have a .mode field === 'slab' | 'product' | 'service'
+    const allMultiple = Array.isArray(multipleData) ? multipleData : [];
+
+    const slabs = allMultiple.filter(e => e.mode === 'slab').map(s => ({
+      from: s.from || '',
+      to: s.to || '',
+      type: s.type || '',      // 'percentage' | 'amount'
+      value: s.value || ''
+    }));
+
+    const productSlabs = allMultiple
+      .filter(e => e.mode === 'product' || e.mode === 'service') // include services if you stored them as 'service'
+      .map(p => ({
+        itemType: p.mode === 'product' ? 'product' : 'service',
+        itemName: p.productName || p.serviceName || p.itemName || '',
+        type: p.type || '',     // 'percentage' | 'amount'
+        value: p.value || ''
+      }));
+    // -------------------------
+
+    // AGREED VALUE — FINAL FORMAT FOR FIRESTORE
+    const agreedValueToSave = {
+      mode,  // "single" | "multiple"
+
+      ...(mode === "single" && {
+        single: {
+          type: singleData?.type || '',     // percentage | amount
+          value: singleData?.value || ''    // number / string
+        }
+      }),
+
+      ...(mode === "multiple" && {
+        multiple: {
+          slabs,         // array of slab objects
+          productSlabs   // array of product/service objects
+        }
       })
-  }),
-  payment: paymentToSave
-};
+    };
 
-    // Now declare updatedData
-   
+    // FINAL DATA TO SAVE
+    const updatedData = {
+      ...formData,
+      ...(profileURL && { ProfilePhotoURL: profileURL }),
+      ...(businessLogoURL && { BusinessLogo: businessLogoURL }),
+      ...(serviceData.length > 0 && { services: serviceData }),
+      ...(productData.length > 0 && { products: productData }),
 
+      ...(socialMediaLinks.length > 0 && {
+        BusinessSocialMediaPages: socialMediaLinks
+          .filter((s) => s.url && (s.platform || s.customPlatform))
+          .map((s) => ({
+            platform: s.platform === 'Other'
+              ? (s.customPlatform || 'Other')
+              : s.platform,
+            url: s.url
+          }))
+      }),
+
+      payment: paymentToSave,
+
+      // SAVE AGREED VALUE HERE
+      AgreedValue: agreedValueToSave
+    };
+
+    // FIRESTORE UPDATE
     const userRef = doc(db, COLLECTIONS.userDetail, docId);
     await updateDoc(userRef, updatedData);
 
@@ -463,6 +577,7 @@ const updatedData = {
     alert('Failed to update profile');
   }
 };
+
 
 const handleBusinessApprove = async () => {
   try {
@@ -1016,6 +1131,242 @@ if (field === 'BusinessSocialMediaPages') {
 )}
 </div>
 {/* ✅ BUSINESS INFO FIELDS (Dynamic) */}
+ {/* --- AGREED VALUE SECTION --- */}
+<div
+  style={{
+    border: "1px solid #ccc",
+    padding: "15px",
+    borderRadius: "8px",
+    background: "#fafafa",
+    marginTop: "40px",
+  }}
+>
+  <h3 style={{ marginBottom: "15px" }}>Agreed Percentage / Amount</h3>
+
+  {/* Mode Switch */}
+  <div className="form-row">
+    <label style={{ marginRight: "20px" }}>
+      <input
+        type="radio"
+        name="mode"
+        value="single"
+        checked={mode === "single"}
+        onChange={() => setMode("single")}
+      />
+      <span style={{ marginLeft: "5px" }}>Single</span>
+    </label>
+
+    <label>
+      <input
+        type="radio"
+        name="mode"
+        value="multiple"
+        checked={mode === "multiple"}
+        onChange={() => setMode("multiple")}
+      />
+      <span style={{ marginLeft: "5px" }}>Multiple</span>
+    </label>
+  </div>
+
+  {/* ---------- SINGLE MODE UI ---------- */}
+  {mode === "single" && (
+    <div
+      style={{
+        border: "1px solid #ccc",
+        padding: "15px",
+        borderRadius: "8px",
+        marginTop: "20px",
+        background: "white",
+      }}
+    >
+      <div className="form-row">
+        <h4>Type</h4>
+        <select
+          value={singleData.type}
+          onChange={(e) =>
+            setSingleData({ ...singleData, type: e.target.value })
+          }
+          className="multipleitem"
+        >
+          <option value="">Select</option>
+          <option value="percentage">Percentage (%)</option>
+          <option value="amount">Amount (Rs)</option>
+        </select>
+      </div>
+
+      <div className="form-row">
+        <h4>Value</h4>
+        <input
+          type="number"
+          value={singleData.value}
+          onChange={(e) =>
+            setSingleData({ ...singleData, value: e.target.value })
+          }
+          className="multipleitem"
+          placeholder="Enter value"
+        />
+      </div>
+    </div>
+  )}
+
+  {/* ---------- MULTIPLE MODE UI ---------- */}
+  {mode === "multiple" && (
+    <div style={{ marginTop: "20px" }}>
+      {/* Buttons */}
+      <div style={{ marginBottom: "15px" }}>
+        <button
+          type="button"
+          className="submitbtn"
+          onClick={addSlab}
+          style={{ marginRight: "10px" }}
+        >
+          + Add Slab
+        </button>
+
+        <button
+          type="button"
+          className="submitbtn"
+          onClick={addProductEntry}
+        >
+          + Add Product
+        </button>
+      </div>
+
+      {/* Render Multiple Cards */}
+      {multipleData.map((entry, index) => (
+        <div
+          key={index}
+          style={{
+            border: "1px solid #ccc",
+            padding: "15px",
+            borderRadius: "8px",
+            background: "white",
+            marginBottom: "20px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <h4>
+              {entry.mode === "slab" ? "Slab Entry" : "Product Entry"}
+            </h4>
+
+            <button
+              type="button"
+              onClick={() => removeEntry(index)}
+              style={{
+                background: "red",
+                color: "white",
+                border: "none",
+                padding: "3px 8px",
+                borderRadius: "6px",
+              }}
+            >
+              X
+            </button>
+          </div>
+
+          {/* Slab UI */}
+          {entry.mode === "slab" && (
+            <>
+              <div className="form-row">
+                <h4>From</h4>
+                <input
+                  type="number"
+                  className="multipleitem"
+                  value={entry.from}
+                  onChange={(e) =>
+                    updateEntry(index, "from", e.target.value)
+                  }
+                />
+              </div>
+
+              <div className="form-row">
+                <h4>To</h4>
+                <input
+                  type="number"
+                  className="multipleitem"
+                  value={entry.to}
+                  onChange={(e) =>
+                    updateEntry(index, "to", e.target.value)
+                  }
+                />
+              </div>
+            </>
+          )}
+
+          {/* Product UI */}
+          {entry.mode === "product" && (
+            <div className="form-row">
+              <h4>Product / Service</h4>
+              <select
+                value={entry.itemName}
+                onChange={(e) =>
+                  updateEntry(index, "itemName", e.target.value)
+                }
+                className="multipleitem"
+              >
+                <option value="">Select Product / Service</option>
+
+                <optgroup label="Services">
+                  {services.map((s, i) => (
+                    <option key={`s-${i}`} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+
+                <optgroup label="Products">
+                  {products.map((p, i) => (
+                    <option key={`p-${i}`} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          )}
+
+          {/* Common Fields */}
+          <div className="form-row">
+            <h4>Type</h4>
+            <select
+              value={entry.type}
+              onChange={(e) =>
+                updateEntry(index, "type", e.target.value)
+              }
+              className="multipleitem"
+            >
+              <option value="">Select</option>
+              <option value="percentage">Percentage (%)</option>
+              <option value="amount">Amount (Rs)</option>
+            </select>
+          </div>
+
+          <div className="form-row">
+            <h4>Value</h4>
+            <input
+              type="number"
+              className="multipleitem"
+              value={entry.value}
+              onChange={(e) =>
+                updateEntry(index, "value", e.target.value)
+              }
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+  {/* SUBMIT */}
+  <button
+    type="button"
+    onClick={handleSubmit}
+    className="submitbtn"
+    style={{ marginTop: "10px" }}
+  >
+    Submit
+  </button>
+</div>
 
 
 </>
