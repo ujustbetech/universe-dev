@@ -25,6 +25,7 @@ const Profiling = () => {
 const [lastUpdated, setLastUpdated] = useState(new Date());
 // Add separate state for "Other Referral Source"
 const [otherReferralSource, setOtherReferralSource] = useState("");
+const [leadDescription, setLeadDescription] = useState("");
 
   const [products, setProducts] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
@@ -140,6 +141,7 @@ const [otherReferralSource, setOtherReferralSource] = useState("");
       },
       service: selectedService,
       product: selectedProduct,
+        leadDescription: leadDescription || "",
       referralType: refType,
       referralSource:
         referralSource === "Other" ? otherReferralSource : referralSource,
@@ -195,6 +197,8 @@ const [otherReferralSource, setOtherReferralSource] = useState("");
     setProducts([]);
     setSelectedService(null);
     setSelectedProduct(null);
+    setLeadDescription("");
+
     setRefType("Self");
     setOtherName("");
     setOtherPhone("");
@@ -318,6 +322,19 @@ const [otherReferralSource, setOtherReferralSource] = useState("");
           </select>
         </li>
       )}
+{/* Lead Description */}
+{(selectedService || selectedProduct) && (
+  <li className="form-group">
+    <label>Lead Description</label>
+    <textarea
+      value={leadDescription}
+      onChange={(e) => setLeadDescription(e.target.value)}
+      placeholder="Enter Lead Description"
+      rows={3}
+      style={{ width: "100%" }}
+    />
+  </li>
+)}
 
       {/* Deal Status */}
     <li className="form-group">
