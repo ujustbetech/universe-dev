@@ -1,7 +1,12 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+// firebaseConfig.js
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+import { 
+  getAuth, 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber 
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyARJI0DZgGwH9j2Hz318ddonBd55IieUBs",
@@ -13,11 +18,20 @@ const firebaseConfig = {
   measurementId: "G-26KEDXQKK9"
 };
 
-// ⛔ Prevent duplicate initialization
+// ✅ Initialize Firebase only once (prevents duplicate-app error)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
+// ✅ Services
+const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const auth = getAuth(app);
 
-export { db, storage, RecaptchaVerifier, signInWithPhoneNumber, auth };
+// ✅ EXPORT EVERYTHING NEEDED FOR OTP LOGIN
+export {
+  app,
+  auth,
+  db,
+  storage,
+  RecaptchaVerifier,
+  signInWithPhoneNumber
+};

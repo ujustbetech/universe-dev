@@ -1,8 +1,11 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { db } from "../firebaseConfig";
+import Link from 'next/link'
+import { useRouter } from "next/router";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import "../src/app/styles/user.scss";
+import HeaderNav from "../component/HeaderNav";
 
 const UserProspects = () => {
   const [prospects, setProspects] = useState([]);
@@ -55,61 +58,86 @@ const UserProspects = () => {
 
       {/* -------- LIST AREA -------- */}
       <section className="dashBoardMain">
-        <div className="container">
-          <div className="step-form-container">
-            <h3 className="formtitle">Your Prospects</h3>
-            <h2>These prospects were registered using your mobile number.</h2>
+    
+      
+         <div className='sectionHeadings'>
+  <h2>Your Prospects</h2>
+
+  <button
+    className="m-button"
+    onClick={() => router.push('/IntroProspect')}
+  >
+    + Add Prospect
+  </button>
+</div>
+
+         
+     
 
             {loading ? (
-              <p className="loading-text">Loading...</p>
+               <div className="loader">
+                            <span className="loader2"></span>
+                        </div>
             ) : prospects.length === 0 ? (
               <p className="loading-text">No prospects found.</p>
             ) : (
-              <div className="prospect-list">
-                {prospects.map((p, index) => (
-                  <div className="prospect-card" key={p.id}>
-                    <div className="left-area">
-                      <h3>
-                        {index + 1}. {p.prospectName}
-                      </h3>
+              <div className="container eventList">
+  {prospects.map((p, index) => {
+    const status = p.sections?.[0]?.status || "Not Updated";
+    const type = p.sections?.[0]?.type || "-";
+    const regDate = p.registeredAt?.toDate?.().toLocaleString("en-GB") || "-";
 
-                      <p>
-                        <strong>Phone:</strong> {p.prospectPhone}
-                      </p>
+    return (
+      <Link
+        href={`/prospectform/${p.id}`}
+        key={p.id}
+        className="meetingBoxLink"
+      >
+        <div className="meetingBox">
 
-                      <p>
-                        <strong>Status:</strong>{" "}
-                        {p.sections?.[0]?.status || "Not Updated"}
-                      </p>
+          {/* ---- TOP LABEL (STATUS) ---- */}
+          <div className="suggestionDetails">
+            <span className="meetingLable3">{status}</span>
 
-                      <p>
-                        <strong>Type:</strong> {p.sections?.[0]?.type || "-"}
-                      </p>
-
-                      <p>
-                        <strong>Registered At:</strong>{" "}
-                        {p.registeredAt?.toDate?.().toLocaleString() || "-"}
-                      </p>
-                    </div>
-
-                    <div className="right-area">
-                      <button
-                        className="save-button"
-                        onClick={() =>
-                          window.location.href = `/prospectform/${p.id}`
-                        }
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <span className="suggestionTime">{regDate}</span>
           </div>
 
-          <h2 className="footers">Copyright @2025 | Powered by UJustBe</h2>
+          {/* ---- MAIN NAME ---- */}
+          <div className="meetingDetails">
+            <h3 className="eventName">
+              {index + 1}. {p.prospectName}
+            </h3>
+          </div>
+
+          {/* ---- FOOTER ---- */}
+          <div className="meetingBoxFooter">
+            <div className="viewDetails">
+              <Link href={`/prospectform/${p.id}`}>View Details</Link>
+            </div>
+
+            <button
+              className="register-now-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.location.href = `/prospectform/${p.id}`;
+              }}
+            >
+         
+            </button>
+          </div>
+
         </div>
+      </Link>
+    );
+  })}
+</div>
+
+            )}
+
+
+      
+
+        <HeaderNav/>
       </section>
     </main>
   );

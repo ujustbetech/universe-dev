@@ -23,8 +23,8 @@ const HeaderNav = () => {
     { label: "Referrals", icon: <FaPeopleArrows size={26} />, path: `/ReferralList` },
      { label: "Payments", icon: <MdPayment size={26} />, path: `/PaymentRec` },
     { label: "Business", icon: <MdBusinessCenter size={26} />, path: "/ReferralDetails" },
-    { label: "Prospect", icon: <GiNewBorn size={26} />, path: "/UsersProspect" },
-      { label: "ListedProspect", icon: <GiNewBorn size={26} />, path: "/IntroProspect" },
+ 
+      { label: "Prospect", icon: <GiNewBorn size={26} />, path: "/UsersProspect" },
     { label: "Profile", icon: <HiUser size={26} />, path: "/ProfilePage" },
   ], [user.phoneNumber]);
 

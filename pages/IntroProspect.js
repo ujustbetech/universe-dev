@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import axios from "axios";
 import "../pages/feedback.css";
 import emailjs from "@emailjs/browser";
+import HeaderNav from "../component/HeaderNav";
 
 const UserAddProspect = () => {
   const [mentor, setMentor] = useState({});
@@ -305,6 +306,7 @@ Form Link: ${formLink}
         <h2 className="footers">Copyright @2025 | Powered by UJustBe</h2>
 
       </div>
+      <HeaderNav/>
     </section>
   </main>
 </>

@@ -6,68 +6,82 @@ import { db } from "../firebaseConfig";
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null); // { phoneNumber, name, ujbCode }
+  const [user, setUser] = useState(null); 
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
- useEffect(() => {
-  const storedPhone = localStorage.getItem("mmOrbiter");
-  const storedUJBCode = localStorage.getItem("mmUJBCode");
-  const storedName = localStorage.getItem("nameOrbiter");
+  // Load saved user from localStorage
+  useEffect(() => {
+    const storedPhone = localStorage.getItem("mmOrbiter");
+    const storedUJBCode = localStorage.getItem("mmUJBCode");
+    const storedName = localStorage.getItem("nameOrbiter");
 
-  if (storedPhone && storedUJBCode && storedName) {
-    setUser({ 
-      phoneNumber: storedPhone, 
-      ujbCode: storedUJBCode, 
-      name: storedName 
-    });
-  }
-  setLoading(false);
-}, []);
-
-
-  // ✅ Fetch user by phone using query
-  const fetchUser = async (phone) => {
-    try {
-      const q = query(collection(db, "usersdetail"), where("MobileNo", "==", phone));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        const matchedDoc = querySnapshot.docs[0];
-        const data = matchedDoc.data();
-        console.log("usersdetail", data);
-        
-        const name = data["Name"] || data[" Name"] || "User";
-        console.log("Name", name);
-        const ujbCode = matchedDoc.id;
-
-        setUser({ phoneNumber: phone, name, ujbCode });
-      
-        localStorage.setItem("nameOrbiter", name);
-        localStorage.setItem("mmOrbiter", phone);
-        localStorage.setItem("mmUJBCode", ujbCode);
-
-        logLoginEvent(phone, name, ujbCode);
-        return { phone, name, ujbCode };
-      } else {
-        throw new Error("User not found");
-      }
-    } catch (err) {
-      console.error("Error fetching user:", err);
-      throw err;
+    if (storedPhone && storedUJBCode && storedName) {
+      setUser({ 
+        phoneNumber: storedPhone, 
+        ujbCode: storedUJBCode, 
+        name: storedName 
+      });
     }
-  };
+    setLoading(false);
+  }, []);
 
-  // ✅ Login function
+  // 🔍 Fetch from Firestore after OTP verification
+ const fetchUserAfterOtp = async (phone) => {
+  try {
+    console.log("🔥 DEBUG: Starting Firestore check...");
+    console.log("🔥 DEBUG: Phone received from OTP screen =", phone);
+
+    const q = query(
+      collection(db, "usersdetail"),
+      where("MobileNo", "==", phone)
+    );
+
+    console.log("🔥 DEBUG: Firestore Query =", q);
+
+    const querySnapshot = await getDocs(q);
+
+    console.log("🔥 DEBUG: QuerySnapshot empty? =", querySnapshot.empty);
+
+    if (querySnapshot.empty) {
+      console.log("❌ DEBUG: No user found! Check Firestore field name & value.");
+      throw new Error("User not found");
+    }
+
+    const matchedDoc = querySnapshot.docs[0];
+    const data = matchedDoc.data();
+
+    console.log("✅ DEBUG: Matched document ID =", matchedDoc.id);
+    console.log("✅ DEBUG: Matched user data =", data);
+
+    const name = data["Name"] || data[" Name"] || "User";
+    const ujbCode = matchedDoc.id;
+
+    const finalUser = { phoneNumber: phone, name, ujbCode };
+    console.log("🔥 DEBUG: Final user object =", finalUser);
+
+    setUser(finalUser);
+
+    localStorage.setItem("nameOrbiter", name);
+    localStorage.setItem("mmOrbiter", phone);
+    localStorage.setItem("mmUJBCode", ujbCode);
+
+    logLoginEvent(phone, name, ujbCode);
+
+    return finalUser;
+  } catch (err) {
+    console.error("❌ DEBUG: Error fetching user:", err);
+    throw err;
+  }
+};
+
+  // 🚀 Login called only AFTER OTP success
   const login = async (phone) => {
-    const userData = await fetchUser(phone);
-    setUser(userData);
-    console.log("User Details",user);
-    
-    router.push("/");
+    const userData = await fetchUserAfterOtp(phone);
+    return userData; // No redirect here; login.js will handle redirect
   };
 
-  // ✅ Logout function
+  // 🚪 Logout user
   const logout = () => {
     localStorage.removeItem("mmOrbiter");
     localStorage.removeItem("mmUJBCode");
@@ -76,7 +90,7 @@ export const AuthProvider = ({ children }) => {
     router.push("/login");
   };
 
-  // ✅ Log login event
+  // 📝 Log login event
   const logLoginEvent = async (phoneNumber, name, ujbCode) => {
     try {
       const deviceInfo = navigator.userAgent;
