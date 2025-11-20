@@ -104,7 +104,7 @@ useEffect(() => {
           businessName: data["BusinessName"] || "N/A",
           businessDetails: data["BusinessDetails"] || "N/A", // fixed field name
           tagline: data["TagLine"] || "",
-          logo: data["BusinessLogo"] || "",
+          logo: data["Business Logo"] || "",
           profilePic: data["ProfilePhotoURL"] || "",
           ujbCode: data["UJBCode"] || "",
           businessType: data["BusinessDetails(Nature & Type)"] || "", // fix exact Firestore key
@@ -352,32 +352,39 @@ const sendWhatsAppMessage = async (phone, parameters = []) => {
 
 
 
-          <div className='DetailsCards'>
-            <img
-              src={userDetails.profilePic || ''}
-              alt={userDetails.businessName || 'Business Image'}
-              className="details-image"
-            />
-          </div>
+      <div className="DetailsCards">
+  <img
+    src={
+      userDetails.profilePic && userDetails.profilePic.startsWith("http")
+        ? userDetails.profilePic
+        : "https://firebasestorage.googleapis.com/v0/b/monthlymeetingapp.appspot.com/o/Screenshot%202025-11-20%20152603.png?alt=media&token=a8462006-e88a-4a3e-bff6-1b3871fa8075"
+    }
+    alt={userDetails.businessName || "Business Image"}
+    className="details-image"
+    onError={(e) => {
+      e.target.style.display = "none"; // hides broken image icon
+    }}
+  />
+</div>
 
 
 
-
-          {/* Round Business Logo */}
-          <div className="profile-header businessProfile">
-
-            <div className="profile-round-image ">
-              {userDetails.profilePic || userDetails.logo ? (
-                <img
-                  src={userDetails.logo}
-                  alt={userDetails.name || "User Logo"}
-                />
-              ) : (
-                <FaUser />
-              )}
-            </div>
-
-          </div>
+{/* Round Business Logo */}
+<div className="profile-header businessProfile">
+  <div className="profile-round-image">
+    {userDetails.logo && userDetails.logo.startsWith("http") ? (
+      <img
+        src={userDetails.logo}
+        alt={userDetails.name || "User Logo"}
+        onError={(e) => {
+          e.target.style.display = "none";
+        }}
+      />
+    ) : (
+      <FaUser size={40} />
+    )}
+  </div>
+</div>
 
           <div className="event-container">
             <div className="event-content businessDetail">

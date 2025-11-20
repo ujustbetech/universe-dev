@@ -72,7 +72,7 @@ const AllEvents = () => {
   }, []);
 
   return (
-    <main className="pageContainer">
+     <main className="pageContainer">
       {/* ✅ Header is now self-contained */}
       <Headertop />
 
@@ -116,16 +116,14 @@ const AllEvents = () => {
               >
                 <div className="cosmoCard">
                   <div className="cosmoCard-header">
-                    <div className="cardLogo">
-                      {co.logo ? (
-                        <img
-                          src={co.logo}
-                          alt={co.businessName || "Company Logo"}
-                        />
-                      ) : (
-                        <IoPlanetOutline />
-                      )}
-                    </div>
+               <div className="cardLogo">
+  {co.logo && /^https?:\/\//.test(co.logo) ? (
+    <img src={co.logo} alt="Business Logo" />
+  ) : (
+    <IoPlanetOutline size={40} />
+  )}
+</div>
+
                     <div className="cosmoCard-info">
                       <p className="cosmoCard-category">
                         {co.category1} • {co.category2}
