@@ -9,6 +9,7 @@ import "../src/app/styles/user.scss";
 import HeaderNav from "../component/HeaderNav";
 
 const UserProspects = () => {
+  const router = useRouter();
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userPhone, setUserPhone] = useState("");
