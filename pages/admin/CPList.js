@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import Layout from "../../component/Layout";
+import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/main.scss";
 
 export default function CPPointsSummary() {

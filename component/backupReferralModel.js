@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { app } from '../firebaseConfig';
 import { CiImageOn } from 'react-icons/ci';
+import { COLLECTIONS } from "/utility_collection";
 import { MdArrowBack } from 'react-icons/md';
 import { toast, Toaster } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,7 +71,7 @@ const ReferralModalold = ({ item, onClose, userCache, setUserCache }) => {
                 setProducts(cached.products);
                 setSelectedOption(item?.name || '');
             } else {
-                const snap = await getDoc(doc(db, 'userdetail', item.id));
+                const snap = await getDoc(doc(db, COLLECTIONS.userDetail, item.id));
                 if (snap.exists()) {
                     const data = snap.data();
                     const userData = {
@@ -92,7 +93,7 @@ const ReferralModalold = ({ item, onClose, userCache, setUserCache }) => {
 
             const storedPhone = localStorage.getItem('mmOrbiter');
             if (storedPhone) {
-                const orbSnap = await getDoc(doc(db, 'userdetail', storedPhone.trim()));
+                const orbSnap = await getDoc(doc(db, COLLECTIONS.userDetail, storedPhone.trim()));
                 if (orbSnap.exists()) {
                     const d = orbSnap.data();
                     setOrbiterDetails({
@@ -190,7 +191,7 @@ const ReferralModalold = ({ item, onClose, userCache, setUserCache }) => {
                 statusLogs: [],
             };
 
-            await addDoc(collection(db, "Referral"), data);
+            await addDoc(collection(db, COLLECTIONS.referral), data);
             toast.success("Referral passed successfully!");
 
             // Reset fields

@@ -3,6 +3,7 @@ import { storage, db } from '../firebaseConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, updateDoc, arrayUnion ,getDoc} from 'firebase/firestore';
 import Swal from 'sweetalert2';
+import { COLLECTIONS } from "/utility_collection";
 import { useRouter } from 'next/router';
 
 const DocumentUpload = ({ eventID, data = {}, fetchData }) => {

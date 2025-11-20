@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { app } from "../firebaseConfig";
 import Headertop from "../component/Header";
+import { COLLECTIONS } from "/utility_collection";
 import HeaderNav from "../component/HeaderNav";
 import "../src/app/styles/user.scss";
 
@@ -55,7 +56,7 @@ const UserPayments = () => {
         setUserCategory(category);
 
         // ✅ Fetch payments from Referraldev
-        const referralCol = collection(db, "Referraldev");
+        const referralCol = collection(db,COLLECTIONS.referral);
         const q = query(referralCol, orderBy("timestamp", "desc"));
         const snap = await getDocs(q);
 

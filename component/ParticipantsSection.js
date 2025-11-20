@@ -6,6 +6,7 @@ import {
   getDocs,
   updateDoc
 } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../firebaseConfig';
 
 

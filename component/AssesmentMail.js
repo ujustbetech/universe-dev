@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import emailjs from "@emailjs/browser";
+import { COLLECTIONS } from "/utility_collection";
 import axios from "axios";
 import Swal from "sweetalert2";
 import "../src/app/styles/main.scss";
@@ -18,7 +19,7 @@ const Assessment = ({ id, fetchData }) => {
   // 🔹 Load assessment data if already sent
   useEffect(() => {
     const fetchAssessment = async () => {
-      const docRef = doc(db, "Prospects", id);
+      const docRef = doc(db,COLLECTIONS.prospect, id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setAssessment(docSnap.data().assessmentMail || null);
@@ -97,7 +98,7 @@ const Assessment = ({ id, fetchData }) => {
   const handleSendAssessment = async () => {
     setLoading(true);
     try {
-      const docRef = doc(db, "Prospects", id);
+      const docRef = doc(db,COLLECTIONS.prospect, id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {

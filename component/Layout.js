@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import Image from 'next/image'
 import Header from './AdminHeader'
+import { COLLECTIONS } from "/utility_collection";
 import Navbar from './Navbar'
 import ujustbelogo from '../public/images/ujblogo.png'
 

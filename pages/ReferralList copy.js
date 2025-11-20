@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { app } from "../firebaseConfig";
 import Link from 'next/link';
+import { COLLECTIONS } from "/utility_collection";
 import HeaderNav from "../component/HeaderNav";
 import Headertop from "../component/Header";
 import "../src/app/styles/user.scss";

@@ -3,6 +3,7 @@ import { db } from '../firebaseConfig';
 import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useRouter } from 'next/router';
+import { COLLECTIONS } from "/utility_collection";
 
 const ManageEvents = () => {
   const router = useRouter();

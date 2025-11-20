@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { COLLECTIONS } from "/utility_collection";
 import { FaRegCopy } from "react-icons/fa6";
 import { useRouter } from 'next/router';
 import { CiEdit } from "react-icons/ci";
@@ -17,7 +18,7 @@ const ManageEvents = () => {
     useEffect(() => {
         const fetchEvents = async () => {
             try {
-                const eventCollection = collection(db, 'MonthlyMeeting');
+                const eventCollection = collection(db, COLLECTIONS.monthlyMeeting);
                 const eventSnapshot = await getDocs(eventCollection);
                 const eventList = eventSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setEvents(eventList);
@@ -42,7 +43,7 @@ const ManageEvents = () => {
 
     const handleDeleteEvent = async (eventId) => {
         try {
-            await deleteDoc(doc(db, 'MonthlyMeeting', eventId));
+            await deleteDoc(doc(db, COLLECTIONS.monthlyMeeting, eventId));
             setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
             alert('Event deleted successfully!');
         } catch (error) {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { COLLECTIONS } from "/utility_collection";
 import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 

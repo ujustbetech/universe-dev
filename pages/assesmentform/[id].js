@@ -3,6 +3,7 @@ import { db } from "../../firebaseConfig";
 import { collection, addDoc, doc, getDoc } from "firebase/firestore";
 import Swal from "sweetalert2";
 import "../../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 import "../../pages/feedback.css";
 import { useRouter } from "next/router";
 

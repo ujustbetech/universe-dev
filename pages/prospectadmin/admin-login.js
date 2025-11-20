@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../firebaseConfig'; 
 import "../../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState('');

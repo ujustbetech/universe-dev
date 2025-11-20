@@ -2,6 +2,7 @@ import React, { useState, useRef ,useEffect} from 'react';
 import { storage, db } from '../firebaseConfig';
 import { ref, uploadBytes, getDownloadURL,deleteObject, ref as storageRef  } from 'firebase/storage';
 import { doc, updateDoc, arrayUnion,getDoc } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import Swal from 'sweetalert2';
 
 import 'react-quill/dist/quill.snow.css';

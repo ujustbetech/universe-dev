@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../firebaseConfig';
 
  import { useRouter } from 'next/router';
@@ -84,7 +85,7 @@ const handleRemoveSection = async (index) => {
   if (toRemove.prospect || toRemove.prospectName || toRemove.prospectDescription) {
     try {
       if (!conclaveId || !meetingId) throw new Error("Missing IDs");
-      const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+      const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
       const snapshot = await getDoc(docRef);
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -102,7 +103,7 @@ const handleRemoveSection = async (index) => {
 const handleSaveSections = async () => {
   try {
     if (!conclaveId || !meetingId) throw new Error("Missing IDs");
-    const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
 
     const cleanedProspectSections = prospectSections.map(
       ({ prospect, prospectDescription, prospectName }) => ({

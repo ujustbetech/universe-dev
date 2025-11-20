@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { getAuth } from "firebase/auth";
+import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/main.scss";
 
 const ProspectFormDetails = ({ id }) => {

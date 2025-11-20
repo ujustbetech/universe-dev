@@ -3,6 +3,7 @@ import { doc, getDoc, updateDoc,collection,getDocs } from 'firebase/firestore';
 import axios from 'axios';
 import emailjs from '@emailjs/browser';
 import { db } from '../firebaseConfig';
+import { COLLECTIONS } from "/utility_collection";
 
 const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetchData }) => {
   const [followup, setFollowup] = useState([]);
@@ -40,7 +41,7 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
   };
   useEffect(() => {
     const fetchData = async () => {
-      const docRef = doc(db, 'Prospects', id);
+      const docRef = doc(db, COLLECTIONS.prospect, id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -67,7 +68,7 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
     const updatedComments = [newComment, ...comments];
 
     try {
-      const docRef = doc(db, 'Prospects', id);
+      const docRef = doc(db, COLLECTIONS.prospect, id);
       await updateDoc(docRef, { comments: updatedComments });
       setComments(updatedComments);
       setComment('');
@@ -91,7 +92,7 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
     };
   
     try {
-      const docRef = doc(db, 'Prospects', id);
+      const docRef = doc(db, COLLECTIONS.prospect, id);
       await updateDoc(docRef, { event: eventDetails });
       setEventCreated(eventDetails);
   
@@ -282,7 +283,7 @@ const sendThankYouMessage = async (name, phone) => {
  useEffect(() => {
         const fetchUsers = async () => {
           try {
-            const userRef = collection(db, 'userdetails');
+            const userRef = collection(db,'userdetails');
             const snapshot = await getDocs(userRef);
             const data = snapshot.docs.map(doc => ({
               id: doc.id,

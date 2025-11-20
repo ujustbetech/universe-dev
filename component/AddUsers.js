@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/router';
+import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/main.scss";
 import Layout from './Layout';
 
@@ -25,7 +26,7 @@ const AddUser = ({ fetchData, eventId: propEventId, data }) => {
     // Fetch users from Firestore
     useEffect(() => {
         const fetchUsers = async () => {
-            const userCollection = collection(db, 'userdetails');
+            const userCollection = collection(db,'userdetails');
             const userSnapshot = await getDocs(userCollection);
             const userList = userSnapshot.docs.map(doc => ({
                 id: doc.id, 

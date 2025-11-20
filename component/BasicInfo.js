@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { doc, setDoc, collection, Timestamp } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../firebaseConfig';
 
 const BasicInfoSection = (props) => {
@@ -34,7 +35,7 @@ const [zoomLink, setZoomLink] = useState(props?.data?.zoomLink || '');
     setSuccess('');
 
     try {
-      const monthlyMeetRef = collection(db, 'MonthlyMeeting');
+      const monthlyMeetRef = collection(db, COLLECTIONS.monthlyMeeting);
       const uniqueId = doc(monthlyMeetRef).id;
       const eventDocRef = doc(monthlyMeetRef, uniqueId);
 

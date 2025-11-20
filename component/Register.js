@@ -4,6 +4,7 @@ import { collection, getDocs, doc, addDoc } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 import "../src/app/styles/main.scss";
 import axios from 'axios';
+import { COLLECTIONS } from "/utility_collection";
 import emailjs from '@emailjs/browser';
 import Swal from 'sweetalert2';
 

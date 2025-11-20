@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig"; // Ensure Firestore is configured
 import { collection, getDocs, doc,addDoc ,query,where,setDoc,getDoc} from "firebase/firestore";
 import Layout from "../../component/Layout";
+import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/main.scss";
 
 const activityTypes = {

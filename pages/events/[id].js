@@ -4,6 +4,7 @@ import {  getFirestore, doc, getDoc, collection, getDocs, setDoc,  updateDoc} fr
 import axios from 'axios';
 import './event.css'; // Ensure your CSS file is correctly linked
 import '../../src/app/styles/user.scss';
+import { COLLECTIONS } from "/utility_collection";
 import { app} from '../../firebaseConfig';
 import HeaderNav from '../../component/HeaderNav';
 import Swal from 'sweetalert2';

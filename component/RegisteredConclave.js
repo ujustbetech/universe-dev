@@ -12,6 +12,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { useRouter } from 'next/router';
+import { COLLECTIONS } from "/utility_collection";
 import Modal from 'react-modal';
 
 Modal.setAppElement('#__next');

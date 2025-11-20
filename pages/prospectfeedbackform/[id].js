@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
 import { collection, addDoc, doc, getDoc } from "firebase/firestore";
 import Swal from "sweetalert2";
+import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/main.scss";
 import "../../pages/feedback.css";
 import { useRouter } from "next/router";

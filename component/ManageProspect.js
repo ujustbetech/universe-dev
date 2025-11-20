@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { COLLECTIONS } from "/utility_collection";
 import { useRouter } from 'next/router';
 import ExportProspectsPage from '../pages/prospectadmin/ExportProspects';
 

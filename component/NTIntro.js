@@ -3,6 +3,7 @@ import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import emailjs from "@emailjs/browser";
 import axios from "axios";
+import { COLLECTIONS } from "/utility_collection";
 import Swal from "sweetalert2";
 import "../src/app/styles/main.scss";
 

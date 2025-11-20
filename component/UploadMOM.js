@@ -1,6 +1,7 @@
 import React, { useState, useRef,useEffect } from 'react';
 import { storage, db } from '../firebaseConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { COLLECTIONS } from "/utility_collection";
 import { doc, updateDoc, arrayUnion ,getDoc} from 'firebase/firestore';
 import Swal from 'sweetalert2';
 

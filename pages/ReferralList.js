@@ -331,7 +331,7 @@ const handleAccept = async (ref) => {
             const storedUjb = localStorage.getItem('mmUJBCode');
             if (!storedUjb) return;
 
-            const referralSnap = await getDocs(collection(db, "Referraldev"));
+            const referralSnap = await getDocs(collection(db, COLLECTIONS.referral));
 
             let myReferral = 0;
             let passedReferral = 0;

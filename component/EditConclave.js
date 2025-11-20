@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
+import { COLLECTIONS } from "/utility_collection";
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/router';
 
@@ -40,7 +41,7 @@ const [filteredOrbiters, setFilteredOrbiters] = useState([]);
         setUsers(userList);
 
         if (id) {
-          const conclaveDoc = await getDoc(doc(db, 'Conclaves', id));
+          const conclaveDoc = await getDoc(doc(db, COLLECTIONS.conclaves, id));
           if (conclaveDoc.exists()) {
             setForm(conclaveDoc.data());
           } else {
@@ -98,7 +99,7 @@ const handleSearch = (value, setSearchState, setFilteredList, userList) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await updateDoc(doc(db, 'Conclaves', id), {
+      await updateDoc(doc(db, COLLECTIONS.conclaves, id), {
         ...form,
         updatedAt: new Date(),
       });

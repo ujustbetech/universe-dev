@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../firebaseConfig';
 import {
   doc,
@@ -27,7 +28,7 @@ const EditMeeting = () => {
       if (!id || !conclaveId) return;
 
       try {
-        const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', id);
+        const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', id);
         const snap = await getDoc(docRef);
 
         if (snap.exists()) {
@@ -61,7 +62,7 @@ const EditMeeting = () => {
     e.preventDefault();
 
     try {
-      const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', id);
+      const docRef = doc(db,COLLECTIONS.conclaves, conclaveId, 'meetings', id);
       await updateDoc(docRef, {
         meetingName: form.meetingName,
         datetime: Timestamp.fromDate(new Date(form.datetime)),

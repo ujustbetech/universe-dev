@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useRouter } from 'next/router';
+import { COLLECTIONS } from "/utility_collection";
 const RequirementPage = ({ eventID, data = {}, fetchData }) => {
   const [requirementSections, setRequirementSections] = useState(data.requirementSections || []);
   const [userList, setUserList] = useState([]);

@@ -15,6 +15,7 @@ import {
 import { app } from '../firebaseConfig';
 import { CiImageOn } from 'react-icons/ci';
 import { MdArrowBack } from 'react-icons/md';
+import { COLLECTIONS } from "/utility_collection";
 import { toast, Toaster } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -47,7 +48,7 @@ const generateReferralId = async () => {
     // Run transaction for atomic safety
     const newReferralId = await runTransaction(db, async (transaction) => {
       // Fetch the latest referral doc (most recent)
-      const q = query(collection(db, "Referraldev"), orderBy("timestamp", "desc"), limit(1));
+      const q = query(collection(db,  COLLECTIONS.referral), orderBy("timestamp", "desc"), limit(1));
       const snapshot = await getDocs(q);
 
       let lastNum = 2999;
@@ -62,7 +63,7 @@ const generateReferralId = async () => {
       const newId = `${refPrefix}${String(newNum).padStart(8, "0")}`;
 
       // Create a placeholder doc in Referral to reserve the ID (avoids duplicates)
-      const tempRef = doc(collection(db, "Referraldev"));
+      const tempRef = doc(collection(db, COLLECTIONS.referral));
       transaction.set(tempRef, {
         referralId: newId,
         timestamp: new Date(),
@@ -208,7 +209,7 @@ const handlePassReferral = async () => {
       statusLogs: [],
     };
 
-    await addDoc(collection(db, "Referraldev"), data);
+    await addDoc(collection(db, COLLECTIONS.referral), data);
     toast.success("Referral passed successfully!");
 
     // ✅ Determine service or product name

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../../../../firebaseConfig';
 import { collection, doc, Timestamp, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useRouter } from 'next/router';
+import { COLLECTIONS } from "/utility_collection";
 import Layout from '../../../../component/Layout';
 import "../../../../pages/feedback.css";
 import "../../../../src/app/styles/main.scss";

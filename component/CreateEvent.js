@@ -7,6 +7,7 @@ import ProspectSection from './ProspectSection';
 import KnowledgeSharingSection from './KnowledgeSharingSection';
 import RequirementPage from './RequirementSection';
 import ImageUpload from './UploadImage';
+import { COLLECTIONS } from "/utility_collection";
 import DocumentUpload from './UploadMOM';
 import ParticipantSection from './ParticipantsSection';
 

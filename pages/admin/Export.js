@@ -1,6 +1,7 @@
 import React from "react";
 import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
+import { COLLECTIONS } from "/utility_collection";
 import * as XLSX from "xlsx";
 
 export default function ExportAllUsers() {

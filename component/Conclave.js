@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebaseConfig';
+import { COLLECTIONS } from "/utility_collection";
 import {
   doc,
   getDoc,
@@ -20,7 +21,7 @@ export default function Conclave({ eventId, fetchData }) {
 
   useEffect(() => {
     const fetchUsersAndConclaves = async () => {
-      const snapshot = await getDoc(doc(db, 'MonthlyMeeting', eventId));
+      const snapshot = await getDoc(doc(db, COLLECTIONS.monthlyMeeting, eventId));
       if (snapshot.exists()) {
         const data = snapshot.data();
         setInvitedList(data.invitedUsers || []);
@@ -33,7 +34,7 @@ export default function Conclave({ eventId, fetchData }) {
       }));
       setUsers(userList);
 
-      const conclaveSnap = await getDocs(collection(db, 'Conclaves'));
+      const conclaveSnap = await getDocs(collection(db, COLLECTIONS.conclaves));
       const conclaveList = conclaveSnap.docs.map(doc => ({
         id: doc.id,
         stream: doc.data().conclaveStream || 'Unnamed Stream'
@@ -51,7 +52,7 @@ export default function Conclave({ eventId, fetchData }) {
     }
 
     try {
-      const eventRef = doc(db, 'MonthlyMeeting', eventId);
+      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, eventId);
       await updateDoc(eventRef, {
         invitedUsers: arrayUnion({
           id: selectedUser.id,
@@ -61,7 +62,7 @@ export default function Conclave({ eventId, fetchData }) {
         })
       });
 
-      const conclaveRef = doc(db, 'Conclaves', selectedConclaveId);
+      const conclaveRef = doc(db, COLLECTIONS.conclaves, selectedConclaveId);
       await updateDoc(conclaveRef, {
         orbiters: arrayUnion(selectedUser.id)
       });
@@ -85,7 +86,7 @@ export default function Conclave({ eventId, fetchData }) {
     try {
       await sendWhatsAppMessage(user.name, phone);
 
-      const eventRef = doc(db, 'MonthlyMeeting', eventId);
+      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, eventId);
       const eventSnap = await getDoc(eventRef);
       const data = eventSnap.data();
 

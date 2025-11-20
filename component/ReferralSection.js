@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { COLLECTIONS } from "/utility_collection";
 import Swal from 'sweetalert2';
 
 const ReferralSection = ({ eventID, data = {}, fetchData }) => {
@@ -143,7 +144,7 @@ const handleRemoveReferralSection = async (index) => {
       try {
         // If already in Firestore, remove it
         if (sectionToRemove.referralFrom || sectionToRemove.referralTo) {
-          const docRef = doc(db, 'MonthlyMeeting', eventID);
+          const docRef = doc(db,  COLLECTIONS.monthlyMeeting, eventID);
           const snapshot = await getDoc(docRef);
           if (snapshot.exists()) {
             const data = snapshot.data();
@@ -194,7 +195,7 @@ const handleSaveReferralSections = async () => {
       status: section.status ?? 'Pending'
     }));
 
-    const docRef = doc(db, 'MonthlyMeeting', eventID);
+    const docRef = doc(db,  COLLECTIONS.monthlyMeeting, eventID);
     await updateDoc(docRef, { referralSections: cleanedReferralSections });
 
     console.log('Referral sections updated');

@@ -3,6 +3,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import emailjs from '@emailjs/browser';
 import "../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
@@ -19,7 +20,7 @@ const WHATSAPP_API_TOKEN = 'Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const docRef = doc(db, 'Prospects', id);
+        const docRef = doc(db, COLLECTIONS.prospect, id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setStatus(docSnap.data().status || 'No status yet');
@@ -209,7 +210,7 @@ const formatMessage = (message) => {
 const handleSaveStatus = async (selectedstatus, reason = '') => {
   setLoading(true);
   try {
-    const docRef = doc(db, 'Prospects', id);
+    const docRef = doc(db, COLLECTIONS.prospect, id);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -321,7 +322,7 @@ const confirmSaveStatus = (newStatus) => {
 };
 useEffect(() => {
   const getReason = async () => {
-    const docRef = doc(db, 'Prospects', id);
+    const docRef = doc(db, COLLECTIONS.prospect, id);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       const data = docSnap.data();

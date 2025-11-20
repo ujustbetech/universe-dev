@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../firebaseConfig';
 import { useRouter } from 'next/router';
 
@@ -79,7 +80,7 @@ const handleRemoveSection = async (index) => {
 
   if (toRemove.selectedParticipant1 || toRemove.selectedParticipant2 || toRemove.interactionDate) {
     try {
-      const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+      const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
       const snapshot = await getDoc(docRef);
 
       if (snapshot.exists()) {
@@ -103,7 +104,7 @@ const handleSaveParticipants = async () => {
 
   setLoading(true);
   try {
-    const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
 
     const cleanedSections = sections.map(({ selectedParticipant1, selectedParticipant2, interactionDate }) => ({
       selectedParticipant1,

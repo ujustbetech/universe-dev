@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { collection, getDocs } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../../firebaseConfig';
 
 const ReferralExportButton = () => {
@@ -36,7 +37,7 @@ const ReferralExportButton = () => {
 
   const exportReferralData = async () => {
     try {
-      const snapshot = await getDocs(collection(db, 'Referral'));
+      const snapshot = await getDocs(collection(db,  COLLECTIONS.referral));
 
       if (snapshot.empty) {
         alert('No referral data found');

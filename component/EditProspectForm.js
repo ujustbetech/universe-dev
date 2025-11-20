@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { useRouter } from 'next/router';
+import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/main.scss";
 import axios from 'axios';
 import emailjs from '@emailjs/browser';
@@ -104,7 +105,7 @@ const Edit = ({ id, data }) => {
     try {
       const formattedDate = formatReadableDate(date);
       
-const prospectDocRef = doc(db, 'Prospects', id);
+const prospectDocRef = doc(db, COLLECTIONS.prospect, id);
 
   
       await updateDoc(prospectDocRef, {

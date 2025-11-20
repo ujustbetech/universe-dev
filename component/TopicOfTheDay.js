@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, collection, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { COLLECTIONS } from "/utility_collection";
 
 const TopicSection = (props) => {
   const [sections, setSections] = useState(props?.data?.topicSections || []);

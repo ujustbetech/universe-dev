@@ -4,6 +4,7 @@ import {BiLogOutCircle} from 'react-icons/bi'
 import {IoMdLogIn} from 'react-icons/io'
 import Link from 'next/link'    
 import Swal from 'sweetalert2'
+import { COLLECTIONS } from "/utility_collection";
 import Router from 'next/router'
 
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../firebaseConfig';
 import { useRouter } from 'next/router';
 const KnowledgeSharingSection = ({ eventID, data = {}, fetchData }) => {
@@ -88,7 +89,7 @@ const KnowledgeSharingSection = ({ eventID, data = {}, fetchData }) => {
   }
 
   try {
-    const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
 
     const cleanedKnowledgeSections = knowledgeSections.map(
       ({ description, name, topic }) => ({
@@ -113,7 +114,7 @@ const handleRemoveSection = async (index) => {
   if (!toRemove) return;
 
   try {
-    const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
     const snapshot = await getDoc(docRef);
     if (snapshot.exists()) {
       const data = snapshot.data();

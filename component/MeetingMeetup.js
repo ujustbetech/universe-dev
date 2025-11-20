@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc,collection,getDocs } from 'firebase/firestore';
 import axios from 'axios';
 import { useRouter } from 'next/router';
+import { COLLECTIONS } from "/utility_collection";
 import emailjs from '@emailjs/browser';
 import { db } from '../firebaseConfig';
 

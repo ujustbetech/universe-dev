@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import Layout from './Layout';
 import "../src/app/styles/main.scss";
 import { IoMdClose } from "react-icons/io";
+import { COLLECTIONS } from "/utility_collection";
 import ExportToExcel from '../ExporttoExcel';
 import Modal from 'react-modal';
 import { FaSearch } from "react-icons/fa";

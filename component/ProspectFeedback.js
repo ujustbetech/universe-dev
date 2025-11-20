@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { collection, getDocs, addDoc ,doc,getDoc} from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/main.scss";
 
 const interestOptions = [

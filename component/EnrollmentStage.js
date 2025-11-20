@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { COLLECTIONS } from "/utility_collection";
 import emailjs from '@emailjs/browser';
 import axios from 'axios';
 import Swal from 'sweetalert2';

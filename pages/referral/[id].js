@@ -270,7 +270,7 @@ const handlePaymentToSelect = (selectedValue) => {
 // 🧾 EDIT PAYMENT
 const handleEditPayment = async (index, updatedPayment) => {
   try {
-    const referralDocRef = doc(db, "Referraldev", id);
+    const referralDocRef = doc(db,  COLLECTIONS.referral, id);
     const updatedPayments = [...payments];
     updatedPayments[index] = {
       ...updatedPayments[index],
@@ -310,7 +310,7 @@ const handleDeletePayment = async (index) => {
 
     if (!confirm.isConfirmed) return;
 
-    const referralDocRef = doc(db, "Referraldev", id);
+    const referralDocRef = doc(db,  COLLECTIONS.referral, id);
     const updatedPayments = payments.filter((_, i) => i !== index);
 
     await updateDoc(referralDocRef, { payments: updatedPayments });
@@ -529,7 +529,7 @@ const handleAddPayment = async () => {
 
     // ✅ Add payment to Referraldev
     const updatedPayments = [...payments, paymentData];
-    await updateDoc(doc(db, "Referraldev", id), { payments: updatedPayments });
+    await updateDoc(doc(db,  COLLECTIONS.referral, id), { payments: updatedPayments });
     setPayments(updatedPayments);
 
     // 🧮 Update adjustment in user details

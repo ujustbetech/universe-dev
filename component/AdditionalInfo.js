@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc,collection,addDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-
+import { COLLECTIONS } from "/utility_collection";
 import 'react-quill/dist/quill.snow.css';
 import "../pages/feedback.css";
 import emailjs from '@emailjs/browser';
@@ -47,7 +47,7 @@ const AditionalInfo = ({ id, data = { sections: [] }, fetchData })     => {
 
   try {
     // Update sections in an existing Prospect document
-    const existingDocRef = doc(db, 'Prospects', id);
+    const existingDocRef = doc(db, COLLECTIONS.prospect, id);
     await updateDoc(existingDocRef, { sections: [section] });
 
 

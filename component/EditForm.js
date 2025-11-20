@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { COLLECTIONS } from "/utility_collection";
 import { doc, updateDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -55,7 +56,7 @@ const handleUpdateEvent = async (e) => {
         return;
       }
   
-      const eventDocRef = doc(db, 'MonthlyMeeting', props.id); // Use the provided ID
+      const eventDocRef = doc(db, COLLECTIONS.monthlyMeeting, props.id); // Use the provided ID
   
       await updateDoc(eventDocRef, {
         Eventname: eventName,

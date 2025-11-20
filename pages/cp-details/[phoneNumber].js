@@ -5,6 +5,7 @@ import { db } from "../../firebaseConfig"; // Adjust if needed
 import '../../src/app/styles/user.scss';
 import HeaderNav from "../../component/HeaderNav";
 import Swal from 'sweetalert2';
+import { COLLECTIONS } from "/utility_collection";
 import Headertop from "../../component/Header";
 const CPDetails = () => {
   const router = useRouter();

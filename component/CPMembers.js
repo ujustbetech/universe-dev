@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebaseConfig"; // Adjust Firebase config path
+import { COLLECTIONS } from "/utility_collection";
 import { collection, getDocs, addDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
 import "../src/app/styles/main.scss";
 import { FaSearch } from "react-icons/fa";
@@ -15,7 +16,6 @@ const UserList = () => {
     useEffect(() => {
         const fetchTeamMembers = async () => {
             try {
-                const teamCollection = collection(db, "Orbiters");
                 const teamSnapshot = await getDocs(teamCollection);
                 const teamList = teamSnapshot.docs.map((doc) => ({
                     id: doc.id,
@@ -37,7 +37,7 @@ const UserList = () => {
 
         setLoading(true);
         try {
-            const userCollection = collection(db, "userdetails");
+            const userCollection = collection(db, 'userdetails');
             const querySnapshot = await getDocs(userCollection);
 
             const allUsers = querySnapshot.docs.map((doc) => {
@@ -70,7 +70,7 @@ const UserList = () => {
         console.log("users" , user.id);
         
         try {
-           await setDoc(doc(db, "Orbiters", user.id), user);
+           await setDoc(doc(db, COLLECTIONS.orbiter, user.id), user);
 const newMember = { ...user };
 
 
@@ -84,7 +84,7 @@ const newMember = { ...user };
     // Remove user from team
     const removeUserFromTeam = async (userId) => {
         try {
-            await deleteDoc(doc(db, "Orbiters", userId));
+            await deleteDoc(doc(db, COLLECTIONS.orbiter, userId));
             setTeamMembers(teamMembers.filter((user) => user.id !== userId)); // Update UI
         } catch (err) {
             console.error("Error deleting user:", err);

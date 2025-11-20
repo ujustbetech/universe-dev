@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../../firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-
+import { COLLECTIONS } from "/utility_collection";
 const ExportProspects = () => {
   const [loading, setLoading] = useState(false);
 

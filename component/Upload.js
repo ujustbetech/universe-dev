@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import { db } from "../firebaseConfig";
+import { COLLECTIONS } from "/utility_collection";
 import { doc, setDoc } from "firebase/firestore";
 
 const UploadUserDetails = () => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { COLLECTIONS } from "/utility_collection";
 import { db } from '../firebaseConfig';
 import { useRouter } from 'next/router';
 
@@ -134,7 +135,7 @@ useEffect(() => {
   if (sectionToRemove.referralFrom || sectionToRemove.referralTo) {
     try {
       if (!conclaveId || !meetingId) throw new Error("Missing IDs");
-      const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+      const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
       const snapshot = await getDoc(docRef);
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -171,7 +172,7 @@ const handleSaveReferralSections = async () => {
       status: section.status ?? 'pending', // or whatever your default is
     }));
 
-    const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const docRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
     await updateDoc(docRef, { referralSections: cleanedReferralSections });
 
     console.log('Referral sections updated');

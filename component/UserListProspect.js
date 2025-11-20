@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig'; // Adjust your Firebase config path
 import { collection, getDocs,setDoc, deleteDoc, doc } from 'firebase/firestore';
 import "../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 import { FaSearch } from "react-icons/fa";
 import Swal from 'sweetalert2';
 

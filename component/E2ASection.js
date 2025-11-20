@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { COLLECTIONS } from "/utility_collection";
 import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -10,7 +11,7 @@ const E2ASection = ({ eventID, data = {}, fetchData }) => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const snapshot = await getDocs(collection(db, 'userdetails'));
+        const snapshot = await getDocs(collection(db,'userdetails'));
         const users = snapshot.docs.map(doc => ({
           id: doc.id,
           name: doc.data()[" Name"],
@@ -87,7 +88,7 @@ const handleToggleStatus = (index) => {
     // Remove from Firestore if already exists
     if (toRemove.e2a || toRemove.e2aDesc || toRemove.e2aDate) {
       try {
-        const docRef = doc(db, 'MonthlyMeeting', eventID);
+        const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
         const snapshot = await getDoc(docRef);
         if (snapshot.exists()) {
           const data = snapshot.data();
@@ -106,7 +107,7 @@ const handleToggleStatus = (index) => {
 
 const handleSaveSections = async () => {
   try {
-    const docRef = doc(db, 'MonthlyMeeting', eventID);
+    const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
 
     // Sanitize fields to remove undefined
     const cleanedE2ASections = e2aSections.map(section => ({

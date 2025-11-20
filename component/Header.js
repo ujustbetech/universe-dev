@@ -4,6 +4,7 @@ import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { useAuth } from "../context/authContext";
 import Swal from "sweetalert2";
+import { COLLECTIONS } from "/utility_collection";
 import { BiSolidCoinStack } from "react-icons/bi";
 
 const Headertop = () => {

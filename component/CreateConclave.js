@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
+import { COLLECTIONS } from "/utility_collection";
 import { collection, getDocs, addDoc ,getDoc,doc} from 'firebase/firestore';
 
 export default function CreateConclavePage() {
@@ -28,7 +29,7 @@ const [focusedInput, setFocusedInput] = useState(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const querySnapshot = await getDocs(collection(db, 'userdetails'));
+      const querySnapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
       const userList = querySnapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data()[" Name"],
@@ -86,7 +87,7 @@ const handleSearch = (query, setQuery, setFiltered, allUsers) => {
  const handleSubmit = async (e) => {
   e.preventDefault();
   try {
-    const docRef = await addDoc(collection(db, 'Conclaves'), form);
+    const docRef = await addDoc(collection(db, COLLECTIONS.conclaves), form);
     alert('Conclave created successfully!');
 
     const eventName = form.conclaveStream;
@@ -100,7 +101,7 @@ const handleSearch = (query, setQuery, setFiltered, allUsers) => {
 
     for (const group of allRecipients) {
       for (const phone of group.numbers) {
-        const userDoc = await getDoc(doc(db, 'userdetails', phone));
+        const userDoc = await getDoc(doc(db,'userdetails', phone));
         const userName = userDoc.exists() ? userDoc.data()[" Name"] : phone;
 
    //     await sendWhatsAppMessage(userName, eventName, eventDate, '', phone);

@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { app } from '../../firebaseConfig';
 import '../../src/app/styles/user.scss';
+import { COLLECTIONS } from "/utility_collection";
 import HeaderNav from '../../component/HeaderNav';
 
 

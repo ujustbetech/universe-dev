@@ -7,11 +7,8 @@ import ServiceProductCard from '../component/ServiceProductCard';
 import ReferralModal from '../component/ReferralModal';
 import { toast } from 'react-hot-toast';
 import { FaFilter } from 'react-icons/fa';
-import { useRouter } from "next/navigation";
-
 import Headertop from '../component/Header';
 import HeaderNav from '../component/HeaderNav';
-import { COLLECTIONS } from "/utility_collection";
 
 const db = getFirestore();
 
@@ -51,7 +48,6 @@ const AllServicesProducts = ({
     const [selectedCategory, setSelectedCategory] = useState('');
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
-const router = useRouter();
 
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -63,7 +59,7 @@ const router = useRouter();
         const fetchData = async () => {
             setLoading(true);
             try {
-                const snapshot = await getDocs(collection(db, "userdetail_dev"));
+                const snapshot = await getDocs(collection(db, "usersdetail"));
                 const list = [];
 
                 snapshot.forEach((doc) => {
@@ -123,7 +119,6 @@ const router = useRouter();
 
         fetchData();
     }, []);
-
 
     // Initialize displayed items
     useEffect(() => {
@@ -256,7 +251,6 @@ const router = useRouter();
 
             {modalOpen && (
                 <ReferralModal
-                
                     item={selectedItem}
                     onClose={() => setModalOpen(false)}
                     userCache={userCache}
