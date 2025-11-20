@@ -10,9 +10,9 @@ import {
   limit,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
+import { COLLECTIONS } from "/utility_collection";
 import Layout from "../../component/Layout";
 import "../../src/app/styles/main.scss";
-import { COLLECTIONS } from "/utility_collection";
 
 const Profiling = () => {
   const [users, setUsers] = useState([]);
@@ -47,14 +47,16 @@ const [leadDescription, setLeadDescription] = useState("");
     fetchUsers();
   }, []);
 
-  const handleOrbiterSelect = (user) => {
-    setSelectedOrbiter(user);
-    setOrbiterSearch(user[" Name"]);
-  };
+const handleOrbiterSelect = (user) => {
+  setSelectedOrbiter(user);
+  setOrbiterSearch(user.Name);
+};
+
 
   const handleCosmoSelect = async (user) => {
     setSelectedCosmo(user);
-    setCosmoSearch(user[" Name"]);
+  setCosmoSearch(user.Name);
+
     setSelectedService(null);
     setSelectedProduct(null);
     setServices([]);
@@ -122,41 +124,54 @@ const [leadDescription, setLeadDescription] = useState("");
   try {
     const referralId = await generateReferralId();
 
-    const data = {
-      referralId,
-      orbiter: {
-        name: selectedOrbiter[" Name"],
-        email: selectedOrbiter["Email"],
-        phone: selectedOrbiter["Mobile no"],
-        ujbCode: selectedOrbiter["UJB Code"],
-        mentorName: selectedOrbiter["Mentor Name"],
-        mentorPhone: selectedOrbiter["Mentor Phone"],
-      },
-      cosmoOrbiter: {
-        name: selectedCosmo[" Name"],
-        email: selectedCosmo["Email"],
-        phone: selectedCosmo["Mobile no"],
-        mentorName: selectedCosmo["Mentor Name"],
-        mentorPhone: selectedCosmo["Mentor Phone"],
-      },
-      service: selectedService,
-      product: selectedProduct,
-        leadDescription: leadDescription || "",
-      referralType: refType,
-      referralSource:
-        referralSource === "Other" ? otherReferralSource : referralSource,
-      orbitersInfo:
-        refType === "Others"
-          ? {
-              name: otherName,
-              phone: otherPhone,
-              email: otherEmail,
-            }
-          : null,
-      dealStatus,
-      lastUpdated,
-      timestamp: new Date(),
-    };
+const data = {
+  referralId,
+
+  orbiter: {
+    name: selectedOrbiter.Name || "",
+    email: selectedOrbiter.Email || "",
+    phone: selectedOrbiter.MobileNo || "",
+    ujbCode:
+      selectedOrbiter.UJBCode ||
+      "",
+    mentorName: selectedOrbiter.MentorName || "",
+    mentorPhone: selectedOrbiter.MentorPhone || "",
+  },
+
+  cosmoOrbiter: {
+    name: selectedCosmo.Name || "",
+    email: selectedCosmo.Email || "",
+    phone: selectedCosmo.MobileNo || "",
+    ujbCode:
+      selectedCosmo.UJBCode ||
+      "", // ✅ GUARANTEED TO STORE
+    mentorName: selectedCosmo.MentorName || "",
+    mentorPhone: selectedCosmo.MentorPhone || "",
+  },
+
+  service: selectedService || null,
+  product: selectedProduct || null,
+  leadDescription: leadDescription || "",
+
+  referralType: refType || "",
+  referralSource:
+    referralSource === "Other" ? otherReferralSource || "" : referralSource,
+
+  orbitersInfo:
+    refType === "Others"
+      ? {
+          name: otherName || "",
+          phone: otherPhone || "",
+          email: otherEmail || "",
+        }
+      : null,
+
+  dealStatus: dealStatus || "Pending",
+  lastUpdated,
+  timestamp: new Date(),
+};
+
+
 
     await addDoc(collection(db, COLLECTIONS.referral), data);
     alert("Referral submitted successfully!");
@@ -167,14 +182,14 @@ const [leadDescription, setLeadDescription] = useState("");
 
     await Promise.all([
       sendWhatsAppTemplate(
-        selectedOrbiter["Mobile no"],
-        selectedOrbiter[" Name"],
-        `🚀 You’ve just passed a referral for *${serviceOrProduct}* to *${selectedCosmo[" Name"]}*. It’s now in motion and will be actioned within 24 hours. Great start toward contribution! 🌱`
+        selectedOrbiter.MobileNo,
+        selectedOrbiter.Name,
+        `🚀 You’ve just passed a referral for *${serviceOrProduct}* to *${selectedCosmo.Name}*. It’s now in motion and will be actioned within 24 hours. Great start toward contribution! 🌱`
       ),
       sendWhatsAppTemplate(
-        selectedCosmo["Mobile no"],
-        selectedCosmo[" Name"],
-        `✨ You’ve received a referral from *${selectedOrbiter[" Name"]}* for *${serviceOrProduct}*. Let’s honor their trust — please act within the next 24 hours!`
+        selectedCosmo.MobileNo,
+        selectedCosmo.Name,
+        `✨ You’ve received a referral from *${selectedOrbiter.Name}* for *${serviceOrProduct}*. Let’s honor their trust — please act within the next 24 hours!`
       ),
       // sendWhatsAppTemplate(
       //   selectedOrbiter["Mentor Phone"],
@@ -237,12 +252,13 @@ const [leadDescription, setLeadDescription] = useState("");
           <ul className="search-results">
            {users
   .filter((u) => {
-    const name = u[" Name"] || ""; // fallback to empty string
-    return name.toLowerCase().includes(orbiterSearch.toLowerCase());
-  })
+  const name = u.Name || "";
+  return name.toLowerCase().includes(orbiterSearch.toLowerCase());
+})
+
   .map((user) => (
     <li key={user.id} onClick={() => handleOrbiterSelect(user)}>
-      {user[" Name"]}
+      {user.Name}
     </li>
   ))}
 
@@ -262,18 +278,19 @@ const [leadDescription, setLeadDescription] = useState("");
   {cosmoSearch && (
     <ul className="search-results">
      {users
-  .filter((u) => {
-    const name = u[" Name"] || "";
-    return (
-      u.Category === "CosmOrbiter" &&
-      ((Array.isArray(u.products) && u.products.length > 0) ||
-        (Array.isArray(u.services) && u.services.length > 0)) &&
-      name.toLowerCase().includes(cosmoSearch.toLowerCase())
-    );
-  })
+ .filter((u) => {
+  const name = u.Name || "";
+  return (
+    u.Category === "CosmOrbiter" &&
+    ((Array.isArray(u.products) && u.products.length > 0) ||
+    (Array.isArray(u.services) && u.services.length > 0)) &&
+    name.toLowerCase().includes(cosmoSearch.toLowerCase())
+  );
+})
+
   .map((user) => (
     <li key={user.id} onClick={() => handleCosmoSelect(user)}>
-      {user[" Name"]}
+      {user.Name}
     </li>
   ))}
 
@@ -316,7 +333,7 @@ const [leadDescription, setLeadDescription] = useState("");
             <option value="">-- Select Product --</option>
             {products.map((product, idx) => (
               <option key={idx} value={product.name}>
-                {product.name} - {product.description}
+                {product.name}
               </option>
             ))}
           </select>

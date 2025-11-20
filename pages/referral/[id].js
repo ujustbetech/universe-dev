@@ -16,6 +16,7 @@ const ReferralDetails = () => {
   const { id } = router.query;
   const [activeProfileTab, setActiveProfileTab] = useState("Orbiter");
   const [dealLogs, setDealLogs] = useState([]);
+  const [dealEverWon, setDealEverWon] = useState(false);
   const [payments, setPayments] = useState([]);
   const [showDealCard, setShowDealCard] = useState(false);
 const [orbiter, setOrbiter] = useState(null);
@@ -68,7 +69,22 @@ const closeForm = () => {
     dealValue: "",
   });
   const [followups, setFollowups] = useState([]);
+useEffect(() => {
+  const current = formState.dealStatus;
 
+  const paymentEligibleStatuses = [
+    "Deal Won",
+    "Work in Progress",
+    "Work Completed",
+    "Received Part Payment and Transferred to UJustBe",
+    "Received Full and Final Payment",
+    "Agreed % Transferred to UJustBe",
+  ];
+
+  if (paymentEligibleStatuses.includes(current)) {
+    setDealEverWon(true);        // once true → stays true forever
+  }
+}, [formState.dealStatus]);
 
 const [editIndex, setEditIndex] = useState(null);
 
@@ -1054,26 +1070,29 @@ const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, p
           </div>
         {/* Collapsed Payment Container */}
         {/* Collapsed Payment Container */}
- {formState.dealStatus?.toLowerCase().replace(/\s/g, "") === "dealwon" && (
+{dealEverWon && (
   <div className="PaymentContainer">
     <h4>Last Payment</h4>
-    {payments.length > 0 ? (
+
+    {payments?.length > 0 ? (
       <p>
-        {mapPaymentLabel(payments[payments.length - 1].paymentFrom)} →{" "}
-        {mapPaymentLabel(payments[payments.length - 1].paymentTo)} : ₹
-        {payments[payments.length - 1].amountReceived}
+        {mapPaymentLabel(payments.at(-1).paymentFrom)} →{" "}
+        {mapPaymentLabel(payments.at(-1).paymentTo)} : ₹
+        {payments.at(-1).amountReceived.toLocaleString("en-IN")}
       </p>
     ) : (
-      <p>No payments yet</p>
+      <p>No payments recorded yet</p>
     )}
+
     <button
       className="viewMoreBtn"
       onClick={() => setShowPaymentSheet(true)}
     >
-      Payment Details
+      View Payment History
     </button>
   </div>
 )}
+
 
 
 
