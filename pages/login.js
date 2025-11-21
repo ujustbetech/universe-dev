@@ -1,105 +1,71 @@
-"use client";
-import React, { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
-import { useAuth } from "../context/authContext";
-import Swal from "sweetalert2";
-import "../src/app/styles/login.scss";
+import React, { useState } from "react";
+import { collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
-const CLIENT_ID = "11336728746418285274";
-
-const LoginPage = () => {
-  const { login } = useAuth();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const accessToken = searchParams.get("access_token");
-
+/**
+ * This component copies ALL documents from:
+ *   Referraldev  ---> Referralprod
+ * and keeps the same document IDs and data structure
+ */
+export default function ReplicateReferralDB() {
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
 
-  // 🔐 Trigger OTP popup
-  const openLoginWindow = useCallback(() => {
-    const top = (window.screen.height - 600) / 2;
-    const left = (window.screen.width - 500) / 2;
-
-    const REDIRECT_URL = window.location.href;
-    const AUTH_URL = `https://www.phone.email/auth/log-in?client_id=${CLIENT_ID}&redirect_url=${REDIRECT_URL}`;
-
-    window.open(
-      AUTH_URL,
-      "peLoginWindow",
-      `toolbar=0,scrollbars=0,location=0,statusbar=0,menubar=0,resizable=0,
-      width=500,height=560,top=${top},left=${left}`
-    );
-  }, []);
-
-  // ✅ After OTP success
-  const verifyOTPAndLogin = async () => {
+  const replicateDatabase = async () => {
     try {
       setLoading(true);
+      setStatus("Starting replication...");
 
-      const url = "https://eapi.phone.email/getuser";
-      const data = new FormData();
-      data.append("access_token", accessToken);
-      data.append("client_id", CLIENT_ID);
+      const sourceCollection = collection(db, "Referraldev");
+      const targetCollection = collection(db, "Referralprod");
 
-      const response = await fetch(url, { method: "POST", body: data });
-      const responseData = await response.json();
+      const snapshot = await getDocs(sourceCollection);
 
-      if (responseData.status !== 200) {
-        throw new Error("OTP verification failed");
+      if (snapshot.empty) {
+        setStatus("No documents found in Referraldev");
+        setLoading(false);
+        return;
       }
 
-      const phone = responseData.phone_no;
+      let copiedCount = 0;
 
-      await login(phone);
+      for (const document of snapshot.docs) {
+        const data = document.data();
 
-      Swal.fire({
-        icon: "success",
-        title: "Login Successful",
-        timer: 1500,
-        showConfirmButton: false,
-      });
+        // Create same document ID in Referralprod
+        const targetDocRef = doc(targetCollection, document.id);
+        await setDoc(targetDocRef, data, { merge: true });
 
-      router.push("/");
+        copiedCount++;
+        setStatus(`Copied ${copiedCount} of ${snapshot.size} documents...`);
+      }
+
+      setStatus(`✅ Replication completed. ${copiedCount} documents copied successfully.`);
     } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: "User not registered",
-        text: "This phone number is not found in our system",
-      });
+      console.error("Replication Error:", error);
+      setStatus(`❌ Error: ${error.message}`);
+    } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Detect access token after OTP redirect
-  useEffect(() => {
-    if (accessToken) {
-      verifyOTPAndLogin();
-    }
-  }, [accessToken]);
-
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="logo-section">
-          <img src="/ujustlogo.png" alt="Logo" className="logo" />
-          <h2>UJustBe Universe</h2>
-          <p>Welcome back! Login to continue</p>
-        </div>
+    <div className="p-6 bg-white rounded-xl shadow-lg max-w-md">
+      <h2 className="text-lg font-semibold mb-4">Replicate Referral Database</h2>
 
-        <div className="login-form">
-          <button
-            type="button"
-            className="login-btn"
-            onClick={openLoginWindow}
-            disabled={loading}
-          >
-            {loading ? "Verifying OTP..." : "Login with Phone OTP"}
-          </button>
-        </div>
-      </div>
+      <button
+        onClick={replicateDatabase}
+        disabled={loading}
+        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+      >
+        {loading ? "Replicating..." : "Replicate Referraldev ➜ Referralprod"}
+      </button>
+
+      {status && (
+        <p className="mt-4 text-sm text-gray-700 whitespace-pre-line">
+          {status}
+        </p>
+      )}
     </div>
   );
-};
-
-export default LoginPage;
+}
