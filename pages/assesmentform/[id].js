@@ -6,6 +6,7 @@ import "../../src/app/styles/main.scss";
 import { COLLECTIONS } from "/utility_collection";
 import "../../pages/feedback.css";
 import { useRouter } from "next/router";
+import HeaderNav from "../../component/HeaderNav";
 
 
 

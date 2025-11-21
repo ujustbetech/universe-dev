@@ -307,7 +307,7 @@ Form Link: ${formLink}
         <h2 className="footers">Copyright @2025 | Powered by UJustBe</h2>
 
       </div>
-      <HeaderNav/>
+    <HeaderNav/>
     </section>
   </main>
 </>
