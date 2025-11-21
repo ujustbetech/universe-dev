@@ -57,9 +57,9 @@ useEffect(() => {
 
 
           status: data["ProfileStatus"] || '',
-          mentorName: data["Mentor Name"] || '',
-          mentorPhone: data["Mentor Phone"] || '',
-          mentorUjbCode: data["Mentor UJB Code"] || ''
+          mentorName: data["MentorName"] || '',
+          mentorPhone: data["MentorPhone"] || '',
+          mentorUjbCode: data["MentorUJBCode"] || ''
         };
       });
 
@@ -185,9 +185,9 @@ const validateForm = () => {
     "Email": newUser.email,
     "Gender": newUser.gender,
     "UJBCode": newUser.ujbCode,
-    "Mentor Name": mentorName,
-    "Mentor Phone": mentorPhone,
-    "Mentor UJB Code": mentorUjbCode,
+    "MentorName": mentorName,
+    "MentorPhone": mentorPhone,
+    "MentorUJBCode": mentorUjbCode,
   };
 
   try {
@@ -272,9 +272,9 @@ useEffect(() => {
      ujbCode: data["ujbCode"] || data["UJBCode"] || '',
 
           status: data["ProfileStatus"] || '',
-          mentorName: data["Mentor Name"] || '',
-          mentorPhone: data["Mentor Phone"] || '',
-          mentorUjbCode: data["Mentor UJB Code"] || ''
+          mentorName: data["MentorName"] || '',
+          mentorPhone: data["MentorPhone"] || '',
+          mentorUjbCode: data["MentorUJBCode"] || ''
         };
       });
 
@@ -352,9 +352,9 @@ useEffect(() => {
        ujbCode: data["ujbCode"] || data["UJBCode"] || '',
 
 
-          mentorName: data["Mentor Name"] || '',
-          mentorPhone: data["Mentor Phone"] || '',
-          mentorUjbCode: data["Mentor UJB Code"] || '',
+          mentorName: data["MentorName"] || '',
+          mentorPhone: data["MentorPhone"] || '',
+          mentorUjbCode: data["MentorUJBCode"] || '',
         };
       });
 

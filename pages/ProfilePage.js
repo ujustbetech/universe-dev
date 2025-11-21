@@ -26,44 +26,34 @@ const Profile = () => {
   const getInitials = (name) => name?.split(' ').map(word => word[0]).join('');
 
   useEffect(() => {
-  const storedUjb = localStorage.getItem('mmUJBCode');
+    const storedPhone = localStorage.getItem('mmOrbiter');
+    if (storedPhone) {
+      const phone = storedPhone.trim();
+      setPhoneNumber(phone);
+      fetchUserDetails(phone);
+      fetchUserName(phone);
+      // fetchCPPoints(phone);
+    }
+  }, []);
 
-  if (storedUjb) {
-    const ujbCode = storedUjb.trim();
-    fetchUserDetails(ujbCode);   // DOC ID = UJBCode
-  }
-}, []);
-
-
-  const fetchUserDetails = async (ujbCode) => {
-  try {
-    const docRef = doc(db, "usersdetail", ujbCode); // DOC ID = UJBCode
-    const docSnap = await getDoc(docRef);
-
+  const fetchUserDetails = async (phone) => {
+    const docSnap = await getDoc(doc(db, 'userdetail', phone));
     if (docSnap.exists()) {
       const data = docSnap.data();
-
       setUserDetails({
         ...data, // spread first
-        name: data['Name'] || '',
+        name: data[' Name'] || '',
         email: data.Email || '',
         dob: data.DOB || '',
         gender: data.Gender || '',
-        mobile: data['MobileNo'] || '',
+        mobile: data['Mobile no'] || '',
         category: data.Category || '',
-        ujbCode: ujbCode, // now taken from doc id
+        ujbCode: data['UJB Code'] || '',
         services: Array.isArray(data.services) ? data.services : [],
         products: Array.isArray(data.products) ? data.products : [],
       });
-
-    } else {
-      console.log("No user found with this UJBCode:", ujbCode);
     }
-  } catch (error) {
-    console.error("Error fetching user details:", error);
-  }
-};
-
+  };
 
 
   const fetchUserName = async (phone) => {
@@ -93,23 +83,24 @@ const Profile = () => {
   );
 
   const orbiterFields = [
-    'IDType', 'IDNumber', 'Address', 'MaritalStatus', 'LanguagesKnown', 'Hobbies',
-    'InterestArea', 'Skills', 'ExclusiveKnowledge', 'Aspirations'
+    'ID Type', 'ID Number', 'Address (City, State)', 'Marital Status', 'Languages Known', 'Hobbies',
+    'Interest Area', 'Skills', 'Exclusive Knowledge', 'Aspirations'
   ];
 
   const healthFields = [
-    'HealthParameters', 'CurrentHealthCondition', 'FamilyHistorySummary'
+    'Health Parameters', 'Current Health Condition', 'Family History Summary'
   ];
 
   const professionalFields = [
-    'ProfessionalHistory', 'CurrentProfession',
-    'EducationalBackground', 'ContributionAreainUJustBe',
-    'ImmediateDesire', 'Mastery', 'SpecialSocialContribution'
+    'Professional History', 'Current Profession',
+    'Educational Background', 'Contribution Area in UJustBe',
+    'Immediate Desire', 'Mastery', 'Special Social Contribution'
   ];
 
   const cosmorbiterExtraFields = [
-    'BusinessName', 'BusinessDetails', 'BusinessHistory', 'NoteworthyAchievements',
-    'ClienteleBase', 'BusinessSocialMediaPages', 'Website', 'Locality', 'AreaofServices', 'USP', 'TagLine'
+    'Business Name', 'Business Details (Nature & Type)', 'Business History', 'Noteworthy Achievements',
+    'Clientele Base', 'Business Social Media Pages', 'Website', 'Locality', 'Area of Services', 'USP',
+    'Business Logo (File Name)', 'Tag Line'
   ];
 
   const basicFields = [

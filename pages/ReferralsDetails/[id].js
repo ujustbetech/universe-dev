@@ -107,9 +107,9 @@ const ReferralDetails = () => {
         <h3 className="referralCardTitle">Referral Information</h3>
         <div className="referralCardBody">
           <p><span>Referral ID:</span> {referral.referralId || "N/A"}</p>
-          <p><span>Deal Status:</span> { referral.cosmoOrbiter?.dealStatus || "N/A"}</p>
+          <p><span>Deal Status:</span> { referral.cosmoOrbiter?.dealStatus || "Pending"}</p>
           <p><span>Type:</span> {referral.referralType || "N/A"}</p>
-          <p><span>Source:</span> {referral.referralSource || "N/A"}</p>
+        
           <p><span>Last Updated:</span> {referral.lastUpdated?.toDate
             ? referral.lastUpdated.toDate().toLocaleString()
             : "N/A"}

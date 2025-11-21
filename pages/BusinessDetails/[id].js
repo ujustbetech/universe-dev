@@ -75,8 +75,16 @@ useEffect(() => {
           email: data.Email || "",
           phone: data["MobileNo"] || "",
           ujbCode: data["UJBCode"] || "",
-          mentorName: data["MentorName"] || "",
-          mentorPhone: data["MentorPhone"] || "",
+       mentorName:
+  data["MentorName"] ||
+  data["Mentor Name"] ||
+  "",
+
+mentorPhone:
+  data["MentorPhone"] ||
+  data["Mentor Phone"] ||
+  "",
+
         });
       }
     } catch (err) {
@@ -184,8 +192,7 @@ const handlePassReferral = async () => {
 
     const selectedService = services.find((s) => s.name === selectedOption) || null;
     const selectedProduct = products.find((p) => p.name === selectedOption) || null;
-
-   const data = {
+const data = {
   referralId,
   referralSource: "R",
   referralType: selectedFor === "self" ? "Self" : "Others",
@@ -193,7 +200,9 @@ const handlePassReferral = async () => {
   dealStatus: "Pending",
   lastUpdated: new Date(),
   timestamp: new Date(),
-  cosmoUjbCode: userDetails.ujbCode, // ✅ added field
+
+  cosmoUjbCode: userDetails.ujbCode,
+
   cosmoOrbiter: {
     name: userDetails.name,
     email: userDetails.email,
@@ -202,10 +211,22 @@ const handlePassReferral = async () => {
     mentorName: userDetails.mentorName || null,
     mentorPhone: userDetails.mentorPhone || null,
   },
+
+  // ✅ UPDATED: mentor info added here
   orbiter:
     selectedFor === "self"
-      ? orbiterDetails
-      : { name: otherName, phone: otherPhone, email: otherEmail },
+      ? {
+          ...orbiterDetails,
+          mentorName: orbiterDetails?.mentorName || null,
+          mentorPhone: orbiterDetails?.mentorPhone || null,
+        }
+      : {
+          name: otherName,
+          phone: otherPhone,
+          email: otherEmail,
+  
+        },
+
   product: selectedProduct
     ? {
         name: selectedProduct.name,
@@ -214,6 +235,7 @@ const handlePassReferral = async () => {
         percentage: selectedProduct.percentage || "0",
       }
     : null,
+
   service: selectedService
     ? {
         name: selectedService.name,
@@ -222,10 +244,12 @@ const handlePassReferral = async () => {
         percentage: selectedService.percentage || "0",
       }
     : null,
+
   dealLogs: [],
   followups: [],
   statusLogs: [],
 };
+
 
     await addDoc(collection(db,COLLECTIONS.referral), data);
 
