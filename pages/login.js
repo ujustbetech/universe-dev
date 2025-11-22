@@ -95,7 +95,7 @@ const LoginPage = () => {
         <div className="logo-section">
           <img src="/ujustlogo.png" alt="Logo" className="logo" />
           <h2>UJustBe Universe</h2>
-          <p>Secure access with WhatsApp Entry Key</p>
+          <p>Welcome Back!Login to continue</p>
         </div>
 
         {step === 1 && (
@@ -111,7 +111,7 @@ const LoginPage = () => {
             <button className="login-btn" type="submit" disabled={loading}>
               {loading ? "Sending..." : "Send Entry Key"}
             </button>
-          </form>
+          </form>               
         )}
 
         {step === 2 && (
