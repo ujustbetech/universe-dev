@@ -28,38 +28,26 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // 🔍 Fetch from Firestore after OTP verification
- const fetchUserAfterOtp = async (phone) => {
+const fetchUserAfterOtp = async (phone) => {
   try {
-    console.log("🔥 DEBUG: Starting Firestore check...");
-    console.log("🔥 DEBUG: Phone received from OTP screen =", phone);
-
     const q = query(
       collection(db, "usersdetail"),
-      where("MobileNo", "==", phone)
+      where("MobileNo", "==", phone) // user enters plain 10 digit
     );
-
-    console.log("🔥 DEBUG: Firestore Query =", q);
 
     const querySnapshot = await getDocs(q);
 
-    console.log("🔥 DEBUG: QuerySnapshot empty? =", querySnapshot.empty);
-
     if (querySnapshot.empty) {
-      console.log("❌ DEBUG: No user found! Check Firestore field name & value.");
-      throw new Error("User not found");
+      throw new Error("Mobile number not registered");
     }
 
     const matchedDoc = querySnapshot.docs[0];
     const data = matchedDoc.data();
 
-    console.log("✅ DEBUG: Matched document ID =", matchedDoc.id);
-    console.log("✅ DEBUG: Matched user data =", data);
-
-    const name = data["Name"] || data[" Name"] || "User";
+    const name = data["Name"] || "User";
     const ujbCode = matchedDoc.id;
 
     const finalUser = { phoneNumber: phone, name, ujbCode };
-    console.log("🔥 DEBUG: Final user object =", finalUser);
 
     setUser(finalUser);
 
@@ -71,7 +59,6 @@ export const AuthProvider = ({ children }) => {
 
     return finalUser;
   } catch (err) {
-    console.error("❌ DEBUG: Error fetching user:", err);
     throw err;
   }
 };

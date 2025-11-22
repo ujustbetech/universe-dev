@@ -28,15 +28,20 @@ const HomePage = () => {
 useEffect(() => {
   const storedUjb = localStorage.getItem('mmUJBCode');
   const storedPhone = localStorage.getItem('mmOrbiter');
+  const storedName = localStorage.getItem('nameOrbiter');
 
   if (storedUjb && storedPhone) {
     setPhoneNumber(storedPhone);
-     
+    setUserName(storedName || 'User'); // ✅ USE LOCALSTORAGE FIRST
     setIsLoggedIn(true);
-    fetchUserName(storedUjb);
+
+    if (!storedName) {
+      fetchUserName(storedUjb); // only if name missing
+    }
   }
   setLoading(false);
 }, []);
+
 
 // ✅ Fetch data using UJBCode as Doc ID
 const fetchUserName = async (ujbCode) => {
@@ -46,14 +51,26 @@ const fetchUserName = async (ujbCode) => {
 
     if (userDoc.exists()) {
       const data = userDoc.data();
-      const name = data["Name"] || data[" Name"] || 'User';
-      setUserName(name);
-      return name;
+
+      const firestoreName =
+        data["Name"] ||
+        data["name"] ||
+        data[" FullName"] ||
+        data["FullName"];
+
+      const existingName = localStorage.getItem("nameOrbiter");
+
+      const finalName = firestoreName || existingName || "User";
+
+      setUserName(finalName);
+      localStorage.setItem("nameOrbiter", finalName);
+
+      return finalName;
     }
-    return 'User';
+    return localStorage.getItem("nameOrbiter") || 'User';
   } catch (err) {
     console.error(err);
-    return 'User';
+    return localStorage.getItem("nameOrbiter") || 'User';
   }
 };
 
