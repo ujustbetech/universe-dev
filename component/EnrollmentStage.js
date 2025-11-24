@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc ,setDoc,getDocs,collection} from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { COLLECTIONS } from "/utility_collection";
 import emailjs from '@emailjs/browser';
@@ -111,6 +111,18 @@ const EnrollmentStage = ({ id, fetchData }) => {
     updated[index][field] = value;
     setRows(updated);
   };
+const generateNextUJBCode = async () => {
+  const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
+
+  let maxNumber = 0;
+  snapshot.forEach(doc => {
+    const code = doc.data().UJBCode || doc.id;
+    const match = code.match(/\d+/);
+    if (match) maxNumber = Math.max(maxNumber, parseInt(match[0]));
+  });
+
+  return `UJB${String(maxNumber + 1).padStart(4, "0")}`;
+}
 
 const handleSave = async () => {
   try {
@@ -119,6 +131,58 @@ const handleSave = async () => {
     await updateDoc(docRef, {
       enrollmentStages: rows,
     });
+    // 🚀 AUTO-CREATE USER ON COMPLETION
+const completionStage = rows.find(r => r.label === "Enrollments Completion Status");
+
+if (completionStage?.status === "Completed") {
+  
+  // 1️⃣ Load prospect data
+  const prospectSnap = await getDoc(doc(db, "Prospects", id));
+  const p = prospectSnap.data();
+
+  const prospectName = p.prospectName;
+  const prospectPhone = p.prospectPhone;
+  const email = p.email;
+
+  const orbiterName = p.orbiterName;
+  const orbiterPhone = p.orbiterContact;
+  const orbiterEmail = p.orbiterEmail;
+
+  // 2️⃣ Generate UJB Code
+  const newUjb = await generateNextUJBCode();
+
+  // 3️⃣ Find mentor in usersdetail
+  const mentorSnap = await getDocs(collection(db, COLLECTIONS.userDetail));
+  const allMentors = mentorSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  const mentor = allMentors.find(m =>
+       m.MobileNo === orbiterPhone ||
+       m.Email === orbiterEmail ||
+       m.Name?.toLowerCase() === orbiterName?.toLowerCase()
+   );
+
+  const mentorName = mentor?.Name || orbiterName;
+  const mentorPhone = mentor?.MobileNo || orbiterPhone;
+  const mentorUjbCode = mentor?.UJBCode || mentor?.id || "";
+
+  // 4️⃣ Save User in usersdetail
+  await setDoc(doc(db, COLLECTIONS.userDetail, newUjb), {
+      Name: prospectName,
+      MobileNo: prospectPhone,
+      Category: "Orbiter",
+      DOB: "--",
+      Email: email,
+      Gender: "--",
+      UJBCode: newUjb,
+      MentorName: mentorName,
+      MentorPhone: mentorPhone,
+      MentorUJBCode: mentorUjbCode,
+      ProfileStatus: "incomplete"
+  });
+
+  console.log("🎉 User created:", newUjb);
+}
+
     Swal.fire('Saved!', 'Changes have been saved.', 'success');
   } catch (err) {
     console.error('Error saving data:', err);

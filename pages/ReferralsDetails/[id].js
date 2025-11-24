@@ -101,22 +101,48 @@ const ReferralDetails = () => {
   {/* Tab Content */}
   <div className="referralTabsContent">
 
-    {/* Referral Info */}
-    {activeTab === "referral" && (
-      <div className="referralCard">
-        <h3 className="referralCardTitle">Referral Information</h3>
-        <div className="referralCardBody">
-          <p><span>Referral ID:</span> {referral.referralId || "N/A"}</p>
-          <p><span>Deal Status:</span> { referral.cosmoOrbiter?.dealStatus || "Pending"}</p>
-          <p><span>Type:</span> {referral.referralType || "N/A"}</p>
-        
-          <p><span>Last Updated:</span> {referral.lastUpdated?.toDate
-            ? referral.lastUpdated.toDate().toLocaleString()
-            : "N/A"}
-          </p>
-        </div>
-      </div>
-    )}
+  {/* Referral Info */}
+{activeTab === "referral" && (
+  <div className="referralCard">
+    <h3 className="referralCardTitle">Referral Information</h3>
+    <div className="referralCardBody">
+      <p><span>Referral ID:</span> {referral.referralId || "N/A"}</p>
+      <p><span>Deal Status:</span> {referral.dealStatus || "Pending"}</p>
+      <p><span>Type:</span> {referral.referralType || "N/A"}</p>
+
+      <p>
+        <span>Last Updated:</span>{" "}
+        {referral.lastUpdated?.toDate
+          ? referral.lastUpdated.toDate().toLocaleString()
+          : "N/A"}
+      </p>
+
+      {/* ✅ Show referred person's details ONLY when "Others" */}
+    {referral.referralType === "Others" && (
+  <>
+    <hr />
+    <h4 style={{ marginTop: "10px" }}>Referred Person Details</h4>
+
+    <p>
+      <span>Name:</span>{" "}
+      {referral.referredForName || "N/A"}
+    </p>
+
+    <p>
+      <span>Phone:</span>{" "}
+      {referral.referredForPhone || "N/A"}
+    </p>
+
+    <p>
+      <span>Email:</span>{" "}
+      {referral.referredForEmail || "N/A"}
+    </p>
+  </>
+)}
+
+    </div>
+  </div>
+)}
 
     {/* Orbiter Details */}
     {activeTab === "orbiter" && (

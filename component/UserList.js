@@ -142,91 +142,51 @@ const validateForm = () => {
   return true;
 };
 
- const handleAddUser = async (e) => {
+const handleAddUser = async (e) => {
   e.preventDefault();
-
   if (!validateForm()) return;
 
   const formattedDOB = formatDOB(newUser.dob);
 
-  let mentorName = '';
-  let mentorPhone = '';
-  let mentorUjbCode = '';
-  let mentorId = '';
-
-  if (newUser.mentor && !newUser.mentorName) {
-    Swal.fire("Select mentor from dropdown list only", "", "warning");
-    return;
-  }
+  const finalUJBCode = await generateNextUJBCode();
 
   const selectedMentor = mentors.find((m) =>
     m.name.toLowerCase() === newUser.mentor.toLowerCase() ||
     m.phone === newUser.mentor
   );
 
-  if (selectedMentor) {
-    mentorName = selectedMentor.name;
-    mentorPhone = selectedMentor.phone;
-    mentorUjbCode = selectedMentor.ujbCode;
-    mentorId = selectedMentor.id;
-  } else {
+  if (!selectedMentor) {
     Swal.fire("Mentor not found!", "", "error");
     return;
   }
 
-  // ✅ NO EXTRA BRACE HERE
-
-
   const userDoc = {
-    "Name": newUser.name,
-    "MobileNo": newUser.phoneNumber,
-    "Category": newUser.role,
-    "DOB": formattedDOB,
-    "Email": newUser.email,
-    "Gender": newUser.gender,
-    "UJBCode": newUser.ujbCode,
-    "MentorName": mentorName,
-    "MentorPhone": mentorPhone,
-    "MentorUJBCode": mentorUjbCode,
+    Name: newUser.name,
+    MobileNo: newUser.phoneNumber,
+    Category: newUser.role,
+    DOB: formattedDOB,
+    Email: newUser.email,
+    Gender: newUser.gender,
+    UJBCode: finalUJBCode,
+    MentorName: selectedMentor.name,
+    MentorPhone: selectedMentor.phone,
+    MentorUJBCode: selectedMentor.ujbCode,
+    ProfileStatus: "incomplete"
   };
 
   try {
-    // ✅ Use UJB Code as document ID
-    await setDoc(doc(db,COLLECTIONS.userDetail, newUser.ujbCode), userDoc);
+    // ✅ UJB CODE IS DOC ID
+    await setDoc(doc(db, COLLECTIONS.userDetail, finalUJBCode), userDoc);
 
-    // ✅ Update mentor's connects if assigned
-    if (mentorUjbCode) {
-      const mentorRef = doc(db, COLLECTIONS.userDetail, mentorUjbCode);
-      const mentorSnapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
-      const mentorData = mentorSnapshot.docs.find(d => d.id === mentorUjbCode)?.data();
-      const existingConnects = mentorData?.connects || [];
+    Swal.fire({
+      icon: "success",
+      title: `User added with ${finalUJBCode}`,
+      timer: 2000,
+      showConfirmButton: false
+    });
 
-      await setDoc(
-        mentorRef,
-        {
-          connects: [
-            ...existingConnects,
-            {
-              name: newUser.name,
-              phone: newUser.phoneNumber,
-              email: newUser.email,
-              ujbCode: newUser.ujbCode
-            }
-          ]
-        },
-        { merge: true }
-      );
-    }
-
-    setUsers([...users, {
-      id: newUser.ujbCode,
-      name: newUser.name,
-      phoneNumber: newUser.phoneNumber,
-      role: newUser.role,
-      status: "incomplete"
-    }]);
-
-    // Reset form
+    // ✅ Regenerate next UJB for next user
+    const nextCode = await generateNextUJBCode();
     setNewUser({
       name: '',
       phoneNumber: '',
@@ -234,25 +194,19 @@ const validateForm = () => {
       dob: '',
       email: '',
       gender: '',
-      ujbCode: '',
+      ujbCode: nextCode,
       mentor: '',
       mentorName: '',
       mentorPhone: '',
-      mentorUjbCode: '',
-    });
-
-    Swal.fire({
-      icon: "success",
-      title: "User added successfully!",
-      timer: 2000,
-      showConfirmButton: false,
+      mentorUjbCode: ''
     });
 
   } catch (err) {
-    console.error("Error adding user:", err);
-    Swal.fire("Error", "Failed to add user.", "error");
+    console.error(err);
+    Swal.fire("Error", "Failed to add user", "error");
   }
 };
+
 
 // ✅ Fetch users from 'usersdetail' with UJB Code as doc ID
 useEffect(() => {
@@ -332,6 +286,36 @@ const deleteUser = async () => {
     }
   }
 };
+const generateNextUJBCode = async () => {
+  const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
+
+  let maxNumber = 0;
+
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const code = data.UJBCode || data.ujbCode || doc.id;
+
+    if (code) {
+      const match = code.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0]);
+        if (num > maxNumber) maxNumber = num;
+      }
+    }
+  });
+
+  const nextNumber = maxNumber + 1;
+  return `UJB${String(nextNumber).padStart(4, '0')}`; // UJB0001 format
+};
+
+useEffect(() => {
+  const setAutoUJB = async () => {
+    const nextCode = await generateNextUJBCode();
+    setNewUser(prev => ({ ...prev, ujbCode: nextCode }));
+  };
+
+  setAutoUJB();
+}, []);
 
 // Fetch users from usersdetail with UJB Code as doc ID
 useEffect(() => {
@@ -465,12 +449,14 @@ useEffect(() => {
       <li className='form-row'>
         <h4>UJB Code<sup>*</sup></h4>
         <div className='multipleitem'>
-          <input 
-            type="text" 
-            placeholder="UJB Code" 
-            value={newUser.ujbCode} 
-            onChange={(e) => setNewUser({...newUser, ujbCode: e.target.value})} 
-          />
+     <input 
+  type="text"
+  value={newUser.ujbCode}
+  disabled
+  style={{ background: "#eee", cursor: "not-allowed" }}
+/>
+
+
         </div>
       </li>
 
