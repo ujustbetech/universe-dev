@@ -35,25 +35,36 @@ const Profile = () => {
       // fetchCPPoints(phone);
     }
   }, []);
+useEffect(() => {
+  const storedUjb = localStorage.getItem('mmUJBCode');
 
-  const fetchUserDetails = async (phone) => {
-    const docSnap = await getDoc(doc(db, 'userdetail', phone));
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      setUserDetails({
-        ...data, // spread first
-        name: data[' Name'] || '',
-        email: data.Email || '',
-        dob: data.DOB || '',
-        gender: data.Gender || '',
-        mobile: data['Mobile no'] || '',
-        category: data.Category || '',
-        ujbCode: data['UJB Code'] || '',
-        services: Array.isArray(data.services) ? data.services : [],
-        products: Array.isArray(data.products) ? data.products : [],
-      });
-    }
-  };
+  if (storedUjb) {
+    fetchUserDetails(storedUjb);
+    fetchUserName(storedUjb);
+  }
+}, []);
+
+  const fetchUserDetails = async (ujbCode) => {
+  const docSnap = await getDoc(doc(db, 'usersdetail', ujbCode));
+
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+
+    setUserDetails({
+      ...data,
+      name: data['Name'] || '',
+      email: data.Email || '',
+      dob: data.DOB || '',
+      gender: data.Gender || '',
+      mobile: data['MobileNo'] || '',
+      category: data.Category || '',
+      ujbCode: ujbCode, // 🔥 doc ID = UJB Code
+      services: Array.isArray(data.services) ? data.services : [],
+      products: Array.isArray(data.products) ? data.products : [],
+    });
+  }
+};
+
 
 
   const fetchUserName = async (phone) => {
@@ -83,24 +94,24 @@ const Profile = () => {
   );
 
   const orbiterFields = [
-    'ID Type', 'ID Number', 'Address (City, State)', 'Marital Status', 'Languages Known', 'Hobbies',
-    'Interest Area', 'Skills', 'Exclusive Knowledge', 'Aspirations'
+    'IDType', 'IDNumber', 'Address', 'MaritalStatus', 'LanguagesKnown', 'Hobbies',
+    'InterestArea', 'Skills', 'ExclusiveKnowledge', 'Aspirations'
   ];
 
   const healthFields = [
-    'Health Parameters', 'Current Health Condition', 'Family History Summary'
+    'HealthParameters', 'CurrentHealthCondition', 'FamilyHistorySummary'
   ];
 
   const professionalFields = [
-    'Professional History', 'Current Profession',
-    'Educational Background', 'Contribution Area in UJustBe',
-    'Immediate Desire', 'Mastery', 'Special Social Contribution'
+    'ProfessionalHistory', 'CurrentProfession',
+    'EducationalBackground', 'ContributionAreainUJustBe',
+    'ImmediateDesire', 'Mastery', 'SpecialSocialContribution'
   ];
 
   const cosmorbiterExtraFields = [
-    'Business Name', 'Business Details (Nature & Type)', 'Business History', 'Noteworthy Achievements',
-    'Clientele Base', 'Business Social Media Pages', 'Website', 'Locality', 'Area of Services', 'USP',
-    'Business Logo (File Name)', 'Tag Line'
+    'BusinessName', 'BusinessDetails', 'BusinessHistory', 'NoteworthyAchievements',
+    'ClienteleBase', 'BusinessSocialMediaPages', 'Website', 'Locality', 'AreaofServices', 'USP',
+    'Business Logo (File Name)', 'TagLine'
   ];
 
   const basicFields = [
@@ -155,8 +166,8 @@ const Profile = () => {
               <div className="profile-photo-wrapper">
                 <img
                   src={
-                    userDetails['Profile Photo URL']
-                      ? userDetails['Profile Photo URL']
+                    userDetails['ProfilePhotoURL']
+                      ? userDetails['ProfilePhotoURL']
                       : "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBw4ODg4NDg4ODhAPEA0NDw0NDRAQDg0NFhIXFhURExUYHCggGBolHRMTITEhJSkrLi4uFx8zODMsNygtLisBCgoKDg0NEA4PDy0ZFRkrKystKzctNy0rKysrKystKysrKysrKysrNysrKysrKysrKysrKysrKysrKysrKysrK//AABEIAOEA4QMBIgACEQEDEQH/xAAbAAEAAgMBAQAAAAAAAAAAAAAAAQQCBQYDB//EADMQAQEAAQEFAwoGAwEAAAAAAAABAgMEBREhMRJBURUiM1JhcYGSocEycoKxstETI5Hh/8QAFgEBAQEAAAAAAAAAAAAAAAAAAAEC/8QAFhEBAQEAAAAAAAAAAAAAAAAAAAER/9oADAMBAAIRAxEAPwD6KgG2QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZdqgMQAAAAAAAAAAAARxFSI4pAAEAAAAAAAAAAAAAAAAAAAAAAJzvBsdk3VllzzvCeE62PfdOwzGf5cudvSXujaM2qq6W79LHpjxvjbViaeM7p/xkIrzy2fC9cZz9iptG69PL8M7F9nHg2CDRzW07Hnp8e1OM7rOjwdVqYTKXG9LOFc9t2zXSy4dZeeN9jUqKwlCoAAAAAAAAAAAAAAAAAALm69nmpnznGY86p1vNy6fDT7XDrUqthIkGVQJQACQQrbds81MLy5znL4VaRQcn38BZ3jpzHVyk7+as3qAAgAAAAAAAAAAAAAAABXS7FjJp4d3KVzVdPsvo8Py4/slV7CIllQAAABFSig0u+5wzxvjLx+jWtpv3rp+7L7NYsRADSAAAAAAAAAAAAAAAAFdHu7U7WlhfZw/wCcnONtuTXnnad6/inuSq24hLKgAAACKljnlJLb3A0e+tXjqTH1Z+6g9Nr1O3nll422ce6PLFqIkBUAAAAAAAAAAAAAAAAGejqXDKZTrKwCjqNn1pnjMpZ/Verm9g2z/Flz49m9Z93Q6WpMpLLxlYaZgAAANTvfa+V0p7OP7rO8NtmnjZOeV4ycO6+NaDLK223nbeNWREWANIAAAAAAAAAAAAAAAAAAAkGNe2zbVnp/hvwvOPNCK2uz749fH4xZm9tH1rP05f00PEiYN5lvfT58OOXws/dR1d66uXThjPdzUacVwZZ5XK2222sQVAAAAAAAAAAAAAAAAAABlp4ZZXhjLfgvbDu25+dnxmPKzxrc6WhjhJMcZOCarT6G6c7zyvZ9i5jujTnW5X4z7RsBNXFLyXo+rfmp5L0fVvzVdEFLyXo+rfmqPJej6t+arwCj5K0fVvzU8laPq35qvAKPkrR9W/NWOW6NK9LnPdlPvGwAanPc3q6l/Viqa27dXHu7U8cbx+nV0Iujk8pZeFll8LyqHUa+z4ak4ZYy+3vnurSbdsGWl5087Dx7571lTFIBUAAAAAAAAAAS2u7t3cfPz+EeG6dn7eXavTH61vZGbVJEgigAAAAAAAAAAACLOPKpAaHeew/4728Z5l6z1b/Sg6vUwmUuNnGWcLPY5ra9C6edwvd0vjO5qVK8QFQAAAAAAZYY22SdbZIxX9zaPa1O13YTj8b0+5VbjZNnmlhMZ77fG99ewMKAAAAAAAAAAAAAAAANdvrQ7WHbnXDr+Wtiw1sO1jlj4yz6A5UINsgAAAAADd7jx8zK+OX0k/8AWkb/AHNP9M9tyv14fZKsXgGVAAAAAAAAAAAAAAAAAAcrrY8M854ZZT6sHttfpNT8+f8AKvFtAAQAAAAdDun0OH6/5VzzoN0ehx9+X8qlWLoDKgAAAAAAAAAAAAAAAAAOZ26f7dT82TwWd4zhranvl+kVm4gAIAAAAOg3R6HH35fyoJVi6AyoAAAAAAAAAAAAAAACKQAc9vT02f6f4xUBuIACAAP/2Q==" // fallback image path
                   }
                   alt="Profile"
@@ -173,12 +184,12 @@ const Profile = () => {
               {userDetails['Upload Photo (File Name)'] && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <img
-                    src={userDetails['Profile Photo URL']}
+                    src={userDetails['ProfilePhotoURL']}
                     alt="Profile"
                     className="profile-photo-img"
                   />
                   <a
-                    href={userDetails['Profile Photo URL']}
+                    href={userDetails['ProfilePhotoURL']}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontSize: '12px', marginTop: '5px' }}
@@ -285,8 +296,8 @@ const Profile = () => {
                         {userDetails['Business Logo'] && (
                           <div className='businessLogo'>
                             <img
-                              src={userDetails['Business Logo']}
-                              alt="Business Logo"
+                              src={userDetails['BusinessLogo']}
+                              alt="BusinessLogo"
                               className="profile-photo-img"
                             />
 

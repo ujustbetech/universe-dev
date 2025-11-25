@@ -68,7 +68,12 @@ const ReferralDetails = () => {
     comment: "",
     paymentInvoice: null,
     ujbShareType: "UJustBe",
+    // internal helper fields:
+    _targetUserDocRef: null,
+    _feeType: "upfront",
   });
+
+  const [editIndex, setEditIndex] = useState(null);
 
   const closeForm = () => {
     setShowAddPaymentForm(false);
@@ -83,6 +88,8 @@ const ReferralDetails = () => {
       paymentDate: "",
       amountReceived: "",
       paymentInvoice: null,
+      _targetUserDocRef: null,
+      _feeType: "upfront",
     });
     setAdjustmentInfo({ adjustedAmount: 0, actualReceived: 0 });
   };
@@ -95,7 +102,6 @@ const ReferralDetails = () => {
     dealValue: "",
   });
   const [followups, setFollowups] = useState([]);
-  const [editIndex, setEditIndex] = useState(null);
   const [referralData, setReferralData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Referral Info");
@@ -139,7 +145,8 @@ const ReferralDetails = () => {
   // -----------------------
   const calculateDistribution = () => {
     const dealValue = parseFloat(formState.dealValue) || 0;
-    const percentage = parseFloat((service?.percentage || product?.percentage) || 0);
+    // service and product come from referralData (may be undefined during calculation if data not loaded)
+    const percentage = parseFloat((referralData?.service?.percentage || referralData?.product?.percentage) || 0);
     const agreedAmount = (dealValue * percentage) / 100;
 
     return {
@@ -183,7 +190,7 @@ const ReferralDetails = () => {
         return;
       }
 
-      // Lock to single log (as requested). If you later want appendable history, adjust here.
+      // Save as single log (locking to one)
       const updatedLogs = [distribution];
       const docRef = doc(db, COLLECTIONS.referral, id);
 
@@ -427,7 +434,7 @@ const ReferralDetails = () => {
                 : p.paymentTo === "OrbiterMentor" && r.orbiter?.mentorUjbCode
                 ? r.orbiter.mentorUjbCode
                 : p.paymentTo === "CosmoMentor" && r.cosmoOrbiter?.mentorUjbCode
-                ? r.cosmoOrbiter.mentorUjbCode
+                ? r.cosmoOrbiter?.mentorUjbCode
                 : null;
 
             if (!targetUjb) continue;
@@ -462,6 +469,7 @@ const ReferralDetails = () => {
       !isFirstPaymentAlreadyDone(paymentsArr, referralDataParam)
     );
   };
+
   // -----------------------
   // PAYMENT MODAL INITIALIZER
   // -----------------------
@@ -469,21 +477,29 @@ const ReferralDetails = () => {
     const firstDone = isFirstPaymentAlreadyDone(payments, referralData);
 
     if (!firstDone) {
-      // Force CosmoOrbiter -> UJustBe with full deal value
-      const fullDealValue =
-        (dealLogs && dealLogs.length > 0 && Number(dealLogs[dealLogs.length - 1].dealValue)) ||
-        (referralData?.dealValue ? Number(referralData.dealValue) : 0);
+      // Force CosmoOrbiter -> UJustBe with AGREED amount (from deal log or computed)
+      const deal = (dealLogs && dealLogs.length > 0 && dealLogs[dealLogs.length - 1]) || null;
+      const agreedAmountFromLog = deal ? Number(deal.agreedAmount || 0) : 0;
+
+      // If not present in log, compute using formState/referralData
+      let agreedAmount = agreedAmountFromLog;
+      if (!agreedAmount) {
+        const calc = calculateDistribution();
+        agreedAmount = Number(calc.agreedAmount || 0);
+      }
 
       setNewPayment({
         paymentFrom: "CosmoOrbiter",
         paymentTo: "UJustBe",
         paymentDate: new Date().toISOString().split("T")[0],
-        amountReceived: fullDealValue,
+        amountReceived: agreedAmount,
         modeOfPayment: "",
         transactionRef: "",
         comment: "",
         paymentInvoice: null,
-        ujbShareType: "FullDealToUJustBe",
+        ujbShareType: "AgreedAmountToUJustBe",
+        _targetUserDocRef: null,
+        _feeType: "upfront",
       });
 
       setShowAddPaymentForm(true);
@@ -502,6 +518,8 @@ const ReferralDetails = () => {
       comment: "",
       paymentInvoice: null,
       ujbShareType: "UJustBe",
+      _targetUserDocRef: null,
+      _feeType: "upfront",
     });
 
     setShowAddPaymentForm(true);
@@ -657,29 +675,46 @@ const ReferralDetails = () => {
       const firstDone = isFirstPaymentAlreadyDone(payments, referralData);
       const addingFirst = isAddingFirstPayment(candidatePayment, payments, referralData);
 
-      if (!firstDone && !addingFirst) {
-        await Swal.fire({
-          icon: "warning",
-          title: "First payment required",
-          text: "The first payment must be CosmoOrbiter → UJustBe and will be equal to the full deal value.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-
+      // For addingFirst, required amount must be AGREED AMOUNT (not full deal)
       if (addingFirst) {
-        const fullDealValue =
-          (dealLogs && dealLogs.length > 0 && Number(dealLogs[dealLogs.length - 1].dealValue)) ||
-          Number(referralData?.dealValue || 0);
+        const deal = (dealLogs && dealLogs.length > 0 && dealLogs[dealLogs.length - 1]) || null;
+        // fallback to calculateDistribution if no log present
+        const agreedAmount = deal ? Number(deal.agreedAmount || 0) : Number(calculateDistribution().agreedAmount || 0);
 
-        if (Number(candidatePayment.amountReceived) !== Number(fullDealValue)) {
+        if (Number(candidatePayment.amountReceived) !== agreedAmount) {
           await Swal.fire({
             icon: "error",
             title: "Invalid Amount",
-            text: `First payment amount must be the full deal value: ₹${fullDealValue}.`,
+            text: `First payment amount must be the AGREED Amount: ₹${agreedAmount}.`,
           });
           setIsSubmittingPayment(false);
           return;
+        }
+      } else {
+        // After first payment, candidatePayment.amountReceived should match respective share from dealLogs
+        const deal = (dealLogs && dealLogs.length > 0 && dealLogs[dealLogs.length - 1]) || null;
+        if (deal) {
+          const expectedFor =
+            candidatePayment.paymentTo === "Orbiter"
+              ? Number(deal.orbiterShare || 0)
+              : candidatePayment.paymentTo === "OrbiterMentor"
+              ? Number(deal.orbiterMentorShare || 0)
+              : candidatePayment.paymentTo === "CosmoMentor"
+              ? Number(deal.cosmoMentorShare || 0)
+              : candidatePayment.paymentTo === "UJustBe"
+              ? Number(deal.ujustbeShare || 0)
+              : null;
+
+          if (expectedFor !== null && Number(candidatePayment.amountReceived) !== expectedFor) {
+            // If mismatch, warn but allow if user intentionally overridden? We will enforce equality to avoid mistakes.
+            await Swal.fire({
+              icon: "error",
+              title: "Invalid Amount",
+              text: `Payment amount must match the calculated share for selected receiver: ₹${expectedFor}.`,
+            });
+            setIsSubmittingPayment(false);
+            return;
+          }
         }
       }
 
@@ -693,6 +728,7 @@ const ReferralDetails = () => {
         return;
       }
 
+      // Compute adjustedAmount / actualReceived again to be safe
       let adjustedAmount = 0;
       let actualReceived = 0;
       let feeType = candidatePayment._feeType || "upfront";
@@ -741,6 +777,39 @@ const ReferralDetails = () => {
         }
       }
 
+      // VALIDATIONS when actualReceived > 0
+      if (actualReceived > 0) {
+        if (!candidatePayment.modeOfPayment) {
+          await Swal.fire({
+            icon: "warning",
+            title: "Mode of Payment Required",
+            text: "Please select a payment mode for the received portion.",
+          });
+          setIsSubmittingPayment(false);
+          return;
+        }
+        // For non-cash payments, transactionRef is required
+        if (candidatePayment.modeOfPayment !== "Cash" && !candidatePayment.transactionRef) {
+          await Swal.fire({
+            icon: "warning",
+            title: "Transaction Reference Required",
+            text: "Please provide transaction reference for the received portion.",
+          });
+          setIsSubmittingPayment(false);
+          return;
+        }
+        // Invoice required for actual received amount
+        if (!candidatePayment.paymentInvoice) {
+          await Swal.fire({
+            icon: "warning",
+            title: "Invoice Required",
+            text: "Please upload invoice screenshot or PDF for the received payment.",
+          });
+          setIsSubmittingPayment(false);
+          return;
+        }
+      }
+
       // Upload invoice if actualReceived > 0
       let paymentInvoiceURL = "";
       if (candidatePayment.paymentInvoice && actualReceived > 0) {
@@ -785,6 +854,7 @@ const ReferralDetails = () => {
         if (uSnap.exists()) {
           const data = uSnap.data();
           const updates = {};
+          // Try to update appropriate payment path if exists
           if (data.payment?.orbiter) {
             const curr = Number(data.payment.orbiter.amount || 0);
             const newAmt = Math.max(0, curr - adjustedAmount);
@@ -851,6 +921,8 @@ const ReferralDetails = () => {
         comment: "",
         paymentInvoice: null,
         ujbShareType: "UJustBe",
+        _targetUserDocRef: null,
+        _feeType: "upfront",
       });
       setAdjustmentInfo({ adjustedAmount: 0, actualReceived: 0 });
       setIsSubmittingPayment(false);
@@ -956,7 +1028,9 @@ const ReferralDetails = () => {
     }
   };
 
-  // Next I'll send Part 3: the rest of JSX including PaymentSheet markup and the component export.
+  // -----------------------
+  // RENDER
+  // -----------------------
   if (loading || !referralData) return <p>Loading...</p>;
 
   const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, product, referralId } =
@@ -1059,7 +1133,9 @@ const ReferralDetails = () => {
                       <div className="timelineContent">
                         <span className="statusLabel">{log.status}</span>
                         <span className="statusDate">
-                          {new Date(log.updatedAt.seconds * 1000).toLocaleString()}
+                          {log.updatedAt && log.updatedAt.seconds
+                            ? new Date(log.updatedAt.seconds * 1000).toLocaleString()
+                            : new Date(log.updatedAt || "").toLocaleString()}
                         </span>
                       </div>
                     </li>
@@ -1106,19 +1182,19 @@ const ReferralDetails = () => {
                   <h3>Contact Details</h3>
                   <div className="detailsGrid">
                     <p>
-                      <strong>Email:</strong> {orbiter?.email}
+                      <strong>Email:</strong> {orbiter?.email || "No Email"}
                     </p>
                     <p>
-                      <strong>Phone:</strong> {orbiter?.phone}
+                      <strong>Phone:</strong> {orbiter?.phone || "No Phone"}
                     </p>
                     <p>
-                      <strong>Mentor:</strong> {orbiter?.mentorName}
+                      <strong>Mentor:</strong> {orbiter?.mentorName || "No Mentor"}
                     </p>
                     <p>
-                      <strong>Mentor Phone:</strong> {orbiter?.mentorPhone}
+                      <strong>Mentor Phone:</strong> {orbiter?.mentorPhone || "No Mentor Phone"}
                     </p>
                     <p>
-                      <strong>UJB Code:</strong> {orbiter?.ujbCode}
+                      <strong>UJB Code:</strong> {orbiter?.ujbCode || "No UJB Code"}
                     </p>
                   </div>
                 </div>
@@ -1145,16 +1221,16 @@ const ReferralDetails = () => {
                   <h3>Contact Details</h3>
                   <div className="detailsGrid">
                     <p>
-                      <strong>Email:</strong> {cosmoOrbiter?.email}
+                      <strong>Email:</strong> {cosmoOrbiter?.email || "No Email"}
                     </p>
                     <p>
-                      <strong>Phone:</strong> {cosmoOrbiter?.phone}
+                      <strong>Phone:</strong> {cosmoOrbiter?.phone || "No Phone"}
                     </p>
                     <p>
-                      <strong>Mentor:</strong> {cosmoOrbiter?.mentorName}
+                      <strong>Mentor:</strong> {cosmoOrbiter?.mentorName || "No Mentor"}
                     </p>
                     <p>
-                      <strong>Mentor Phone:</strong> {cosmoOrbiter?.mentorPhone}
+                      <strong>Mentor Phone:</strong> {cosmoOrbiter?.mentorPhone || "No Mentor Phone"}
                     </p>
                   </div>
                 </div>
@@ -1433,7 +1509,7 @@ const ReferralDetails = () => {
         </div>
 
         {/* ========================== PAYMENT SUMMARY CARD ============================= */}
-        {dealAlreadyCalculated && (
+        {dealEverWon && (
           <div className="PaymentContainer">
             <h4>Last Payment</h4>
 
@@ -1523,7 +1599,7 @@ const ReferralDetails = () => {
             <button
               className="addPaymentBtn"
               onClick={openPaymentModal}
-              disabled={!dealAlreadyCalculated}
+              disabled={!dealEverWon}
             >
               + Add Payment
             </button>
@@ -1557,9 +1633,9 @@ const ReferralDetails = () => {
                 ) : (
                   <>
                     <option value="">-- Select --</option>
-                    <option value="Orbiter">{orbiter?.name}</option>
-                    <option value="OrbiterMentor">{orbiter?.mentorName}</option>
-                    <option value="CosmoMentor">{cosmoOrbiter?.mentorName}</option>
+                    <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
+                    <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
+                    <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
                   </>
                 )}
               </select>
