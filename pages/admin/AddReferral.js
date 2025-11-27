@@ -76,7 +76,7 @@ const handleOrbiterSelect = (user) => {
     const year2 = (now.getFullYear() + 1) % 100;
     const refPrefix = `Ref/${year1}-${year2}/`;
 
-    const q = query(collection(db, "Referral"), orderBy("referralId", "desc"), limit(1));
+    const q = query(collection(db, "Referraldev"), orderBy("referralId", "desc"), limit(1));
     const snapshot = await getDocs(q);
     let lastNum = 2999;
     if (!snapshot.empty) {
@@ -162,7 +162,7 @@ const handleOrbiterSelect = (user) => {
 };
 
 
-    await addDoc(collection(db, "Referral"), data);
+    await addDoc(collection(db, "Referraldev"), data);
     alert("Referral submitted successfully!");
 
     // ✅ Send WhatsApp messages
@@ -263,25 +263,24 @@ const handleOrbiterSelect = (user) => {
     type="text"
     value={cosmoSearch}
     onChange={(e) => setCosmoSearch(e.target.value)}
-    onFocus={() => setCosmoSearch("")}  // show all on focus
   />
 
-  {(cosmoSearch !== null) && (
+  {cosmoSearch !== null && (
     <ul className="search-results">
       {users
         .filter((u) => {
-          const name = String(u.Name || "");
+          const name = String(u.Name || "").toLowerCase();
           const category = String(u.Category || "").toLowerCase();
 
-          // Always show CosmoOrbiters when the field is focused
+          // Show all if nothing typed
           if (cosmoSearch === "") {
             return category.includes("cosmo");
           }
 
-          // If typed, filter by name
+          // Filter by name
           return (
             category.includes("cosmo") &&
-            name.toLowerCase().includes(cosmoSearch.toLowerCase())
+            name.includes(cosmoSearch.toLowerCase())
           );
         })
         .map((user) => (
@@ -292,6 +291,7 @@ const handleOrbiterSelect = (user) => {
     </ul>
   )}
 </li>
+
 
 
       {/* Services */}
