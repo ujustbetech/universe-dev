@@ -2692,51 +2692,51 @@ const openPaymentModal = () => {
             </p>
 
             <label>
-              Select Receiver:
-              <select
-                value={ujbDistForm.recipient}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // If changing manually, clear original slot flags
-                  setUjbDistributionFromSlot(false);
-                  setUjbDistributionOriginalSlotAmount(0);
-                  setUjbDistributionBelongsToPaymentId(null);
-                  setUjbDistForm((prev) => ({
-                    ...prev,
-                    recipient: value,
-                    amount: "",
-                  }));
-                }}
-              >
-                <option value="">-- Select --</option>
-                <option value="Orbiter">
-                  {orbiter?.name || "Orbiter"}
-                </option>
-                <option value="OrbiterMentor">
-                  {orbiter?.mentorName || "Orbiter Mentor"}
-                </option>
-                <option value="CosmoMentor">
-                  {cosmoOrbiter?.mentorName || "Cosmo Mentor"}
-                </option>
-              </select>
-            </label>
+  Select Receiver:
+  <select
+    value={ujbDistForm.recipient}
+    disabled={ujbDistributionFromSlot}        // ← receiver locked when opened from slot
+    onChange={(e) => {
+      if (ujbDistributionFromSlot) return;   // prevent manual changes
+      const value = e.target.value;
+
+      setUjbDistributionFromSlot(false);
+      setUjbDistributionOriginalSlotAmount(0);
+      setUjbDistributionBelongsToPaymentId(null);
+
+      setUjbDistForm((prev) => ({
+        ...prev,
+        recipient: value,
+        amount: "",
+      }));
+    }}
+  >
+    <option value="">-- Select --</option>
+    <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
+    <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
+    <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
+  </select>
+</label>
+
 
             <label>
               Amount to Pay (₹):
-              <input
-                type="number"
-                value={ujbDistForm.amount}
-                onChange={(e) =>
-                  setUjbDistForm((prev) => ({
-                    ...prev,
-                    amount: e.target.value,
-                  }))
-                }
-                min="0"
-                max={currentUjbBalance}
-                placeholder={`Max ₹${currentUjbBalance}`}
-                readOnly={!ujbDistAllowAdjust && ujbDistributionFromSlot} // read-only if from slot & adjust off
-              />
+             <input
+  type="number"
+  value={ujbDistForm.amount}
+  readOnly={ujbDistributionFromSlot}      // ← FIXED amount if opened from slot
+  onChange={(e) => {
+    if (ujbDistributionFromSlot) return;  // block changes
+    setUjbDistForm((prev) => ({
+      ...prev,
+      amount: e.target.value,
+    }));
+  }}
+  min="0"
+  max={currentUjbBalance}
+  placeholder={`Max ₹${currentUjbBalance}`}
+/>
+
             </label>
 
             {/* If this form was opened from a distribution slot, show that information and toggle for adjust */}

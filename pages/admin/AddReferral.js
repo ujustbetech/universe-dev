@@ -10,7 +10,6 @@ import {
   limit,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
-import { COLLECTIONS } from "/utility_collection";
 import Layout from "../../component/Layout";
 import "../../src/app/styles/main.scss";
 
@@ -40,7 +39,7 @@ const [leadDescription, setLeadDescription] = useState("");
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
+      const snapshot = await getDocs(collection(db, "usersdetail"));
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setUsers(data);
     };
@@ -62,7 +61,7 @@ const handleOrbiterSelect = (user) => {
     setServices([]);
     setProducts([]);
 
-    const docRef = doc(db, COLLECTIONS.userDetail, user.id);
+    const docRef = doc(db, "usersdetail", user.id);
     const userDoc = await getDoc(docRef);
     if (userDoc.exists()) {
       const userData = userDoc.data();
@@ -77,7 +76,7 @@ const handleOrbiterSelect = (user) => {
     const year2 = (now.getFullYear() + 1) % 100;
     const refPrefix = `Ref/${year1}-${year2}/`;
 
-    const q = query(collection(db, COLLECTIONS.referral), orderBy("referralId", "desc"), limit(1));
+    const q = query(collection(db, "Referral"), orderBy("referralId", "desc"), limit(1));
     const snapshot = await getDocs(q);
     let lastNum = 2999;
     if (!snapshot.empty) {
@@ -124,31 +123,24 @@ const handleOrbiterSelect = (user) => {
   try {
     const referralId = await generateReferralId();
 
-const data = {
+   const data = {
   referralId,
-
-  orbiter: {
-    name: selectedOrbiter.Name || "",
-    email: selectedOrbiter.Email || "",
-    phone: selectedOrbiter.MobileNo || "",
-    ujbCode:
-      selectedOrbiter.UJBCode ||
-      "",
-    mentorName: selectedOrbiter.MentorName || "",
-    mentorPhone: selectedOrbiter.MentorPhone || "",
-  },
-
-  cosmoOrbiter: {
-    name: selectedCosmo.Name || "",
-    email: selectedCosmo.Email || "",
-    phone: selectedCosmo.MobileNo || "",
-    ujbCode:
-      selectedCosmo.UJBCode ||
-      "", // ✅ GUARANTEED TO STORE
-    mentorName: selectedCosmo.MentorName || "",
-    mentorPhone: selectedCosmo.MentorPhone || "",
-  },
-
+ orbiter: {
+  name: selectedOrbiter.Name || "",
+  email: selectedOrbiter.Email || "",
+  phone: selectedOrbiter.MobileNo || "",
+  ujbCode: selectedOrbiter.UJBCode || "",
+  mentorName: selectedOrbiter.MentorName || "",
+  mentorPhone: selectedOrbiter.MentorPhone || "",
+},
+ cosmoOrbiter: {
+  name: selectedCosmo.Name || "",
+  email: selectedCosmo.Email || "",
+  phone: selectedCosmo.MobileNo || "",
+  mentorName: selectedCosmo.MentorName || "",
+  mentorPhone: selectedCosmo.MentorPhone || "",
+}
+,
   service: selectedService || null,
   product: selectedProduct || null,
   leadDescription: leadDescription || "",
@@ -156,7 +148,6 @@ const data = {
   referralType: refType || "",
   referralSource:
     referralSource === "Other" ? otherReferralSource || "" : referralSource,
-
   orbitersInfo:
     refType === "Others"
       ? {
@@ -165,15 +156,13 @@ const data = {
           email: otherEmail || "",
         }
       : null,
-
   dealStatus: dealStatus || "Pending",
   lastUpdated,
   timestamp: new Date(),
 };
 
 
-
-    await addDoc(collection(db, COLLECTIONS.referral), data);
+    await addDoc(collection(db, "Referral"), data);
     alert("Referral submitted successfully!");
 
     // ✅ Send WhatsApp messages
@@ -274,29 +263,36 @@ const data = {
     type="text"
     value={cosmoSearch}
     onChange={(e) => setCosmoSearch(e.target.value)}
+    onFocus={() => setCosmoSearch("")}  // show all on focus
   />
-  {cosmoSearch && (
+
+  {(cosmoSearch !== null) && (
     <ul className="search-results">
-     {users
- .filter((u) => {
-  const name = u.Name || "";
-  return (
-    u.Category === "CosmOrbiter" &&
-    ((Array.isArray(u.products) && u.products.length > 0) ||
-    (Array.isArray(u.services) && u.services.length > 0)) &&
-    name.toLowerCase().includes(cosmoSearch.toLowerCase())
-  );
-})
+      {users
+        .filter((u) => {
+          const name = String(u.Name || "");
+          const category = String(u.Category || "").toLowerCase();
 
-  .map((user) => (
-    <li key={user.id} onClick={() => handleCosmoSelect(user)}>
-      {user.Name}
-    </li>
-  ))}
+          // Always show CosmoOrbiters when the field is focused
+          if (cosmoSearch === "") {
+            return category.includes("cosmo");
+          }
 
+          // If typed, filter by name
+          return (
+            category.includes("cosmo") &&
+            name.toLowerCase().includes(cosmoSearch.toLowerCase())
+          );
+        })
+        .map((user) => (
+          <li key={user.id} onClick={() => handleCosmoSelect(user)}>
+            {user.Name}
+          </li>
+        ))}
     </ul>
   )}
 </li>
+
 
       {/* Services */}
       {services.length > 0 && (
