@@ -1,3 +1,4 @@
+// ReferralDetails.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import {
@@ -7,8 +8,6 @@ import {
   Timestamp,
   arrayUnion,
   onSnapshot,
-  getDocs,
-  collection,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import Layouts from "../../component/Layouts";
@@ -39,7 +38,10 @@ const ReferralDetails = () => {
   const [payments, setPayments] = useState([]);
   const [showDealCard, setShowDealCard] = useState(false);
   const [orbiter, setOrbiter] = useState(null);
+  const [showFollowups, setShowFollowups] = useState(false);
+
   const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
+  const [showEarned, setShowEarned] = useState(false); 
   const [adjustmentInfo, setAdjustmentInfo] = useState({
     adjustedAmount: 0,
     actualReceived: 0,
@@ -56,10 +58,10 @@ const ReferralDetails = () => {
   });
   const [showAddPaymentForm, setShowAddPaymentForm] = useState(false);
 
-  // newPayment used by modal; we will initialize it per flow using initPaymentForModal
+  // newPayment used by modal; initialize via initPaymentForModal
   const [newPayment, setNewPayment] = useState({
     paymentFrom: "CosmoOrbiter",
-    paymentTo: "Orbiter",
+    paymentTo: "UJustBe",
     paymentDate: "",
     description: "",
     amountReceived: "",
@@ -75,8 +77,36 @@ const ReferralDetails = () => {
 
   const [editIndex, setEditIndex] = useState(null);
 
+  // UJB distribution UI state
+  const [showUjbDistributionForm, setShowUjbDistributionForm] = useState(false);
+  const [ujbDistForm, setUjbDistForm] = useState({
+    recipient: "", // "Orbiter" | "OrbiterMentor" | "CosmoMentor"
+    amount: "",
+    paymentDate: new Date().toISOString().split("T")[0],
+    modeOfPayment: "",
+    transactionRef: "",
+    paymentInvoice: null,
+    comment: "",
+  });
+
+  // New state: mark whether the UJB distribution form was opened from a distribution slot
+  const [ujbDistributionFromSlot, setUjbDistributionFromSlot] = useState(false);
+  // If from slot, store the originalSlotAmount (so we can show originalRequested)
+  const [ujbDistributionOriginalSlotAmount, setUjbDistributionOriginalSlotAmount] =
+    useState(0);
+  // Allow optional adjust toggle
+  const [ujbDistAllowAdjust, setUjbDistAllowAdjust] = useState(false);
+
+  // NEW: store the cosmo payment id that this UJB distribution belongs to (option A)
+  const [ujbDistributionBelongsToPaymentId, setUjbDistributionBelongsToPaymentId] =
+    useState(null);
+
+  // NEW: which distribution is expanded inline (paymentId) — replaces modal
+  const [expandedDistributionFor, setExpandedDistributionFor] = useState(null);
+
   const closeForm = () => {
     setShowAddPaymentForm(false);
+    setShowUjbDistributionForm(false);
     setEditIndex(null);
     setNewPayment({
       paymentFrom: "CosmoOrbiter",
@@ -91,7 +121,21 @@ const ReferralDetails = () => {
       _targetUserDocRef: null,
       _feeType: "upfront",
     });
+    setUjbDistForm({
+      recipient: "",
+      amount: "",
+      paymentDate: new Date().toISOString().split("T")[0],
+      modeOfPayment: "",
+      transactionRef: "",
+      paymentInvoice: null,
+      comment: "",
+    });
     setAdjustmentInfo({ adjustedAmount: 0, actualReceived: 0 });
+    setUjbDistributionFromSlot(false);
+    setUjbDistributionOriginalSlotAmount(0);
+    setUjbDistAllowAdjust(false);
+    setUjbDistributionBelongsToPaymentId(null);
+    setExpandedDistributionFor(null);
   };
 
   // --- Referral form and supporting states
@@ -145,8 +189,10 @@ const ReferralDetails = () => {
   // -----------------------
   const calculateDistribution = () => {
     const dealValue = parseFloat(formState.dealValue) || 0;
-    // service and product come from referralData (may be undefined during calculation if data not loaded)
-    const percentage = parseFloat((referralData?.service?.percentage || referralData?.product?.percentage) || 0);
+    // get percentage from referralData if present
+    const percentage = parseFloat(
+      (referralData?.service?.percentage || referralData?.product?.percentage) || 0
+    );
     const agreedAmount = (dealValue * percentage) / 100;
 
     return {
@@ -179,7 +225,11 @@ const ReferralDetails = () => {
     try {
       // Idempotency check: if latest log already matches, skip
       const latest = dealLogs.length > 0 ? dealLogs[dealLogs.length - 1] : null;
-      if (latest && latest.dealValue === distribution.dealValue && latest.percentage === distribution.percentage) {
+      if (
+        latest &&
+        latest.dealValue === distribution.dealValue &&
+        latest.percentage === distribution.percentage
+      ) {
         setDealAlreadyCalculated(true);
         setShowModal(false);
         await Swal.fire({
@@ -190,14 +240,27 @@ const ReferralDetails = () => {
         return;
       }
 
-      // Save as single log (locking to one)
+      // Save single log (lock)
       const updatedLogs = [distribution];
       const docRef = doc(db, COLLECTIONS.referral, id);
 
-      await updateDoc(docRef, {
+      // Also initialize per-role paid counters and ujbBalance if not present
+      const payload = {
         dealLogs: updatedLogs,
         lastDealCalculatedAt: Timestamp.now(),
-      });
+        agreedTotal: distribution.agreedAmount,
+        // keep existing values if present, otherwise initialize
+        ujbBalance: referralData?.ujbBalance ? Number(referralData.ujbBalance) : 0,
+        paidToOrbiter: referralData?.paidToOrbiter ? Number(referralData.paidToOrbiter) : 0,
+        paidToOrbiterMentor: referralData?.paidToOrbiterMentor
+          ? Number(referralData.paidToOrbiterMentor)
+          : 0,
+        paidToCosmoMentor: referralData?.paidToCosmoMentor
+          ? Number(referralData.paidToCosmoMentor)
+          : 0,
+      };
+
+      await updateDoc(docRef, payload);
 
       setDealLogs(updatedLogs);
       setDealAlreadyCalculated(true);
@@ -284,7 +347,8 @@ const ReferralDetails = () => {
                   setOrbiter({
                     ...data.orbiter,
                     ...orbData2,
-                    profilePic: orbData2["ProfilePhotoURL"] || orbData2["BusinessLogo"] || "",
+                    profilePic:
+                      orbData2["ProfilePhotoURL"] || orbData2["BusinessLogo"] || "",
                   });
                 } else {
                   setOrbiter(data.orbiter);
@@ -328,7 +392,8 @@ const ReferralDetails = () => {
                   setCosmoOrbiter({
                     ...data.cosmoOrbiter,
                     ...cosData2,
-                    profilePic: cosData2["ProfilePhotoURL"] || cosData2["BusinessLogo"] || "",
+                    profilePic:
+                      cosData2["ProfilePhotoURL"] || cosData2["BusinessLogo"] || "",
                   });
                 } else {
                   setCosmoOrbiter(data.cosmoOrbiter);
@@ -373,155 +438,142 @@ const ReferralDetails = () => {
   }, [id]);
 
   // -----------------------
-  // PAYMENT FLOW HELPERS
+  // PAYMENT FLOW HELPERS (NEW: partial payments + auto distribution)
   // -----------------------
 
-  /**
-   * isFirstPaymentAlreadyDone:
-   * - prefer explicit referralData.firstPaymentDone flag
-   * - fallback to scanning payments array for Cosmo->UJustBe pair
-   */
-  const isFirstPaymentAlreadyDone = (paymentsArr, referralDataParam) => {
-    if (referralDataParam?.firstPaymentDone) return true;
-    const arr = paymentsArr || [];
-    return arr.some(
-      (p) =>
-        (p.paymentFrom === "CosmoOrbiter" || (p.paymentFromName || "").toLowerCase().includes("cosmo")) &&
-        (p.paymentTo === "UJustBe" || p.paymentToName === "UJustBe")
-    );
+  // get agreed amount (from latest dealLog or computed)
+  const getAgreedAmount = () => {
+    const deal = dealLogs && dealLogs.length > 0 ? dealLogs[dealLogs.length - 1] : null;
+    if (deal && Number(deal.agreedAmount)) return Number(deal.agreedAmount);
+    const calc = calculateDistribution();
+    return Number(calc.agreedAmount || 0);
   };
 
-  /**
-   * getGlobalPendingAdjustment:
-   * - try userDetail/{ujbCode}.payment.* to get pending amount
-   * - fallback to scanning referrals (expensive) and heuristically sum leftover
-   *
-   * returns { pendingAmount, source, userDocRef, section }
-   */
-  const getGlobalPendingAdjustment = async (ujbCode, roleKey) => {
-    if (!ujbCode) return { pendingAmount: 0, source: "none" };
-
-    try {
-      // 1) try userDetail
-      const userDocRef = doc(db, COLLECTIONS.userDetail, ujbCode);
-      const userSnap = await getDoc(userDocRef);
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        const section =
-          roleKey === "cosmo"
-            ? data?.payment?.cosmo || {}
-            : roleKey === "mentor"
-            ? data?.payment?.mentor || {}
-            : data?.payment?.orbiter || {};
-
-        const pendingAmount = Number(section.amount || 0);
-        return { pendingAmount, source: "userDetail", userDocRef, section };
-      }
-
-      // 2) fallback: scan referral collection (warning: expensive on large DBs)
-      const refSnapshot = await getDocs(collection(db, COLLECTIONS.referral));
-      let pendingSum = 0;
-      refSnapshot.forEach((rDoc) => {
-        const r = rDoc.data();
-        const pays = r.payments || [];
-        for (const p of pays) {
-          try {
-            const targetUjb =
-              p.paymentTo === "Orbiter" && r.orbiter?.ujbCode
-                ? r.orbiter.ujbCode
-                : p.paymentTo === "CosmoOrbiter" && r.cosmoOrbiter?.ujbCode
-                ? r.cosmoOrbiter.ujbCode
-                : p.paymentTo === "OrbiterMentor" && r.orbiter?.mentorUjbCode
-                ? r.orbiter.mentorUjbCode
-                : p.paymentTo === "CosmoMentor" && r.cosmoOrbiter?.mentorUjbCode
-                ? r.cosmoOrbiter?.mentorUjbCode
-                : null;
-
-            if (!targetUjb) continue;
-
-            if (targetUjb === ujbCode) {
-              // Heuristic for leftover: prefer explicit fields if they exist
-              const possibleRemaining =
-                Number(p.remainingAmount || p.pendingAmount || p.outstanding || 0) ||
-                Math.max(0, Number(p.expectedAmount || p.amountReceived || 0) - Number(p.adjustedAmount || 0));
-              pendingSum += possibleRemaining;
-            }
-          } catch (err) {
-            // ignore bad rows
-          }
+  // sum of Cosmo -> UJustBe payments so far
+  const getCosmoPaidSoFar = (paymentsArr) => {
+    const arr = paymentsArr || payments || [];
+    return arr.reduce((sum, p) => {
+      try {
+        const isCosmoToUjb =
+          (p.paymentFrom === "CosmoOrbiter" ||
+            (p.paymentFromName || "").toLowerCase().includes("cosmo")) &&
+          (p.paymentTo === "UJustBe" ||
+            (p.paymentToName || "").toLowerCase().includes("ujustbe"));
+        if (isCosmoToUjb) {
+          return sum + Number(p.amountReceived || 0);
         }
-      });
-
-      return { pendingAmount: pendingSum, source: "fallback" };
-    } catch (err) {
-      console.error("Error computing global pending adjustment:", err);
-      return { pendingAmount: 0, source: "error" };
-    }
+      } catch (err) {}
+      return sum;
+    }, 0);
   };
 
-  /**
-   * isAddingFirstPayment - true if candidate payment is Cosmo -> UJustBe and first payment not done.
-   */
-  const isAddingFirstPayment = (paymentObj, paymentsArr, referralDataParam) => {
-    return (
-      paymentObj.paymentFrom === "CosmoOrbiter" &&
-      (paymentObj.paymentTo === "UJustBe" || paymentObj.paymentToName === "UJustBe") &&
-      !isFirstPaymentAlreadyDone(paymentsArr, referralDataParam)
-    );
+  // remaining agreed amount
+  const getRemainingAgreed = (paymentsArr) => {
+    const agreed = getAgreedAmount();
+    const paid = getCosmoPaidSoFar(paymentsArr);
+    const remaining = Math.max(0, agreed - paid);
+    return remaining;
+  };
+
+  // Create proportional distribution for a partialCosmoPayment
+  // uses last deal log shares as source fractions (or recomputed)
+  const computeProportionalDistribution = (partialAmount) => {
+    const deal =
+      dealLogs && dealLogs.length > 0 ? dealLogs[dealLogs.length - 1] : calculateDistribution();
+    const agreed = Number(deal.agreedAmount || 0) || 0;
+
+    // if agreed is 0, fallback: if deal has per-party shares, compute fractions by sum
+    let orbiterShare = Number(deal.orbiterShare || 0);
+    let orbiterMentorShare = Number(deal.orbiterMentorShare || 0);
+    let cosmoMentorShare = Number(deal.cosmoMentorShare || 0);
+    let ujustbeShare = Number(deal.ujustbeShare || 0);
+
+    // If agreed is zero but shares sum > 0, use relative fractions from shares sum
+    const sharesSum = orbiterShare + orbiterMentorShare + cosmoMentorShare + ujustbeShare;
+    let fractions;
+    if (agreed > 0) {
+      fractions = {
+        orbiter: orbiterShare / agreed,
+        orbiterMentor: orbiterMentorShare / agreed,
+        cosmoMentor: cosmoMentorShare / agreed,
+        ujustbe: ujustbeShare / agreed,
+      };
+    } else if (sharesSum > 0) {
+      fractions = {
+        orbiter: orbiterShare / sharesSum,
+        orbiterMentor: orbiterMentorShare / sharesSum,
+        cosmoMentor: cosmoMentorShare / sharesSum,
+        ujustbe: ujustbeShare / sharesSum,
+      };
+    } else {
+      // Default fallback fractions
+      fractions = {
+        orbiter: 0.5,
+        orbiterMentor: 0.15,
+        cosmoMentor: 0.15,
+        ujustbe: 0.2,
+      };
+    }
+
+    // compute distribution amounts (rounded to 2 decimals). Fix rounding difference by adjusting last party.
+    const raw = {
+      orbiter: partialAmount * fractions.orbiter,
+      orbiterMentor: partialAmount * fractions.orbiterMentor,
+      cosmoMentor: partialAmount * fractions.cosmoMentor,
+      ujustbe: partialAmount * fractions.ujustbe,
+    };
+
+    // round
+    const rounded = {
+      orbiter: Math.round(raw.orbiter * 100) / 100,
+      orbiterMentor: Math.round(raw.orbiterMentor * 100) / 100,
+      cosmoMentor: Math.round(raw.cosmoMentor * 100) / 100,
+      ujustbe: Math.round(raw.ujustbe * 100) / 100,
+    };
+
+    // fix tiny rounding diff
+    const sumRounded =
+      rounded.orbiter + rounded.orbiterMentor + rounded.cosmoMentor + rounded.ujustbe;
+    const diff = Math.round((partialAmount - sumRounded) * 100) / 100;
+    if (Math.abs(diff) >= 0.01) {
+      // add difference to UJustBe (or orbiter as fallback)
+      rounded.ujustbe = Math.round((rounded.ujustbe + diff) * 100) / 100;
+    }
+
+    return rounded;
   };
 
   // -----------------------
-  // PAYMENT MODAL INITIALIZER
+  // PAYMENT MODAL INITIALIZER (now Cosmo -> UJustBe partials)
   // -----------------------
   const initPaymentForModal = () => {
-    const firstDone = isFirstPaymentAlreadyDone(payments, referralData);
-
-    if (!firstDone) {
-      // Force CosmoOrbiter -> UJustBe with AGREED amount (from deal log or computed)
-      const deal = (dealLogs && dealLogs.length > 0 && dealLogs[dealLogs.length - 1]) || null;
-      const agreedAmountFromLog = deal ? Number(deal.agreedAmount || 0) : 0;
-
-      // If not present in log, compute using formState/referralData
-      let agreedAmount = agreedAmountFromLog;
-      if (!agreedAmount) {
-        const calc = calculateDistribution();
-        agreedAmount = Number(calc.agreedAmount || 0);
-      }
-
-      setNewPayment({
-        paymentFrom: "CosmoOrbiter",
-        paymentTo: "UJustBe",
-        paymentDate: new Date().toISOString().split("T")[0],
-        amountReceived: agreedAmount,
-        modeOfPayment: "",
-        transactionRef: "",
-        comment: "",
-        paymentInvoice: null,
-        ujbShareType: "AgreedAmountToUJustBe",
-        _targetUserDocRef: null,
-        _feeType: "upfront",
+    // must have deal calculated
+    if (!dealAlreadyCalculated) {
+      Swal.fire({
+        icon: "warning",
+        title: "Deal not calculated",
+        text: "Please calculate deal distribution first (Calculate Deal Value).",
       });
-
-      setShowAddPaymentForm(true);
-      setShowPaymentSheet(true);
       return;
     }
 
-    // After first payment: UJustBe -> others
+    // default: Cosmo -> UJustBe; default amount = remaining agreed amount
+    const remaining = getRemainingAgreed(payments);
     setNewPayment({
-      paymentFrom: "UJustBe",
-      paymentTo: "",
+      paymentFrom: "CosmoOrbiter",
+      paymentTo: "UJustBe",
       paymentDate: new Date().toISOString().split("T")[0],
-      amountReceived: "",
+      amountReceived: remaining, // default suggested amount (admin can edit for partial)
       modeOfPayment: "",
       transactionRef: "",
       comment: "",
       paymentInvoice: null,
-      ujbShareType: "UJustBe",
+      ujbShareType: "AgreedPartialToUJustBe",
       _targetUserDocRef: null,
       _feeType: "upfront",
     });
 
+    setAdjustmentInfo({ adjustedAmount: 0, actualReceived: Number(remaining || 0) });
     setShowAddPaymentForm(true);
     setShowPaymentSheet(true);
   };
@@ -535,9 +587,11 @@ const ReferralDetails = () => {
       try {
         return (
           Number(p.amountReceived) === Number(candidate.amountReceived) &&
-          (p.paymentDate === candidate.paymentDate || p.paymentDate === candidate.paymentDate) &&
-          (p.paymentFrom === candidate.paymentFrom || mapToActualName(p.paymentFrom) === mapToActualName(candidate.paymentFrom)) &&
-          (p.paymentTo === candidate.paymentTo || mapToActualName(p.paymentTo) === mapToActualName(candidate.paymentTo))
+          p.paymentDate === candidate.paymentDate &&
+          (p.paymentFrom === candidate.paymentFrom ||
+            (p.paymentFromName || "") === mapToActualName(candidate.paymentFrom)) &&
+          (p.paymentTo === candidate.paymentTo ||
+            (p.paymentToName || "") === mapToActualName(candidate.paymentTo))
         );
       } catch {
         return false;
@@ -546,110 +600,29 @@ const ReferralDetails = () => {
   };
 
   // -----------------------
-  // HANDLE PAYMENT TO SELECT (NEW FLOW)
+  // PAYMENT ID GENERATOR
   // -----------------------
-  const handlePaymentToSelect_NewFlow = async (selectedValue) => {
-    const firstDone = isFirstPaymentAlreadyDone(payments, referralData);
-    if (!firstDone) {
-      Swal.fire({
-        icon: "info",
-        title: "First Payment Required",
-        text: "You must add the first payment (CosmoOrbiter → UJustBe) before distributing shares.",
-      });
-      return;
-    }
-
-    // Ensure newPayment.paymentFrom is UJustBe
-    if (newPayment.paymentFrom !== "UJustBe") {
-      setNewPayment((prev) => ({ ...prev, paymentFrom: "UJustBe" }));
-    }
-
-    const deal = dealLogs && dealLogs.length > 0 ? dealLogs[dealLogs.length - 1] : null;
-    let autoAmount = 0;
-    if (deal) {
-      switch (selectedValue) {
-        case "Orbiter":
-          autoAmount = Number(deal.orbiterShare || 0);
-          break;
-        case "OrbiterMentor":
-          autoAmount = Number(deal.orbiterMentorShare || 0);
-          break;
-        case "CosmoMentor":
-          autoAmount = Number(deal.cosmoMentorShare || 0);
-          break;
-        case "UJustBe":
-          autoAmount = Number(deal.ujustbeShare || 0);
-          break;
-        default:
-          autoAmount = 0;
-      }
-    }
-
-    setNewPayment((prev) => ({
-      ...prev,
-      paymentTo: selectedValue,
-      amountReceived: autoAmount,
-    }));
-
-    // Compute adjustment info globally
-    let targetUjbCode = null;
-    let roleKey = "orbiter";
-    if (selectedValue === "Orbiter") {
-      targetUjbCode = orbiter?.ujbCode;
-      roleKey = "orbiter";
-    } else if (selectedValue === "OrbiterMentor") {
-      targetUjbCode = orbiter?.mentorUjbCode;
-      roleKey = "mentor";
-    } else if (selectedValue === "CosmoMentor") {
-      targetUjbCode = cosmoOrbiter?.mentorUjbCode;
-      roleKey = "mentor";
-    } else if (selectedValue === "UJustBe") {
-      targetUjbCode = null;
-      roleKey = "ujb";
-    }
-
-    if (targetUjbCode) {
-      const { pendingAmount, source, userDocRef, section } = await getGlobalPendingAdjustment(targetUjbCode, roleKey);
-
-      if (source === "userDetail" && section) {
-        const feeType = section.feeType || "upfront";
-        const requested = Number(autoAmount || 0);
-
-        if (feeType === "adjustment" && pendingAmount > 0) {
-          if (requested <= pendingAmount) {
-            setAdjustmentInfo({ adjustedAmount: requested, actualReceived: 0 });
-          } else {
-            setAdjustmentInfo({ adjustedAmount: pendingAmount, actualReceived: requested - pendingAmount });
-          }
-          setNewPayment((prev) => ({ ...prev, _targetUserDocRef: userDocRef, _feeType: feeType }));
-        } else {
-          setAdjustmentInfo({ adjustedAmount: 0, actualReceived: Number(autoAmount || 0) });
-          setNewPayment((prev) => ({ ...prev, _targetUserDocRef: userDocRef, _feeType: "upfront" }));
-        }
-      } else {
-        setAdjustmentInfo({ adjustedAmount: 0, actualReceived: Number(autoAmount || 0) });
-        await Swal.fire({
-          icon: "warning",
-          title: "Global Adjustment Unknown",
-          text:
-            "Couldn't find global pending adjustment for the receiver in userDetail. The modal will proceed using local assumptions. " +
-            "Please ensure the user's payment setup exists in userDetail to enable correct adjustments.",
-        });
-      }
-    } else {
-      setAdjustmentInfo({ adjustedAmount: 0, actualReceived: Number(autoAmount || 0) });
-    }
+  const generatePaymentId = (roleShort = "PAY") => {
+    // use referralId if available; fallback to id
+    const base = referralData?.referralId || id || "REF";
+    return `${base}-PAY-${roleShort}-${Date.now()}`;
   };
 
   // -----------------------
-  // HANDLE ADD PAYMENT (NEW FLOW)
+  // HANDLE ADD PAYMENT (NEW FLOW: Cosmo partials -> auto distribution informational)
   // -----------------------
   const handleAddPayment_NewFlow = async () => {
     if (isSubmittingPaymentRef.current) return;
     setIsSubmittingPayment(true);
 
     try {
-      if (!newPayment.paymentFrom || !newPayment.paymentTo || !newPayment.paymentDate || !newPayment.amountReceived) {
+      // Basic required fields
+      if (
+        !newPayment.paymentFrom ||
+        !newPayment.paymentTo ||
+        !newPayment.paymentDate ||
+        newPayment.amountReceived === ""
+      ) {
         await Swal.fire({
           icon: "warning",
           title: "Missing Fields",
@@ -671,53 +644,44 @@ const ReferralDetails = () => {
       }
 
       const candidatePayment = { ...newPayment };
-
-      const firstDone = isFirstPaymentAlreadyDone(payments, referralData);
-      const addingFirst = isAddingFirstPayment(candidatePayment, payments, referralData);
-
-      // For addingFirst, required amount must be AGREED AMOUNT (not full deal)
-      if (addingFirst) {
-        const deal = (dealLogs && dealLogs.length > 0 && dealLogs[dealLogs.length - 1]) || null;
-        // fallback to calculateDistribution if no log present
-        const agreedAmount = deal ? Number(deal.agreedAmount || 0) : Number(calculateDistribution().agreedAmount || 0);
-
-        if (Number(candidatePayment.amountReceived) !== agreedAmount) {
-          await Swal.fire({
-            icon: "error",
-            title: "Invalid Amount",
-            text: `First payment amount must be the AGREED Amount: ₹${agreedAmount}.`,
-          });
-          setIsSubmittingPayment(false);
-          return;
-        }
-      } else {
-        // After first payment, candidatePayment.amountReceived should match respective share from dealLogs
-        const deal = (dealLogs && dealLogs.length > 0 && dealLogs[dealLogs.length - 1]) || null;
-        if (deal) {
-          const expectedFor =
-            candidatePayment.paymentTo === "Orbiter"
-              ? Number(deal.orbiterShare || 0)
-              : candidatePayment.paymentTo === "OrbiterMentor"
-              ? Number(deal.orbiterMentorShare || 0)
-              : candidatePayment.paymentTo === "CosmoMentor"
-              ? Number(deal.cosmoMentorShare || 0)
-              : candidatePayment.paymentTo === "UJustBe"
-              ? Number(deal.ujustbeShare || 0)
-              : null;
-
-          if (expectedFor !== null && Number(candidatePayment.amountReceived) !== expectedFor) {
-            // If mismatch, warn but allow if user intentionally overridden? We will enforce equality to avoid mistakes.
-            await Swal.fire({
-              icon: "error",
-              title: "Invalid Amount",
-              text: `Payment amount must match the calculated share for selected receiver: ₹${expectedFor}.`,
-            });
-            setIsSubmittingPayment(false);
-            return;
-          }
-        }
+      const amount = Number(candidatePayment.amountReceived || 0);
+      if (isNaN(amount) || amount <= 0) {
+        await Swal.fire({
+          icon: "error",
+          title: "Invalid Amount",
+          text: "Payment amount must be greater than zero.",
+        });
+        setIsSubmittingPayment(false);
+        return;
       }
 
+      // Ensure deal exists
+      if (!dealAlreadyCalculated) {
+        await Swal.fire({
+          icon: "error",
+          title: "Deal not calculated",
+          text: "Please calculate the deal distribution before adding payments.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      // Check remaining agreed
+      const agreed = getAgreedAmount();
+      const paidSoFar = getCosmoPaidSoFar(payments);
+      const remaining = Math.max(0, agreed - paidSoFar);
+
+      if (amount > remaining) {
+        await Swal.fire({
+          icon: "error",
+          title: "Overpayment prevented",
+          text: `The remaining agreed amount is ₹${remaining}. You cannot add ₹${amount}.`,
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      // duplicate check (simple)
       if (isDuplicatePayment(payments, candidatePayment)) {
         await Swal.fire({
           icon: "info",
@@ -728,192 +692,114 @@ const ReferralDetails = () => {
         return;
       }
 
-      // Compute adjustedAmount / actualReceived again to be safe
-      let adjustedAmount = 0;
-      let actualReceived = 0;
-      let feeType = candidatePayment._feeType || "upfront";
-      let targetUserDocRef = candidatePayment._targetUserDocRef || null;
-
-      if (addingFirst) {
-        adjustedAmount = 0;
-        actualReceived = Number(candidatePayment.amountReceived);
-        feeType = "upfront";
-      } else {
-        if (targetUserDocRef && feeType === "adjustment") {
-          const role =
-            candidatePayment.paymentTo === "Orbiter"
-              ? "orbiter"
-              : candidatePayment.paymentTo === "CosmoMentor"
-              ? "mentor"
-              : candidatePayment.paymentTo === "OrbiterMentor"
-              ? "mentor"
-              : "orbiter";
-
-          const targetUjb =
-            candidatePayment.paymentTo === "Orbiter"
-              ? orbiter?.ujbCode
-              : candidatePayment.paymentTo === "OrbiterMentor"
-              ? orbiter?.mentorUjbCode
-              : candidatePayment.paymentTo === "CosmoMentor"
-              ? cosmoOrbiter?.mentorUjbCode
-              : null;
-
-          const { pendingAmount } = await getGlobalPendingAdjustment(targetUjb, role);
-
-          const requested = Number(candidatePayment.amountReceived || 0);
-          if (pendingAmount >= requested) {
-            adjustedAmount = requested;
-            actualReceived = 0;
-          } else if (pendingAmount > 0 && pendingAmount < requested) {
-            adjustedAmount = pendingAmount;
-            actualReceived = requested - pendingAmount;
-          } else {
-            adjustedAmount = 0;
-            actualReceived = requested;
-          }
-        } else {
-          adjustedAmount = 0;
-          actualReceived = Number(candidatePayment.amountReceived || 0);
-        }
+      // For any actual received > 0 (Cosmo paying actual money to UJustBe) require mode/txn if not cash
+      if (!candidatePayment.modeOfPayment) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Mode of Payment Required",
+          text: "Please select a payment mode for this Cosmo payment.",
+        });
+        setIsSubmittingPayment(false);
+        return;
       }
-
-      // VALIDATIONS when actualReceived > 0
-      if (actualReceived > 0) {
-        if (!candidatePayment.modeOfPayment) {
-          await Swal.fire({
-            icon: "warning",
-            title: "Mode of Payment Required",
-            text: "Please select a payment mode for the received portion.",
-          });
-          setIsSubmittingPayment(false);
-          return;
-        }
-        // For non-cash payments, transactionRef is required
-        if (candidatePayment.modeOfPayment !== "Cash" && !candidatePayment.transactionRef) {
-          await Swal.fire({
-            icon: "warning",
-            title: "Transaction Reference Required",
-            text: "Please provide transaction reference for the received portion.",
-          });
-          setIsSubmittingPayment(false);
-          return;
-        }
-        // Invoice required for actual received amount
-        if (!candidatePayment.paymentInvoice) {
-          await Swal.fire({
-            icon: "warning",
-            title: "Invoice Required",
-            text: "Please upload invoice screenshot or PDF for the received payment.",
-          });
-          setIsSubmittingPayment(false);
-          return;
-        }
+      if (candidatePayment.modeOfPayment !== "Cash" && !candidatePayment.transactionRef) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Transaction Reference Required",
+          text: "Please provide transaction reference for the payment.",
+        });
+        setIsSubmittingPayment(false);
+        return;
       }
+      // NOTE: Invoice is NO LONGER mandatory -> removed validation here
 
-      // Upload invoice if actualReceived > 0
+      // Upload invoice (optional)
       let paymentInvoiceURL = "";
-      if (candidatePayment.paymentInvoice && actualReceived > 0) {
-        const fileRef = ref(storage, `paymentInvoices/${id}/${Date.now()}_${candidatePayment.paymentInvoice.name}`);
+      if (candidatePayment.paymentInvoice) {
+        const fileRef = ref(
+          storage,
+          `paymentInvoices/${id}/${Date.now()}_${candidatePayment.paymentInvoice.name}`
+        );
         await uploadBytes(fileRef, candidatePayment.paymentInvoice);
         paymentInvoiceURL = await getDownloadURL(fileRef);
       }
 
+      // Compute distribution proportional to agreed shares (informational only)
+      const distribution = computeProportionalDistribution(amount);
+
+      // Build payment record with distribution breakdown and remaining after this payment
+      const newPaidSoFar = paidSoFar + amount;
+      const remainingAfter = Math.max(0, agreed - newPaidSoFar);
+
+      const paymentId = generatePaymentId("COSMO");
+
       const toSave = {
-        paymentFrom: candidatePayment.paymentFrom,
-        paymentFromName: mapToActualName(candidatePayment.paymentFrom),
-        paymentTo: candidatePayment.paymentTo,
-        paymentToName: mapToActualName(candidatePayment.paymentTo),
+        paymentId,
+        paymentFrom: "CosmoOrbiter",
+        paymentFromName: mapToActualName("CosmoOrbiter"),
+        paymentTo: "UJustBe",
+        paymentToName: mapToActualName("UJustBe"),
         paymentDate: candidatePayment.paymentDate,
         modeOfPayment: candidatePayment.modeOfPayment || "",
         transactionRef: candidatePayment.transactionRef || "",
         comment: candidatePayment.comment || "",
-        amountReceived: Number(candidatePayment.amountReceived || 0),
-        adjustedAmount,
-        actualReceived,
+        amountReceived: amount,
+        distribution,
+        adjustedAmount: 0, // adjustments not used for this flow
+        actualReceived: amount,
         paymentInvoiceURL,
-        feeType,
+        feeType: "upfront",
         createdAt: Timestamp.now(),
+        remainingAfter,
         meta: {
-          isFirstPayment: addingFirst,
+          isCosmoToUjb: true,
+          isPartial: amount < agreed,
+          partialRemainingBefore: remaining,
+          partialRemainingAfter: remainingAfter,
         },
       };
 
+      // Update referral document: append payment, update ujbBalance, flags
       const referralDocRef = doc(db, COLLECTIONS.referral, id);
       const updatedPayments = [...payments, toSave];
-      const updatePayload = { payments: updatedPayments };
-      if (addingFirst) {
+      const currentUjbBalance = Number(referralData?.ujbBalance || 0);
+      // UJB receives FULL amount from Cosmo
+      const newUjbBalance =
+        Math.round((currentUjbBalance + amount) * 100) / 100;
+
+      const updatePayload = {
+        payments: updatedPayments,
+        ujbBalance: newUjbBalance,
+      };
+
+      // If we've completed agreed amount, mark firstPaymentDone / fullyPaid
+      if (newPaidSoFar >= agreed) {
         updatePayload.firstPaymentDone = true;
+        updatePayload.agreedFullyPaidAt = Timestamp.now();
+      } else {
+        // ensure firstPaymentDone if any payment exists
+        if (!referralData?.firstPaymentDone) {
+          updatePayload.firstPaymentDone = true; // we received at least one cosmo payment
+        }
       }
+
+      // Optionally store remainingAgreed field for convenience
+      updatePayload.agreedRemaining = remainingAfter;
 
       await updateDoc(referralDocRef, updatePayload);
       setPayments(updatedPayments);
 
-      // Update target userDetail if adjusted
-      if (!addingFirst && adjustedAmount > 0 && targetUserDocRef) {
-        const uSnap = await getDoc(targetUserDocRef);
-        if (uSnap.exists()) {
-          const data = uSnap.data();
-          const updates = {};
-          // Try to update appropriate payment path if exists
-          if (data.payment?.orbiter) {
-            const curr = Number(data.payment.orbiter.amount || 0);
-            const newAmt = Math.max(0, curr - adjustedAmount);
-            const newStatus = newAmt === 0 ? "paid" : "adjusted";
-            updates["payment.orbiter.amount"] = newAmt;
-            updates["payment.orbiter.status"] = newStatus;
-            updates["payment.orbiter.lastUpdated"] = new Date().toISOString();
-            updates["payment.orbiter.adjustmentLogs"] = arrayUnion({
-              date: new Date().toISOString(),
-              adjusted: adjustedAmount,
-              referralId: id,
-              note: "Adjusted via UJustBe distribution",
-            });
-          }
-          if (data.payment?.cosmo) {
-            const curr = Number(data.payment.cosmo.amount || 0);
-            const newAmt = Math.max(0, curr - adjustedAmount);
-            const newStatus = newAmt === 0 ? "paid" : "adjusted";
-            updates["payment.cosmo.amount"] = newAmt;
-            updates["payment.cosmo.status"] = newStatus;
-            updates["payment.cosmo.lastUpdated"] = new Date().toISOString();
-            updates["payment.cosmo.adjustmentLogs"] = arrayUnion({
-              date: new Date().toISOString(),
-              adjusted: adjustedAmount,
-              referralId: id,
-              note: "Adjusted via UJustBe distribution",
-            });
-          }
-          if (data.payment?.mentor) {
-            const curr = Number(data.payment.mentor.amount || 0);
-            const newAmt = Math.max(0, curr - adjustedAmount);
-            const newStatus = newAmt === 0 ? "paid" : "adjusted";
-            updates["payment.mentor.amount"] = newAmt;
-            updates["payment.mentor.status"] = newStatus;
-            updates["payment.mentor.lastUpdated"] = new Date().toISOString();
-            updates["payment.mentor.adjustmentLogs"] = arrayUnion({
-              date: new Date().toISOString(),
-              adjusted: adjustedAmount,
-              referralId: id,
-              note: "Adjusted via UJustBe distribution",
-            });
-          }
-
-          if (Object.keys(updates).length > 0) {
-            await updateDoc(targetUserDocRef, updates);
-          }
-        }
-      }
-
       await Swal.fire({
         icon: "success",
         title: "Payment Saved",
-        text: "Payment added successfully.",
+        text: `₹${amount} received from Cosmo and added to UJustBe balance (₹${newUjbBalance}).`,
       });
 
+      // Reset form
       setShowAddPaymentForm(false);
       setNewPayment({
-        paymentFrom: "UJustBe",
-        paymentTo: "",
+        paymentFrom: "CosmoOrbiter",
+        paymentTo: "UJustBe",
         paymentDate: "",
         amountReceived: "",
         modeOfPayment: "",
@@ -927,11 +813,372 @@ const ReferralDetails = () => {
       setAdjustmentInfo({ adjustedAmount: 0, actualReceived: 0 });
       setIsSubmittingPayment(false);
     } catch (err) {
-      console.error("Error in handleAddPayment_NewFlow:", err);
+      console.error("Error in handleAddPayment_NewFlow (partial distribution):", err);
       await Swal.fire({
         icon: "error",
         title: "Error",
         text: "Failed to add payment. Please try again.",
+      });
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  // -----------------------
+  // HANDLE UJB -> Receiver Distribution (existing generic handler)
+  // -----------------------
+  const handleUJBDistribution = async () => {
+    if (isSubmittingPaymentRef.current) return;
+    setIsSubmittingPayment(true);
+
+    try {
+      const recipient = ujbDistForm.recipient;
+      const requested = Number(ujbDistForm.amount || 0);
+      if (!recipient || !requested || requested <= 0) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Missing Fields",
+          text: "Please select recipient and enter a valid amount.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      // ensure mode/txn if actual transfer (we consider UJB -> Receiver as actual money)
+      if (!ujbDistForm.modeOfPayment) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Mode Required",
+          text: "Select mode of payment for the distribution.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+      if (ujbDistForm.modeOfPayment !== "Cash" && !ujbDistForm.transactionRef) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Transaction Reference Required",
+          text: "Please provide transaction reference for the transfer.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+      // NOTE: Invoice is NO LONGER mandatory -> removed validation here
+
+      // shares earned ONLY from cosmo payments (used only to cap entitlement, not cash pool)
+      const totalCosmoPaid = getCosmoPaidSoFar(payments);
+
+      const earnedShares = {
+        orbiter: Math.round(totalCosmoPaid * 0.5 * 100) / 100,
+        orbiterMentor: Math.round(totalCosmoPaid * 0.15 * 100) / 100,
+        cosmoMentor: Math.round(totalCosmoPaid * 0.15 * 100) / 100,
+        ujb: Math.round(totalCosmoPaid * 0.2 * 100) / 100,
+      };
+
+      const paidToOrbiter = Number(referralData?.paidToOrbiter || 0);
+      const paidToOrbiterMentor = Number(referralData?.paidToOrbiterMentor || 0);
+      const paidToCosmoMentor = Number(referralData?.paidToCosmoMentor || 0);
+
+      const remainingObj = {
+        Orbiter: Math.max(0, earnedShares.orbiter - paidToOrbiter),
+        OrbiterMentor: Math.max(0, earnedShares.orbiterMentor - paidToOrbiterMentor),
+        CosmoMentor: Math.max(0, earnedShares.cosmoMentor - paidToCosmoMentor),
+      };
+
+      if (!remainingObj[recipient]) {
+        await Swal.fire({
+          icon: "error",
+          title: "Invalid recipient",
+          text: "Selected recipient has no remaining share or invalid recipient selected.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      const remainingForRecipient = remainingObj[recipient];
+
+      // UJB CASH BALANCE (full Cosmo money collected minus payouts)
+      const currentUjbBalance = Number(referralData?.ujbBalance || 0);
+
+      if (currentUjbBalance <= 0) {
+        await Swal.fire({
+          icon: "error",
+          title: "No balance",
+          text: "UJustBe has no balance for this referral to distribute.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      // amountToPay cannot exceed either remainingForRecipient or currentUjbBalance
+      const amountToPay = Math.min(requested, remainingForRecipient, currentUjbBalance);
+
+      if (amountToPay <= 0) {
+        await Swal.fire({
+          icon: "error",
+          title: "Nothing to pay",
+          text: "Calculated payable amount is zero. Check recipient remaining share and UJB balance.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      // upload invoice (optional)
+      let invoiceURL = "";
+      if (ujbDistForm.paymentInvoice) {
+        const fileRef = ref(
+          storage,
+          `ujbDistributions/${id}/${Date.now()}_${ujbDistForm.paymentInvoice.name}`
+        );
+        await uploadBytes(fileRef, ujbDistForm.paymentInvoice);
+        invoiceURL = await getDownloadURL(fileRef);
+      }
+
+      // create payment record (no further distribution; this is a direct payout)
+      const paymentId = generatePaymentId(recipient.toUpperCase().slice(0, 3));
+      const toSave = {
+        paymentId,
+        paymentFrom: "UJustBe",
+        paymentFromName: "UJustBe",
+        paymentTo: recipient,
+        paymentToName: mapToActualName(recipient),
+        paymentDate: ujbDistForm.paymentDate,
+        modeOfPayment: ujbDistForm.modeOfPayment,
+        transactionRef: ujbDistForm.transactionRef || "",
+        comment: ujbDistForm.comment || "",
+        amountReceived: amountToPay,
+        adjustedAmount: 0,
+        actualReceived: amountToPay,
+        paymentInvoiceURL: invoiceURL,
+        feeType: "distribution",
+        createdAt: Timestamp.now(),
+        meta: {
+          distributionType: "UJB_TO_PARTY",
+          originalRequested: requested,
+          // NEW: link to cosmo payment if provided
+          belongsToPaymentId: ujbDistributionBelongsToPaymentId || null,
+        },
+      };
+
+      // update referral doc: payments[], ujbBalance, paidToX
+      const referralDocRef = doc(db, COLLECTIONS.referral, id);
+      const updatedPayments = [...payments, toSave];
+
+      const updates = {
+        payments: updatedPayments,
+        // UJB cash pool: subtract payout
+        ujbBalance: Math.round((currentUjbBalance - amountToPay) * 100) / 100,
+      };
+
+      if (recipient === "Orbiter") {
+        updates.paidToOrbiter = Math.round((paidToOrbiter + amountToPay) * 100) / 100;
+      } else if (recipient === "OrbiterMentor") {
+        updates.paidToOrbiterMentor =
+          Math.round((paidToOrbiterMentor + amountToPay) * 100) / 100;
+      } else if (recipient === "CosmoMentor") {
+        updates.paidToCosmoMentor =
+          Math.round((paidToCosmoMentor + amountToPay) * 100) / 100;
+      }
+
+      await updateDoc(referralDocRef, updates);
+      setPayments(updatedPayments);
+
+      await Swal.fire({
+        icon: "success",
+        title: "Distributed",
+        text: `₹${amountToPay} paid to ${mapToActualName(
+          recipient
+        )} from UJustBe balance.`,
+      });
+
+      // reset UJB form
+      setShowUjbDistributionForm(false);
+      setUjbDistForm({
+        recipient: "",
+        amount: "",
+        paymentDate: new Date().toISOString().split("T")[0],
+        modeOfPayment: "",
+        transactionRef: "",
+        paymentInvoice: null,
+        comment: "",
+      });
+      setUjbDistributionBelongsToPaymentId(null);
+
+      setIsSubmittingPayment(false);
+    } catch (err) {
+      console.error("Error in handleUJBDistribution:", err);
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to distribute payment. Please try again.",
+      });
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  // -----------------------
+  // HANDLE UJB -> Receiver Distribution (FROM DISTRIBUTION SLOT)
+  // This uses the exact slot amount shown in modal (unless admin toggles adjust)
+  // -----------------------
+  const handleUJBDistributionFromSlot = async () => {
+    if (isSubmittingPaymentRef.current) return;
+    setIsSubmittingPayment(true);
+
+    try {
+      const recipient = ujbDistForm.recipient;
+      // amount used: if adjust allowed and changed, take ujbDistForm.amount; otherwise take original slot amount
+      const requestedFromForm = Number(ujbDistForm.amount || 0);
+      const requested = ujbDistributionFromSlot
+        ? ujbDistAllowAdjust
+          ? requestedFromForm
+          : Number(ujbDistributionOriginalSlotAmount || 0)
+        : requestedFromForm;
+
+      if (!recipient || !requested || requested <= 0) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Missing Fields",
+          text: "Please select recipient and enter a valid amount.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      // ensure mode/txn if actual transfer (we consider UJB -> Receiver as actual money)
+      if (!ujbDistForm.modeOfPayment) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Mode Required",
+          text: "Select mode of payment for the distribution.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+      if (ujbDistForm.modeOfPayment !== "Cash" && !ujbDistForm.transactionRef) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Transaction Reference Required",
+          text: "Please provide transaction reference for the transfer.",
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+      // NOTE: Invoice is NO LONGER mandatory -> removed validation here
+
+      // UJB CASH BALANCE: full Cosmo money collected minus previous payouts
+      const currentUjbBalance = Number(referralData?.ujbBalance || 0);
+
+      if (requested > currentUjbBalance) {
+        await Swal.fire({
+          icon: "error",
+          title: "Insufficient UJB balance",
+          text: `UJustBe balance is ₹${currentUjbBalance}. Cannot pay ₹${requested}.`,
+        });
+        setIsSubmittingPayment(false);
+        return;
+      }
+
+      // upload invoice (optional)
+      let invoiceURL = "";
+      if (ujbDistForm.paymentInvoice) {
+        const fileRef = ref(
+          storage,
+          `ujbDistributions/${id}/${Date.now()}_${ujbDistForm.paymentInvoice.name}`
+        );
+        await uploadBytes(fileRef, ujbDistForm.paymentInvoice);
+        invoiceURL = await getDownloadURL(fileRef);
+      }
+
+      // pull current paidTo fields to update after
+      const paidToOrbiter = Number(referralData?.paidToOrbiter || 0);
+      const paidToOrbiterMentor = Number(referralData?.paidToOrbiterMentor || 0);
+      const paidToCosmoMentor = Number(referralData?.paidToCosmoMentor || 0);
+
+      // create payment record (direct payout; no further distribution)
+      const paymentId = generatePaymentId(recipient.toUpperCase().slice(0, 3));
+      const toSave = {
+        paymentId,
+        paymentFrom: "UJustBe",
+        paymentFromName: "UJustBe",
+        paymentTo: recipient,
+        paymentToName: mapToActualName(recipient),
+        paymentDate: ujbDistForm.paymentDate,
+        modeOfPayment: ujbDistForm.modeOfPayment,
+        transactionRef: ujbDistForm.transactionRef || "",
+        comment: ujbDistForm.comment || "",
+        amountReceived: requested,
+        adjustedAmount: ujbDistributionFromSlot
+          ? ujbDistAllowAdjust
+            ? Math.round((requested - ujbDistributionOriginalSlotAmount) * 100) / 100
+            : 0
+          : 0,
+        actualReceived: requested,
+        paymentInvoiceURL: invoiceURL,
+        feeType: "distribution",
+        createdAt: Timestamp.now(),
+        meta: {
+          distributionType: "UJB_TO_PARTY",
+          originalRequested: ujbDistributionFromSlot
+            ? ujbDistributionOriginalSlotAmount
+            : requested,
+          viaSlot: ujbDistributionFromSlot,
+          // NEW: link to cosmo payment if provided
+          belongsToPaymentId: ujbDistributionBelongsToPaymentId || null,
+        },
+      };
+
+      // update referral doc: payments[], ujbBalance, paidToX
+      const referralDocRef = doc(db, COLLECTIONS.referral, id);
+      const updatedPayments = [...payments, toSave];
+
+      const updates = {
+        payments: updatedPayments,
+        ujbBalance: Math.round((currentUjbBalance - requested) * 100) / 100,
+      };
+
+      if (recipient === "Orbiter") {
+        updates.paidToOrbiter = Math.round((paidToOrbiter + requested) * 100) / 100;
+      } else if (recipient === "OrbiterMentor") {
+        updates.paidToOrbiterMentor =
+          Math.round((paidToOrbiterMentor + requested) * 100) / 100;
+      } else if (recipient === "CosmoMentor") {
+        updates.paidToCosmoMentor =
+          Math.round((paidToCosmoMentor + requested) * 100) / 100;
+      }
+
+      await updateDoc(referralDocRef, updates);
+      setPayments(updatedPayments);
+
+      await Swal.fire({
+        icon: "success",
+        title: "Distributed",
+        text: `₹${requested} paid to ${mapToActualName(
+          recipient
+        )} from UJustBe balance.`,
+      });
+
+      // reset form
+      setShowUjbDistributionForm(false);
+      setUjbDistForm({
+        recipient: "",
+        amount: "",
+        paymentDate: new Date().toISOString().split("T")[0],
+        modeOfPayment: "",
+        transactionRef: "",
+        paymentInvoice: null,
+        comment: "",
+      });
+      setUjbDistributionFromSlot(false);
+      setUjbDistributionOriginalSlotAmount(0);
+      setUjbDistAllowAdjust(false);
+      setUjbDistributionBelongsToPaymentId(null);
+
+      setIsSubmittingPayment(false);
+    } catch (err) {
+      console.error("Error in handleUJBDistributionFromSlot:", err);
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to distribute payment. Please try again.",
       });
       setIsSubmittingPayment(false);
     }
@@ -959,14 +1206,17 @@ const ReferralDetails = () => {
 
   // -----------------------
   // PAYMENT SHEET UI TRIGGERS
-  // -----------------------
   // Use initPaymentForModal() to open payment modal with correct defaults
-  const openPaymentModal = () => {
-    initPaymentForModal();
-  };
+const openPaymentModal = () => {
+  initPaymentForModal();
+
+  setShowPaymentSheet(true);      // ensure sheet is open
+  setShowUjbDistributionForm(false);
+  setShowAddPaymentForm(true);    // THIS SHOWS THE PAYMENT MODAL
+};
 
   // -----------------------
-  // HANDLE STATUS UPDATE (unchanged from previous)
+  // HANDLE STATUS UPDATE
   // -----------------------
   const handleUpdate = async (e) => {
     e.preventDefault();
@@ -1029,12 +1279,114 @@ const ReferralDetails = () => {
   };
 
   // -----------------------
+  // New helpers for inline distribution
+  // -----------------------
+
+  // returns array of payments that belong to a given cosmo payment id
+  const paymentsBelongingTo = (paymentId) => {
+    if (!paymentId) return [];
+    return (payments || []).filter((p) => p?.meta?.belongsToPaymentId === paymentId);
+  };
+
+  // returns how much of 'recipient' has already been paid from a particular cosmo payment slot
+  const slotPaidAmount = (paymentId, recipientKey) => {
+    const related = paymentsBelongingTo(paymentId);
+    return related.reduce((s, r) => {
+      try {
+        if (r.paymentTo === recipientKey) return s + Number(r.amountReceived || 0);
+      } catch (e) {}
+      return s;
+    }, 0);
+  };
+
+  // whether a slot (slotAmount) is fully paid for recipient
+  const isSlotFullyPaid = (paymentId, recipientKey, slotAmount) => {
+    const paid = slotPaidAmount(paymentId, recipientKey);
+    // treat small rounding differences as paid
+    return Math.round(paid * 100) / 100 >= Math.round(slotAmount * 100) / 100 - 0.01;
+  };
+
+  // open inline distribution expansion toggle
+  const toggleExpandDistribution = (paymentId) => {
+    if (expandedDistributionFor === paymentId) setExpandedDistributionFor(null);
+    else setExpandedDistributionFor(paymentId);
+  };
+
+  // -----------------------
+  // New: Open UJB Distribution form directly from distribution inline slot
+  // recipientKey is "Orbiter" | "OrbiterMentor" | "CosmoMentor"
+  // slotAmount is the exact amount shown in distribution inline
+  // paymentId is the originating cosmo payment id
+  // -----------------------
+  const openPayFromDistribution = (recipientKey, slotAmount, paymentId = null) => {
+    // open UJB distribution form and pre-fill recipient + amount
+    setUjbDistributionFromSlot(true);
+    setUjbDistributionOriginalSlotAmount(slotAmount);
+    setUjbDistributionBelongsToPaymentId(paymentId || null);
+    setUjbDistForm((prev) => ({
+      ...prev,
+      recipient: recipientKey,
+      amount: slotAmount,
+      paymentDate: new Date().toISOString().split("T")[0],
+      modeOfPayment: "",
+      transactionRef: "",
+      paymentInvoice: null,
+      comment: "",
+    }));
+    // default: no adjust allowed (amount read-only). Admin may toggle Adjust.
+    setUjbDistAllowAdjust(false);
+    setShowUjbDistributionForm(true);
+    setShowPaymentSheet(true);
+  };
+
+  // -----------------------
+  // Derived earned shares & remaining (phase-wise based on cosmo payments)
+  // -----------------------
+  const totalCosmoPaid = getCosmoPaidSoFar(payments);
+  const agreedAmount = getAgreedAmount();
+
+  // earned shares unlocked so far (based only on actual Cosmo payments)
+  const earnedShares = {
+    orbiter: Math.round(totalCosmoPaid * 0.5 * 100) / 100,
+    orbiterMentor: Math.round(totalCosmoPaid * 0.15 * 100) / 100,
+    cosmoMentor: Math.round(totalCosmoPaid * 0.15 * 100) / 100,
+    ujb: Math.round(totalCosmoPaid * 0.2 * 100) / 100,
+  };
+
+  // already paid to parties
+  const paidToOrbiter = Number(referralData?.paidToOrbiter || 0);
+  const paidToOrbiterMentor = Number(referralData?.paidToOrbiterMentor || 0);
+  const paidToCosmoMentor = Number(referralData?.paidToCosmoMentor || 0);
+
+  const orbiterRemaining = Math.max(0, earnedShares.orbiter - paidToOrbiter);
+  const orbiterMentorRemaining = Math.max(
+    0,
+    earnedShares.orbiterMentor - paidToOrbiterMentor
+  );
+  const cosmoMentorRemaining = Math.max(
+    0,
+    earnedShares.cosmoMentor - paidToCosmoMentor
+  );
+
+  // UJB current balance from Firestore (full collected amount)
+  const currentUjbBalance = Number(referralData?.ujbBalance || 0);
+
+  // percentage progress toward agreed amount (based on cosmo paid so far)
+  const progressPct =
+    agreedAmount > 0
+      ? Math.min(100, Math.round((totalCosmoPaid / agreedAmount) * 10000) / 100)
+      : 0;
+
+  // convenience display remaining agreed & agreed
+  const cosmoPaid = totalCosmoPaid;
+  const agreedRemaining = Math.max(0, agreedAmount - cosmoPaid);
+
+  // -----------------------
   // RENDER
   // -----------------------
   if (loading || !referralData) return <p>Loading...</p>;
 
-  const { orbiter: referralOrbiter, cosmoOrbiter: referralCosmoOrbiter, service, product, referralId } =
-    referralData;
+  const { service, product, referralId } = referralData;
 
   return (
     <Layouts>
@@ -1099,8 +1451,12 @@ const ReferralDetails = () => {
                   <option value="Pending">Pending</option>
                   <option value="Reject">Reject</option>
                   <option value="Not Connected">Not Connected</option>
-                  <option value="Called but Not Answered">Called but Not Answered</option>
-                  <option value="Discussion in Progress">Discussion in Progress</option>
+                  <option value="Called but Not Answered">
+                    Called but Not Answered
+                  </option>
+                  <option value="Discussion in Progress">
+                    Discussion in Progress
+                  </option>
                   <option value="Hold">Hold</option>
                   <option value="Deal Won">Deal Won</option>
                   <option value="Deal Lost">Deal Lost</option>
@@ -1134,7 +1490,9 @@ const ReferralDetails = () => {
                         <span className="statusLabel">{log.status}</span>
                         <span className="statusDate">
                           {log.updatedAt && log.updatedAt.seconds
-                            ? new Date(log.updatedAt.seconds * 1000).toLocaleString()
+                            ? new Date(
+                                log.updatedAt.seconds * 1000
+                              ).toLocaleString()
                             : new Date(log.updatedAt || "").toLocaleString()}
                         </span>
                       </div>
@@ -1191,7 +1549,8 @@ const ReferralDetails = () => {
                       <strong>Mentor:</strong> {orbiter?.mentorName || "No Mentor"}
                     </p>
                     <p>
-                      <strong>Mentor Phone:</strong> {orbiter?.mentorPhone || "No Mentor Phone"}
+                      <strong>Mentor Phone:</strong>{" "}
+                      {orbiter?.mentorPhone || "No Mentor Phone"}
                     </p>
                     <p>
                       <strong>UJB Code:</strong> {orbiter?.ujbCode || "No UJB Code"}
@@ -1292,36 +1651,40 @@ const ReferralDetails = () => {
                   />
                 </label>
 
-                {formState.dealValue && (() => {
-                  const d = calculateDistribution();
-                  return (
-                    <div className="distribution-box">
-                      <h4>Distribution Breakdown</h4>
-                      <p>
-                        <strong>Total Agreed Amount:</strong> ₹
-                        {d.agreedAmount.toFixed(2)}
-                      </p>
-                      <p>
-                        <strong>Orbiter:</strong> ₹{d.orbiterShare.toFixed(2)}
-                      </p>
-                      <p>
-                        <strong>Orbiter Mentor:</strong> ₹
-                        {d.orbiterMentorShare.toFixed(2)}
-                      </p>
-                      <p>
-                        <strong>Cosmo Mentor:</strong> ₹
-                        {d.cosmoMentorShare.toFixed(2)}
-                      </p>
-                      <p>
-                        <strong>UJustBe:</strong> ₹{d.ujustbeShare.toFixed(2)}
-                      </p>
-                    </div>
-                  );
-                })()}
+                {formState.dealValue &&
+                  (() => {
+                    const d = calculateDistribution();
+                    return (
+                      <div className="distribution-box">
+                        <h4>Distribution Breakdown</h4>
+                        <p>
+                          <strong>Total Agreed Amount:</strong> ₹
+                          {d.agreedAmount.toFixed(2)}
+                        </p>
+                        <p>
+                          <strong>Orbiter:</strong> ₹{d.orbiterShare.toFixed(2)}
+                        </p>
+                        <p>
+                          <strong>Orbiter Mentor:</strong> ₹
+                          {d.orbiterMentorShare.toFixed(2)}
+                        </p>
+                        <p>
+                          <strong>Cosmo Mentor:</strong> ₹
+                          {d.cosmoMentorShare.toFixed(2)}
+                        </p>
+                        <p>
+                          <strong>UJustBe:</strong> ₹{d.ujustbeShare.toFixed(2)}
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                 <div className="modalActions">
                   <button onClick={handleSaveDealLog}>Save</button>
-                  <button className="cancelBtn" onClick={() => setShowModal(false)}>
+                  <button
+                    className="cancelBtn"
+                    onClick={() => setShowModal(false)}
+                  >
                     Cancel
                   </button>
                 </div>
@@ -1355,16 +1718,14 @@ const ReferralDetails = () => {
                         {log.orbiterShare.toFixed(2)}
                       </p>
                       <p>
-                        <strong>Mentor:</strong> ₹
-                        {log.orbiterMentorShare.toFixed(2)}
+                        <strong>Mentor:</strong> ₹{log.orbiterMentorShare.toFixed(2)}
                       </p>
                       <p>
                         <strong>Cosmo Mentor:</strong> ₹
                         {log.cosmoMentorShare.toFixed(2)}
                       </p>
                       <p>
-                        <strong>UJustBe:</strong> ₹
-                        {log.ujustbeShare.toFixed(2)}
+                        <strong>UJustBe:</strong> ₹{log.ujustbeShare.toFixed(2)}
                       </p>
                     </div>
                   ))}
@@ -1375,180 +1736,303 @@ const ReferralDetails = () => {
             </div>
           )}
         </div>
+        {/* ========================== PAYMENT SUMMARY CARD ============================= */}
+{dealEverWon && (
+  <div className="paymentSummaryCard">
 
-        {/* ========================== FOLLOW UPS ============================= */}
-        <div className="followupContainer">
-          <h2>Follow Ups</h2>
+    <div className="headerRow">
+      <h4 className="sectionTitle">Payments & Distribution</h4>
+    </div>
 
-          <button
-            className="addFollowupBtn"
-            onClick={() => setShowFollowupForm(!showFollowupForm)}
-          >
-            {showFollowupForm ? "Cancel" : "+ Add Follow Up"}
-          </button>
+    {/* ==== SUMMARY GRID ==== */}
+    <div className="summaryGrid">
+      <div className="summaryItem">
+        <span>Agreed</span>
+        <strong>₹{agreedAmount.toLocaleString("en-IN")}</strong>
+      </div>
 
-          {showFollowupForm && (
-            <div className="form-section">
-              <h4>Add Follow Up</h4>
-              <label>
-                Priority:
-                <select
-                  name="priority"
-                  value={newFollowup.priority}
-                  onChange={(e) =>
-                    setNewFollowup({ ...newFollowup, priority: e.target.value })
-                  }
-                >
-                  <option>High</option>
-                  <option>Medium</option>
-                  <option>Low</option>
-                </select>
-              </label>
+      <div className="summaryItem">
+        <span>Paid</span>
+        <strong>₹{cosmoPaid.toLocaleString("en-IN")}</strong>
+      </div>
 
-              <label>
-                Next Date:
-                <input
-                  type="date"
-                  name="date"
-                  value={newFollowup.date}
-                  onChange={(e) =>
-                    setNewFollowup({ ...newFollowup, date: e.target.value })
-                  }
-                />
-              </label>
+      <div className="summaryItem">
+        <span>Remaining</span>
+        <strong>₹{agreedRemaining.toLocaleString("en-IN")}</strong>
+      </div>
 
-              <label>
-                Description:
-                <textarea
-                  name="description"
-                  value={newFollowup.description}
-                  onChange={(e) =>
-                    setNewFollowup({ ...newFollowup, description: e.target.value })
-                  }
-                />
-              </label>
+      <div className="summaryItem">
+        <span>Progress</span>
+        <strong>{progressPct}%</strong>
+      </div>
+    </div>
 
-              <label>
-                Status:
-                <select
-                  name="status"
-                  value={newFollowup.status}
-                  onChange={(e) =>
-                    setNewFollowup({ ...newFollowup, status: e.target.value })
-                  }
-                >
-                  <option>Pending</option>
-                  <option>Completed</option>
-                </select>
-              </label>
+    {/* Progress Bar */}
+    <div className="progressBarContainer">
+      <div className="progressTrack">
+        <div className="progressFill" style={{ width: `${progressPct}%` }} />
+      </div>
+      <small>{progressPct}% received</small>
+    </div>
 
-              <div className="formButtons">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const updatedFollowups = [...followups, newFollowup];
-                      const d = doc(db, COLLECTIONS.referral, id);
-                      await updateDoc(d, { followups: updatedFollowups });
+    {/* COLLAPSIBLE BREAKDOWN */}
+    <div
+      className="accordionHeader"
+      onClick={() => setShowEarned(!showEarned)}
+    >
+      <strong>Earnings Breakdown</strong>
+      <span>{showEarned ? "▲" : "▼"}</span>
+    </div>
 
-                      setFollowups(updatedFollowups);
-
-                      setNewFollowup({
-                        priority: "Medium",
-                        date: "",
-                        description: "",
-                        status: "Pending",
-                      });
-
-                      Swal.fire({
-                        icon: "success",
-                        title: "Added",
-                        text: "Follow-up added successfully.",
-                      });
-                    } catch (err) {
-                      Swal.fire({
-                        icon: "error",
-                        title: "Error",
-                        text: "Failed to add follow-up.",
-                      });
-                    }
-                  }}
-                >
-                  Save Follow Up
-                </button>
-
-                <button
-                  type="button"
-                  className="cancelBtn"
-                  onClick={() => setShowFollowupForm(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {followups.length > 0 ? (
-            followups.map((f, i) => (
-              <div className="followupCard" key={i}>
-                <h3>{f.priority} Priority</h3>
-                <p>
-                  <strong>Next Date:</strong> {f.date}
-                </p>
-                <p>
-                  <strong>Description:</strong> {f.description}
-                </p>
-                <p>
-                  <strong>Status:</strong> {f.status}
-                </p>
-              </div>
-            ))
-          ) : (
-            <p>No follow-ups yet.</p>
-          )}
+    {showEarned && (
+      <div className="accordionContent">
+        <div className="breakdownRow">
+          <span>Orbiter</span>
+          <strong>
+            ₹{earnedShares.orbiter.toLocaleString("en-IN")}
+            <em> (Rem: ₹{orbiterRemaining.toLocaleString("en-IN")})</em>
+          </strong>
         </div>
 
-        {/* ========================== PAYMENT SUMMARY CARD ============================= */}
-        {dealEverWon && (
-          <div className="PaymentContainer">
-            <h4>Last Payment</h4>
+        <div className="breakdownRow">
+          <span>Orbiter Mentor</span>
+          <strong>
+            ₹{earnedShares.orbiterMentor.toLocaleString("en-IN")}
+            <em> (Rem: ₹{orbiterMentorRemaining.toLocaleString("en-IN")})</em>
+          </strong>
+        </div>
 
-            {payments?.length > 0 ? (
-              <p>
-                {mapToActualName(payments.at(-1).paymentFrom)} →{" "}
-                {mapToActualName(payments.at(-1).paymentTo)} : ₹
-                {payments.at(-1).amountReceived.toLocaleString("en-IN")}
-              </p>
-            ) : (
-              <p>No payments recorded yet</p>
-            )}
+        <div className="breakdownRow">
+          <span>Cosmo Mentor</span>
+          <strong>
+            ₹{earnedShares.cosmoMentor.toLocaleString("en-IN")}
+            <em> (Rem: ₹{cosmoMentorRemaining.toLocaleString("en-IN")})</em>
+          </strong>
+        </div>
 
-            <button className="viewMoreBtn" onClick={() => setShowPaymentSheet(true)}>
-              View Payment History
+        <div className="breakdownRow">
+          <span>UJustBe (20%)</span>
+          <strong>₹{earnedShares.ujb.toLocaleString("en-IN")}</strong>
+        </div>
+
+        <div className="breakdownRow">
+          <span>UJB Balance</span>
+          <strong>₹{currentUjbBalance.toLocaleString("en-IN")}</strong>
+        </div>
+      </div>
+    )}
+
+    {/* LAST PAYMENT */}
+    <div className="lastPayment">
+      {payments?.length > 0 ? (
+        <span>
+          Last: <strong>{mapToActualName(payments.at(-1).paymentFrom)}</strong> →
+          <strong>{mapToActualName(payments.at(-1).paymentTo)}</strong> : ₹
+          {payments.at(-1).amountReceived.toLocaleString("en-IN")}
+        </span>
+      ) : (
+        <span>No payments yet</span>
+      )}
+    </div>
+
+    {/* ACTION BUTTONS */}
+    <div className="paymentActions">
+      <button className="viewHistoryBtn" onClick={() => setShowPaymentSheet(true)}>
+        View History
+      </button>
+
+      <button
+        className="addPaymentBtn"
+        onClick={openPaymentModal}
+        disabled={!dealAlreadyCalculated || agreedRemaining <= 0}
+        title={
+          !dealAlreadyCalculated
+            ? "Calculate deal first"
+            : agreedRemaining <= 0
+            ? "No remaining agreed amount"
+            : ""
+        }
+      >
+        + Add Cosmo Payment
+      </button>
+    </div>
+  </div>
+)}
+
+        {/* ========================== FOLLOW UPS ============================= */}
+       <div className="followupContainer">
+
+  {/* === HEADER === */}
+  <div
+    className="followupHeader"
+    onClick={() => setShowFollowups(!showFollowups)}
+  >
+    <h2>Follow Ups</h2>
+    <span>{showFollowups ? "▲" : "▼"}</span>
+  </div>
+
+  {/* COLLAPSIBLE CONTENT */}
+  {showFollowups && (
+    <div className="followupContent">
+
+      {/* ADD BUTTON */}
+      <button
+        className="addFollowupBtn"
+        onClick={() => setShowFollowupForm(!showFollowupForm)}
+      >
+        {showFollowupForm ? "Cancel" : "+ Add Follow Up"}
+      </button>
+
+      {/* === ADD FORM === */}
+      {showFollowupForm && (
+        <div className="followupForm">
+          <h4>Add Follow Up</h4>
+
+          <label>
+            Priority:
+            <select
+              name="priority"
+              value={newFollowup.priority}
+              onChange={(e) =>
+                setNewFollowup({ ...newFollowup, priority: e.target.value })
+              }
+            >
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+          </label>
+
+          <label>
+            Next Date:
+            <input
+              type="date"
+              value={newFollowup.date}
+              onChange={(e) =>
+                setNewFollowup({ ...newFollowup, date: e.target.value })
+              }
+            />
+          </label>
+
+          <label>
+            Description:
+            <textarea
+              value={newFollowup.description}
+              onChange={(e) =>
+                setNewFollowup({ ...newFollowup, description: e.target.value })
+              }
+            />
+          </label>
+
+          <label>
+            Status:
+            <select
+              value={newFollowup.status}
+              onChange={(e) =>
+                setNewFollowup({ ...newFollowup, status: e.target.value })
+              }
+            >
+              <option>Pending</option>
+              <option>Completed</option>
+            </select>
+          </label>
+
+          <div className="formButtons">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const updatedFollowups = [...followups, newFollowup];
+                  const d = doc(db, COLLECTIONS.referral, id);
+                  await updateDoc(d, { followups: updatedFollowups });
+
+                  setFollowups(updatedFollowups);
+
+                  setNewFollowup({
+                    priority: "Medium",
+                    date: "",
+                    description: "",
+                    status: "Pending",
+                  });
+
+                  Swal.fire({
+                    icon: "success",
+                    title: "Added",
+                    text: "Follow-up added successfully.",
+                  });
+                } catch (err) {
+                  Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: "Failed to add follow-up.",
+                  });
+                }
+              }}
+            >
+              Save Follow Up
             </button>
 
-            <button className="addPaymentBtn" onClick={openPaymentModal}>
-              + Add Payment
+            <button
+              type="button"
+              className="cancelBtn"
+              onClick={() => setShowFollowupForm(false)}
+            >
+              Cancel
             </button>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* === LIST === */}
+      {followups.length > 0 ? (
+        followups.map((f, i) => (
+          <div className="followupCard" key={i}>
+            <div className="followupCardHeader">
+              <span className={`priorityBadge ${f.priority.toLowerCase()}`}>
+                {f.priority}
+              </span>
+              <span className="statusTag">{f.status}</span>
+            </div>
+
+            <p><strong>Date:</strong> {f.date}</p>
+            <p><strong>Description:</strong> {f.description}</p>
+          </div>
+        ))
+      ) : (
+        <p className="noFollowupText">No follow-ups yet.</p>
+      )}
+
+    </div>
+  )}
+</div>
+
+
+
+
       </section>
 
       {/* ========================== PAYMENT SLIDING SHEET ============================= */}
       <div className={`PaymentSheet ${showPaymentSheet ? "open" : ""}`}>
         <div className="sheetHeader">
-          <h3>{showAddPaymentForm ? "Add Payment" : "Payment History"}</h3>
+          <h3>
+            {showAddPaymentForm
+              ? "Add Payment (Cosmo → UJustBe)"
+              : showUjbDistributionForm
+              ? "Distribute from UJustBe"
+              : "Payment History"}
+          </h3>
           <button onClick={() => setShowPaymentSheet(false)}>✕</button>
         </div>
 
         {/* ===================== PAYMENT HISTORY VIEW ===================== */}
-        {!showAddPaymentForm && (
+        {!showAddPaymentForm && !showUjbDistributionForm && (
           <>
             {payments.length > 0 ? (
               payments.map((pay, idx) => (
                 <div className="paymentCard" key={idx}>
                   <div className="paymentCardHeader">
                     <h4>₹{pay.amountReceived}</h4>
+                    <small>{pay.paymentId ? `ID: ${pay.paymentId}` : ""}</small>
                   </div>
 
                   <p>
@@ -1569,14 +2053,48 @@ const ReferralDetails = () => {
                       <strong>Total Amount Received:</strong> ₹
                       {pay.amountReceived || 0}
                     </p>
-                    <p>
-                      <strong>Adjusted Amount:</strong> ₹
-                      {pay.adjustedAmount || 0}
-                    </p>
-                    <p>
-                      <strong>Actual Received:</strong> ₹
-                      {pay.actualReceived || 0}
-                    </p>
+
+                    {/* Informational distribution (only stored for Cosmo → UJB payments) */}
+                    {pay.distribution && (
+                      <>
+                        <p>
+                          <strong>Distributed (informational):</strong>
+                        </p>
+                        <ul>
+                          <li>
+                            Orbiter: ₹
+                            {(pay.distribution.orbiter || 0).toLocaleString(
+                              "en-IN"
+                            )}
+                          </li>
+                          <li>
+                            Orbiter Mentor: ₹
+                            {(
+                              pay.distribution.orbiterMentor || 0
+                            ).toLocaleString("en-IN")}
+                          </li>
+                          <li>
+                            Cosmo Mentor: ₹
+                            {(pay.distribution.cosmoMentor || 0).toLocaleString(
+                              "en-IN"
+                            )}
+                          </li>
+                          <li>
+                            UJustBe: ₹
+                            {(pay.distribution.ujustbe || 0).toLocaleString(
+                              "en-IN"
+                            )}
+                          </li>
+                        </ul>
+                      </>
+                    )}
+
+                    {pay.remainingAfter !== undefined && (
+                      <p>
+                        <strong>Remaining Agreed After:</strong> ₹
+                        {(pay.remainingAfter || 0).toLocaleString("en-IN")}
+                      </p>
+                    )}
                   </div>
 
                   {pay.transactionRef && (
@@ -1590,23 +2108,319 @@ const ReferralDetails = () => {
                       <strong>Comment:</strong> {pay.comment}
                     </p>
                   )}
+
+                  {/* Show distribution controls ONLY for Cosmo → UJustBe payments */}
+                  {pay.meta?.isCosmoToUjb && (
+                    <div style={{ marginTop: 8 }}>
+                      {/* Toggle inline distribution instead of modal */}
+                      <button
+                        className="viewDistributionBtn"
+                        onClick={() => toggleExpandDistribution(pay.paymentId)}
+                        style={{
+                          background: "#007bff",
+                          color: "#fff",
+                          border: "none",
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {expandedDistributionFor === pay.paymentId ? "Hide Distribution" : "View Distribution"}
+                      </button>
+
+                      {/* ====== GROUPED DISTRIBUTIONS BOX: show payouts that belong to this cosmo payment ====== */}
+                      <div
+                        className="groupedDistributionBox"
+                        style={{
+                          marginTop: 8,
+                          padding: 8,
+                          border: "1px dashed #ddd",
+                          borderRadius: 6,
+                          background: "#fafafa",
+                        }}
+                      >
+                        <h5>Transaction breakdown for ₹{pay.amountReceived}</h5>
+
+                        {/* filter distributions that belong to this cosmo payment */}
+                        {(() => {
+                          const related = payments.filter(
+                            (p) => p.meta?.belongsToPaymentId === pay.paymentId
+                          );
+
+                          // sum distributions to compute how much UJB already forwarded for this cosmo payment
+                          const sumDistributed = related.reduce(
+                            (s, r) => s + Number(r.amountReceived || 0),
+                            0
+                          );
+
+                          return (
+                            <>
+                              <p>
+                                <strong>Cosmo → UJustBe:</strong> ₹
+                                {pay.amountReceived.toLocaleString("en-IN")}
+                              </p>
+
+                              {related.length > 0 ? (
+                                related.map((r, i) => (
+                                  <p key={i}>
+                                    <strong>{mapToActualName(r.paymentTo)}:</strong> ₹
+                                    {Number(r.amountReceived).toLocaleString("en-IN")}
+                                  </p>
+                                ))
+                              ) : (
+                                <p style={{ fontStyle: "italic", color: "#666" }}>
+                                  No payouts made from this Cosmo payment yet.
+                                </p>
+                              )}
+
+                              <p style={{ marginTop: 6 }}>
+                                <strong>UJustBe kept (this payment):</strong> ₹
+                                {(
+                                  (pay.distribution?.ujustbe || 0) - sumDistributed
+                                ).toLocaleString("en-IN")}
+                              </p>
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      {/* ================= inline distribution expanded area ================= */}
+                      {expandedDistributionFor === pay.paymentId && (
+                        <div
+                          className="inlineDistribution"
+                          style={{
+                            marginTop: 12,
+                            padding: 10,
+                            border: "1px solid #e6e6e6",
+                            borderRadius: 6,
+                            background: "#fff",
+                          }}
+                        >
+                          <h4 style={{ marginTop: 0 }}>
+                            Distribution slots (from this Cosmo payment)
+                          </h4>
+
+                          {/* show slot row for each recipient with Pay / PAID badge */}
+                          {/* Orbiter slot */}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "8px 0",
+                              borderBottom: "1px solid #f0f0f0",
+                            }}
+                          >
+                            <div>
+                              <strong>Orbiter:</strong>{" "}
+                              ₹{(pay.distribution?.orbiter || 0).toFixed(2)}
+                              <div style={{ fontSize: 12, color: "#666" }}>
+                                Remaining to Orbiter overall: ₹{orbiterRemaining.toLocaleString("en-IN")}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              {/* compute if slot fully paid */}
+                              {isSlotFullyPaid(pay.paymentId, "Orbiter", Number(pay.distribution?.orbiter || 0)) ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      background: "#e8f8ed",
+                                      color: "#2e7d32",
+                                      padding: "4px 8px",
+                                      borderRadius: 20,
+                                      fontWeight: 600,
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M20 6L9 17L4 12" stroke="#2e7d32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    PAID
+                                  </span>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    openPayFromDistribution(
+                                      "Orbiter",
+                                      Number(pay.distribution?.orbiter || 0),
+                                      pay.paymentId
+                                    )
+                                  }
+                                  style={{
+                                    background: "#ff7a00",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Pay Orbiter ₹{Number(pay.distribution?.orbiter || 0).toFixed(2)}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Orbiter Mentor slot */}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "8px 0",
+                              borderBottom: "1px solid #f0f0f0",
+                            }}
+                          >
+                            <div>
+                              <strong>Orbiter Mentor:</strong>{" "}
+                              ₹{(pay.distribution?.orbiterMentor || 0).toFixed(2)}
+                              <div style={{ fontSize: 12, color: "#666" }}>
+                                Remaining to Orbiter Mentor overall: ₹{orbiterMentorRemaining.toLocaleString("en-IN")}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              {isSlotFullyPaid(pay.paymentId, "OrbiterMentor", Number(pay.distribution?.orbiterMentor || 0)) ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      background: "#e8f8ed",
+                                      color: "#2e7d32",
+                                      padding: "4px 8px",
+                                      borderRadius: 20,
+                                      fontWeight: 600,
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M20 6L9 17L4 12" stroke="#2e7d32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    PAID
+                                  </span>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    openPayFromDistribution(
+                                      "OrbiterMentor",
+                                      Number(pay.distribution?.orbiterMentor || 0),
+                                      pay.paymentId
+                                    )
+                                  }
+                                  style={{
+                                    background: "#ff7a00",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Pay Orbiter Mentor ₹{Number(pay.distribution?.orbiterMentor || 0).toFixed(2)}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Cosmo Mentor slot */}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "8px 0",
+                              borderBottom: "1px solid #f0f0f0",
+                            }}
+                          >
+                            <div>
+                              <strong>Cosmo Mentor:</strong>{" "}
+                              ₹{(pay.distribution?.cosmoMentor || 0).toFixed(2)}
+                              <div style={{ fontSize: 12, color: "#666" }}>
+                                Remaining to Cosmo Mentor overall: ₹{cosmoMentorRemaining.toLocaleString("en-IN")}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              {isSlotFullyPaid(pay.paymentId, "CosmoMentor", Number(pay.distribution?.cosmoMentor || 0)) ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      background: "#e8f8ed",
+                                      color: "#2e7d32",
+                                      padding: "4px 8px",
+                                      borderRadius: 20,
+                                      fontWeight: 600,
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M20 6L9 17L4 12" stroke="#2e7d32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    PAID
+                                  </span>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    openPayFromDistribution(
+                                      "CosmoMentor",
+                                      Number(pay.distribution?.cosmoMentor || 0),
+                                      pay.paymentId
+                                    )
+                                  }
+                                  style={{
+                                    background: "#ff7a00",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Pay Cosmo Mentor ₹{Number(pay.distribution?.cosmoMentor || 0).toFixed(2)}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* UJustBe slot (informational only) */}
+                          <div style={{ paddingTop: 8 }}>
+                            <strong>UJustBe (keeps):</strong> ₹{(pay.distribution?.ujustbe || 0).toFixed(2)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
               <p>No payments yet.</p>
             )}
 
-            <button
-              className="addPaymentBtn"
-              onClick={openPaymentModal}
-              disabled={!dealEverWon}
-            >
-              + Add Payment
-            </button>
+            <div style={{ marginTop: 16 }}>
+              <button
+                className="addPaymentBtn"
+                onClick={openPaymentModal}
+                disabled={!dealAlreadyCalculated || agreedRemaining <= 0}
+              >
+                + Add Cosmo Payment
+              </button>
+            </div>
           </>
         )}
 
-        {/* ===================== ADD PAYMENT FORM (NEW FLOW) ===================== */}
+        {/* ===================== ADD PAYMENT FORM (Cosmo partials) ===================== */}
         {showAddPaymentForm && (
           <div className="addPaymentForm">
             {/* PAYMENT FROM */}
@@ -1619,117 +2433,114 @@ const ReferralDetails = () => {
               />
             </label>
 
-            {/* PAYMENT TO */}
+            {/* PAYMENT TO (always UJustBe in this flow) */}
             <label>
               Payment To:
+              <input
+                type="text"
+                value={mapToActualName(newPayment.paymentTo)}
+                disabled
+              />
+            </label>
+
+            {/* AMOUNT (Editable: admin can enter partial amount up to remaining) */}
+            <label>
+              Amount (enter partial/full amount Cosmo is paying now):
+              <input
+                type="number"
+                value={newPayment.amountReceived}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNewPayment((prev) => ({
+                    ...prev,
+                    amountReceived: val,
+                  }));
+                }}
+                min="0"
+                max={agreedRemaining}
+                placeholder={`Max ₹${agreedRemaining}`}
+                required
+              />
+            </label>
+
+            {/* helper info */}
+            <div className="infoBox">
+              <p>✔ Agreed total: ₹{agreedAmount}</p>
+              <p>✔ Paid so far by Cosmo: ₹{cosmoPaid}</p>
+              <p>✔ Remaining agreed: ₹{agreedRemaining}</p>
+              <p>
+                ✔ Distribution will be proportional to agreed shares for the
+                entered amount (informational only).
+              </p>
+            </div>
+
+            {/* ONLY SHOW PAYMENT MODE & txn & invoice for Cosmo payments */}
+            <label>
+              Mode of Payment:
               <select
-                name="paymentTo"
-                value={newPayment.paymentTo}
-                onChange={(e) => handlePaymentToSelect_NewFlow(e.target.value)}
-                disabled={!isFirstPaymentAlreadyDone(payments, referralData)}
+                name="modeOfPayment"
+                value={newPayment.modeOfPayment}
+                onChange={(e) =>
+                  setNewPayment({ ...newPayment, modeOfPayment: e.target.value })
+                }
+                required
               >
-                {!isFirstPaymentAlreadyDone(payments, referralData) ? (
-                  <option value="UJustBe">UJustBe</option>
-                ) : (
-                  <>
-                    <option value="">-- Select --</option>
-                    <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
-                    <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
-                    <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
-                  </>
-                )}
+                <option value="">-- Select Mode --</option>
+                <option value="GPay">GPay</option>
+                <option value="Razorpay">Razorpay</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Other">Other</option>
               </select>
             </label>
 
-            {/* AMOUNT (Auto-filled and locked) */}
+            {(newPayment.modeOfPayment === "GPay" ||
+              newPayment.modeOfPayment === "Razorpay" ||
+              newPayment.modeOfPayment === "Bank Transfer" ||
+              newPayment.modeOfPayment === "Other") && (
+              <label>
+                Transaction Reference:
+                <input
+                  type="text"
+                  value={newPayment.transactionRef || ""}
+                  onChange={(e) =>
+                    setNewPayment({
+                      ...newPayment,
+                      transactionRef: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </label>
+            )}
+
             <label>
-              Amount:
-              <input type="number" value={newPayment.amountReceived} disabled />
+              Upload Invoice (optional):
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) =>
+                  setNewPayment({
+                    ...newPayment,
+                    paymentInvoice: e.target.files[0],
+                  })
+                }
+              />
             </label>
 
-            {/* ADJUSTMENT INFO DISPLAY */}
-            {adjustmentInfo.adjustedAmount > 0 && adjustmentInfo.actualReceived === 0 && (
-              <div className="infoBox">
-                <p>✔ Entire amount will be adjusted internally.</p>
-              </div>
-            )}
-
-            {adjustmentInfo.adjustedAmount > 0 && adjustmentInfo.actualReceived > 0 && (
-              <div className="infoBox">
-                <p>✔ Partially adjusted: ₹{adjustmentInfo.adjustedAmount}</p>
-                <p>✔ Actual to receive: ₹{adjustmentInfo.actualReceived}</p>
-              </div>
-            )}
-
-            {/* ONLY SHOW PAYMENT MODE IF ACTUAL PAYMENT OCCURS */}
-            {adjustmentInfo.actualReceived > 0 && (
-              <>
-                <label>
-                  Mode of Payment:
-                  <select
-                    name="modeOfPayment"
-                    value={newPayment.modeOfPayment}
-                    onChange={(e) =>
-                      setNewPayment({ ...newPayment, modeOfPayment: e.target.value })
-                    }
-                    required
-                  >
-                    <option value="">-- Select Mode --</option>
-                    <option value="GPay">GPay</option>
-                    <option value="Razorpay">Razorpay</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </label>
-
-                {/* Transaction Ref */}
-                {(newPayment.modeOfPayment === "GPay" ||
-                  newPayment.modeOfPayment === "Razorpay" ||
-                  newPayment.modeOfPayment === "Bank Transfer" ||
-                  newPayment.modeOfPayment === "Other") && (
-                  <label>
-                    Transaction Reference:
-                    <input
-                      type="text"
-                      value={newPayment.transactionRef || ""}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, transactionRef: e.target.value })
-                      }
-                      required
-                    />
-                  </label>
-                )}
-
-                {/* INVOICE UPLOAD */}
-                <label>
-                  Upload Invoice:
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) =>
-                      setNewPayment({
-                        ...newPayment,
-                        paymentInvoice: e.target.files[0],
-                      })
-                    }
-                  />
-                </label>
-
-                {/* COMMENT IF MODE = OTHER */}
-                {newPayment.modeOfPayment === "Other" && (
-                  <label>
-                    Comment:
-                    <textarea
-                      value={newPayment.comment || ""}
-                      onChange={(e) =>
-                        setNewPayment({ ...newPayment, comment: e.target.value })
-                      }
-                      required
-                    />
-                  </label>
-                )}
-              </>
+            {newPayment.modeOfPayment === "Other" && (
+              <label>
+                Comment:
+                <textarea
+                  value={newPayment.comment || ""}
+                  onChange={(e) =>
+                    setNewPayment({
+                      ...newPayment,
+                      comment: e.target.value,
+                    })
+                  }
+                />
+              </label>
             )}
 
             {/* DATE */}
@@ -1749,8 +2560,221 @@ const ReferralDetails = () => {
 
             {/* SAVE / CANCEL */}
             <div className="formButtons">
-              <button onClick={handleAddPayment_NewFlow} disabled={isSubmittingPayment}>
-                {isSubmittingPayment ? "Saving..." : "Save Payment"}
+              <button
+                onClick={handleAddPayment_NewFlow}
+                disabled={isSubmittingPayment}
+              >
+                {isSubmittingPayment
+                  ? "Saving..."
+                  : "Save Payment & Add to UJustBe Balance"}
+              </button>
+              <button className="cancelBtn" onClick={closeForm}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== UJB DISTRIBUTION FORM ===================== */}
+        {showUjbDistributionForm && (
+          <div className="addPaymentForm">
+            <h4>Distribute from UJustBe Balance</h4>
+            <p>
+              <strong>UJustBe balance (cash pool):</strong>{" "}
+              ₹{currentUjbBalance.toLocaleString("en-IN")}
+            </p>
+
+            <label>
+              Select Receiver:
+              <select
+                value={ujbDistForm.recipient}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // If changing manually, clear original slot flags
+                  setUjbDistributionFromSlot(false);
+                  setUjbDistributionOriginalSlotAmount(0);
+                  setUjbDistributionBelongsToPaymentId(null);
+                  setUjbDistForm((prev) => ({
+                    ...prev,
+                    recipient: value,
+                    amount: "",
+                  }));
+                }}
+              >
+                <option value="">-- Select --</option>
+                <option value="Orbiter">
+                  {orbiter?.name || "Orbiter"}
+                </option>
+                <option value="OrbiterMentor">
+                  {orbiter?.mentorName || "Orbiter Mentor"}
+                </option>
+                <option value="CosmoMentor">
+                  {cosmoOrbiter?.mentorName || "Cosmo Mentor"}
+                </option>
+              </select>
+            </label>
+
+            <label>
+              Amount to Pay (₹):
+              <input
+                type="number"
+                value={ujbDistForm.amount}
+                onChange={(e) =>
+                  setUjbDistForm((prev) => ({
+                    ...prev,
+                    amount: e.target.value,
+                  }))
+                }
+                min="0"
+                max={currentUjbBalance}
+                placeholder={`Max ₹${currentUjbBalance}`}
+                readOnly={!ujbDistAllowAdjust && ujbDistributionFromSlot} // read-only if from slot & adjust off
+              />
+            </label>
+
+            {/* If this form was opened from a distribution slot, show that information and toggle for adjust */}
+            {ujbDistributionFromSlot && (
+              <div className="infoBox" style={{ marginTop: 8 }}>
+                <p>
+                  <strong>Opened from Distribution Slot.</strong>
+                </p>
+                <p>
+                  Original slot amount: ₹
+                  {ujbDistributionOriginalSlotAmount}
+                </p>
+                <p>
+                  <strong>
+                    Belongs to Cosmo Payment ID:
+                  </strong>{" "}
+                  {ujbDistributionBelongsToPaymentId || "—"}
+                </p>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={ujbDistAllowAdjust}
+                    onChange={(e) => {
+                      setUjbDistAllowAdjust(e.target.checked);
+                      // if turning off adjust, reset amount to original slot amount
+                      if (!e.target.checked) {
+                        setUjbDistForm((prev) => ({
+                          ...prev,
+                          amount: ujbDistributionOriginalSlotAmount,
+                        }));
+                      }
+                    }}
+                  />
+                  Allow Adjust Amount
+                </label>
+              </div>
+            )}
+
+            <div className="infoBox">
+              <p>
+                Remaining to Orbiter: ₹
+                {orbiterRemaining.toLocaleString("en-IN")}
+              </p>
+              <p>
+                Remaining to Orbiter Mentor: ₹
+                {orbiterMentorRemaining.toLocaleString("en-IN")}
+              </p>
+              <p>
+                Remaining to Cosmo Mentor: ₹
+                {cosmoMentorRemaining.toLocaleString("en-IN")}
+              </p>
+            </div>
+
+            <label>
+              Mode of Payment:
+              <select
+                name="modeOfPayment"
+                value={ujbDistForm.modeOfPayment}
+                onChange={(e) =>
+                  setUjbDistForm({
+                    ...ujbDistForm,
+                    modeOfPayment: e.target.value,
+                  })
+                }
+                required
+              >
+                <option value="">-- Select Mode --</option>
+                <option value="GPay">GPay</option>
+                <option value="Razorpay">Razorpay</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            {(ujbDistForm.modeOfPayment === "GPay" ||
+              ujbDistForm.modeOfPayment === "Razorpay" ||
+              ujbDistForm.modeOfPayment === "Bank Transfer" ||
+              ujbDistForm.modeOfPayment === "Other") && (
+              <label>
+                Transaction Reference:
+                <input
+                  type="text"
+                  value={ujbDistForm.transactionRef || ""}
+                  onChange={(e) =>
+                    setUjbDistForm({
+                      ...ujbDistForm,
+                      transactionRef: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </label>
+            )}
+
+            <label>
+              Upload Invoice / Proof (optional):
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) =>
+                  setUjbDistForm({
+                    ...ujbDistForm,
+                    paymentInvoice: e.target.files[0],
+                  })
+                }
+              />
+            </label>
+
+            <label>
+              Payment Date:
+              <input
+                type="date"
+                name="paymentDate"
+                value={ujbDistForm.paymentDate}
+                onChange={(e) =>
+                  setUjbDistForm({
+                    ...ujbDistForm,
+                    paymentDate: e.target.value,
+                  })
+                }
+                max={new Date().toISOString().split("T")[0]}
+                required
+              />
+            </label>
+
+            <div className="formButtons">
+              {/* If it was opened from slot, call special slot handler; otherwise use existing handler */}
+              <button
+                onClick={
+                  ujbDistributionFromSlot
+                    ? handleUJBDistributionFromSlot
+                    : handleUJBDistribution
+                }
+                disabled={isSubmittingPayment}
+              >
+                {isSubmittingPayment
+                  ? "Processing..."
+                  : "Distribute from UJustBe"}
               </button>
               <button className="cancelBtn" onClick={closeForm}>
                 Cancel

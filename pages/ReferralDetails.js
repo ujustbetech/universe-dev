@@ -3,7 +3,7 @@ import { getFirestore, collection, getDocs } from "firebase/firestore";
 import { app } from "../firebaseConfig";
 import Link from "next/link";
 import HeaderNav from "../component/HeaderNav";
-import Headertop from "../component/Header";  // 👈 now self-contained
+import Headertop from "../component/Header";  
 import "../src/app/styles/user.scss";
 import { FaMapMarkerAlt } from "react-icons/fa";
 import { COLLECTIONS } from "/utility_collection";
@@ -16,7 +16,7 @@ const AllEvents = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // 🔎 Filter businesses
+  // 🔍 Filter businesses
   const filteredOrbiters = cosmOrbiters.filter((co) => {
     const query = searchQuery.toLowerCase();
     return (
@@ -36,28 +36,45 @@ const AllEvents = () => {
         const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
         const list = [];
 
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (
-            data.Category === "CosmOrbiter" &&
-            ((Array.isArray(data.services) && data.services.length > 0) ||
-              (Array.isArray(data.products) && data.products.length > 0))
-          ) {
-            list.push({
-              id: doc.id,
-              name: data["Name"] || "Unknown",
-              businessName: data["BusinessName"] || "N/A",
-              businessHistory: data["BusinessHistory"] || "N/A",
-              tagline: data["TagLine"] || "",
-              city: data.City || "",
-              locality: data.Locality || "",
-              state: data.State || "",
-              logo: data["BusinessLogo"] || "",
-              category: data.Category || "",
-              category1: data["Category1"] || "",
-              category2: data["Category2"] || "",
-            });
-          }
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+
+          // ⭐ FIX IMPORTANT: Convert map → array
+          const servicesArr = data.services ? Object.values(data.services) : [];
+          const productsArr = data.products ? Object.values(data.products) : [];
+
+          const hasServices = servicesArr.length > 0;
+          const hasProducts = productsArr.length > 0;
+
+          // Only show CosmOrbiter accounts with offerings
+          if (data.Category !== "CosmOrbiter") return;
+          if (!hasServices && !hasProducts) return;
+
+          list.push({
+            id: docSnap.id,
+
+            name: data["Name"] || "Unknown",
+            businessName: data["BusinessName"] || "N/A",
+            businessHistory: data["BusinessHistory"] || "N/A",
+            tagline: data["TagLine"] || "",
+
+            city: data.City || "",
+            locality: data.Locality || "",
+            state: data.State || "",
+
+            // Pick the correct logo
+            logo:
+              data["BusinessLogo"] ||
+              data["Business Logo"] ||
+              data["ProfilePhotoURL"] ||
+              "",
+
+            category1: data["Category1"] || "",
+            category2: data["Category2"] || "",
+
+            servicesCount: servicesArr.length,
+            productsCount: productsArr.length,
+          });
         });
 
         setCosmOrbiters(list);
@@ -72,8 +89,7 @@ const AllEvents = () => {
   }, []);
 
   return (
-     <main className="pageContainer">
-      {/* ✅ Header is now self-contained */}
+    <main className="pageContainer">
       <Headertop />
 
       <section className="dashBoardMain">
@@ -108,21 +124,21 @@ const AllEvents = () => {
           ) : filteredOrbiters.length === 0 ? (
             <p className="noDataText">No CosmOrbiters found.</p>
           ) : (
-            filteredOrbiters.map((co, index) => (
+            filteredOrbiters.map((co) => (
               <Link
                 href={`/BusinessDetails/${co.id}`}
-                key={index}
+                key={co.id}
                 className="meetingBoxLink"
               >
                 <div className="cosmoCard">
                   <div className="cosmoCard-header">
-               <div className="cardLogo">
-  {co.logo && /^https?:\/\//.test(co.logo) ? (
-    <img src={co.logo} alt="Business Logo" />
-  ) : (
-    <IoPlanetOutline size={40} />
-  )}
-</div>
+                    <div className="cardLogo">
+                      {co.logo && /^https?:\/\//.test(co.logo) ? (
+                        <img src={co.logo} alt="Business Logo" />
+                      ) : (
+                        <IoPlanetOutline size={40} />
+                      )}
+                    </div>
 
                     <div className="cosmoCard-info">
                       <p className="cosmoCard-category">
@@ -130,10 +146,9 @@ const AllEvents = () => {
                       </p>
 
                       <h3 className="cosmoCard-owner">{co.businessName}</h3>
+
                       <div className="cosmoCard-location">
-                        <div>
-                          <FaMapMarkerAlt />
-                        </div>
+                        <FaMapMarkerAlt />
                         <p>
                           {co.locality} {co.city} {co.state}
                         </p>

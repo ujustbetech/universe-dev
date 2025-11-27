@@ -9,7 +9,7 @@
     width: 80%;
 
     >div {
-      width: 25%;
+      width: 52%;
       border-radius: 10px;
       background-color: #FFF;
 
@@ -18,6 +18,126 @@
       }
     }
   }
+.paymentSummaryCard {
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  margin-bottom: 18px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sectionTitle {
+  margin: 0 0 10px 0;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.summaryItem {
+  background: #f5f7fb;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid #e5e7ee;
+}
+
+.summaryItem span {
+  font-size: 12px;
+  color: #666;
+}
+
+.summaryItem strong {
+  font-size: 16px;
+  display: block;
+  margin-top: 4px;
+}
+
+.progressBarContainer small {
+  color: #555;
+}
+
+.progressTrack {
+  height: 8px;
+  background: #e3e3e3;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.progressFill {
+  height: 100%;
+  background: #4caf50;
+  transition: width 0.3s;
+}
+
+.accordionHeader {
+  margin-top: 10px;
+  padding: 10px;
+  background: #eef2f7;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.accordionContent {
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 0 0 6px 6px;
+  background: #fff;
+  margin-bottom: 10px;
+}
+
+.breakdownRow {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.breakdownRow em {
+  font-size: 12px;
+  color: #888;
+  font-style: normal;
+}
+
+.lastPayment {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #333;
+}
+
+.paymentActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.viewHistoryBtn,
+.addPaymentBtn {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  color: #fff;
+}
+
+.viewHistoryBtn {
+  background: #1a2b49;
+}
+
+.addPaymentBtn {
+  background: #ff7a00;
+}
 
   .followupContainer {
     background: #fff;
@@ -215,58 +335,6 @@
       width: 100%;
     height: 100%;
     object-fit: contain;
-}
-
-.followupContainer {
-  position: fixed;
-  /* stay fixed on screen */
-  top: 0;
-  right: 0;
-  /* attach to right side */
-  height: 100vh;
-  /* full page height */
-  width: 350px;
-  /* adjust width */
-  background: #fff;
-  border-left: 1px solid #ddd;
-  border-radius: 0;
-  /* flush with screen */
-  padding: 20px;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  /* scroll when content is too much */
-  z-index: 999;
-  /* stay above other content */
-}
-
-.followupContainer h2 {
-  margin-bottom: 15px;
-  font-size: 1.2rem;
-  color: #16274f;
-}
-
-/* Add button fixed at top inside container */
-.addFollowupBtn {
-  margin-bottom: 15px;
-  padding: 10px 15px;
-  background: #fe6f06;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  width: 100%;
-}
-
-/* Each follow-up card */
-.followupCard {
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 

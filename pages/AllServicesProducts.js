@@ -17,11 +17,8 @@ const PAGE_SIZE = 12;
 const allowedCategories = [
     'IT & TECH',
     'Healthcare',
-  
     'Food Industry',
- 
     'Travel & Tourism',
-   
 ];
 
 const shuffleArray = (arr) => {
@@ -46,7 +43,7 @@ const AllServicesProducts = ({
     const [nextIndex, setNextIndex] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
-    const [loading, setLoading] = useState(true);
+       const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -55,7 +52,7 @@ const AllServicesProducts = ({
     const [showFilters, setShowFilters] = useState(false);
 
     // Fetch items from Firestore
-     useEffect(() => {
+    useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
@@ -71,41 +68,47 @@ const AllServicesProducts = ({
 
                     const ownerName = data['Name'] || '—';
                     const businessName = data['BusinessName'] || '—';
+                    const ujbCode = data['ujbCode'] || data['UJB'] || data['ujb'] || data['ujb_code'] || doc.id;
 
-                   const ujbCode = data['ujbCode'] || data['UJB'] || data['ujb'] || data['ujb_code'] || doc.id;
+                    // ⭐ FIX — Convert Map → Array
+                    const servicesArr = data.services ? Object.values(data.services) : [];
+                    const productsArr = data.products ? Object.values(data.products) : [];
 
-(Array.isArray(data.services) ? data.services : []).forEach((s) =>
-  list.push({
-    id: doc.id,
-    ujb: ujbCode,
-    type: 'Service',
-    name: s.name || '—',
-    description: s.description || '—',
-    imageURL: s.imageURL || '',
-    percentage: s.percentage || '',
-    keywords: s.keywords || '',
-    ownerName,
-    businessName,
-    category: category1 || category2 || '',
-  })
-);
+                    // ⭐ SERVICES
+                    servicesArr.forEach((s, index) =>
+                        list.push({
+                            id: `${doc.id}_service_${index}`,
+                            mainId: doc.id,   // 🔥 REAL DOC ID FOR MODAL FETCH
+                            ujb: ujbCode,
+                            type: 'Service',
+                            name: s.serviceName || '—',
+                            description: s.description || '—',
+                            imageURL: s.imageURL || '',
+                            percentage: s.percentage || '',
+                            keywords: s.keywords || '',
+                            ownerName,
+                            businessName,
+                            category: category1 || category2 || '',
+                        })
+                    );
 
-// same for products...
-(Array.isArray(data.products) ? data.products : []).forEach((p) =>
-  list.push({
-    id: doc.id,
-    ujb: ujbCode,
-    type: 'Product',
-    name: p.name || '—',
-    description: p.description || '—',
-    imageURL: p.imageURL || '',
-    percentage: p.percentage || '',
-    keywords: p.keywords || '',
-    ownerName,
-    businessName,
-    category: category1 || category2 || '',
-  })
-);
+                    // ⭐ PRODUCTS
+                    productsArr.forEach((p, index) =>
+                        list.push({
+                            id: `${doc.id}_product_${index}`,
+                            mainId: doc.id,   // 🔥 REAL DOC ID FOR MODAL FETCH
+                            ujb: ujbCode,
+                            type: 'Product',
+                            name: p.productName || '—',
+                            description: p.description || '—',
+                            imageURL: p.imageURL || '',
+                            percentage: p.percentage || '',
+                            keywords: p.keywords || '',
+                            ownerName,
+                            businessName,
+                            category: category1 || category2 || '',
+                        })
+                    );
                 });
 
                 setItems(shuffleArray(list));
@@ -164,8 +167,10 @@ const AllServicesProducts = ({
                 item.description.toLowerCase().includes(queryLower) ||
                 (item.keywords && item.keywords.toLowerCase().includes(queryLower)) ||
                 (item.businessName && item.businessName.toLowerCase().includes(queryLower));
+
             const matchesCategory =
                 !selectedCategory || item.category === selectedCategory;
+
             return matchesQuery && matchesCategory;
         });
     }, [displayedItems, searchQuery, selectedCategory]);
@@ -178,45 +183,37 @@ const AllServicesProducts = ({
                 <div className="sectionHeadings">
                     <h2>{pageHeading} ({items.length})</h2>
                     {!hideFilters && (
-                        <div className="filters-toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                        <div className="filters-toggle"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                             <FaFilter
                                 className="filter-icon"
                                 onClick={() => setShowFilters((prev) => !prev)}
                                 style={{ cursor: 'pointer', fontSize: '20px', color: showFilters ? '#0070f3' : '#555' }}
                             />
-
                         </div>
                     )}
                 </div>
 
-                {/* Filter icon + search */}
-                {!hideFilters && (
-                    <>
-
-
-                        {showFilters && (
-                            <div className={styles.filters}>
-                                <input
-                                    type="text"
-                                    placeholder="Search by name, description, business or keyword..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="search__input"
-                                />
-                                {searchQuery && <span className="current-search-text">Search: "{searchQuery}"</span>}
-                                <select
-                                    className="categoryFilter"
-                                    value={selectedCategory}
-                                    onChange={(e) => setSelectedCategory(e.target.value)}
-                                >
-                                    <option value="">All Categories</option>
-                                    {allowedCategories.map((cat) => (
-                                        <option key={cat} value={cat}>{cat}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </>
+                {!hideFilters && showFilters && (
+                    <div className={styles.filters}>
+                        <input
+                            type="text"
+                            placeholder="Search by name, description, business or keyword..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="search__input"
+                        />
+                        <select
+                            className="categoryFilter"
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                        >
+                            <option value="">All Categories</option>
+                            {allowedCategories.map((cat) => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                    </div>
                 )}
 
                 {/* Items list */}

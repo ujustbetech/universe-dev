@@ -80,51 +80,56 @@ const generateReferralId = async () => {
   }
 };
     // 🔹 Fetch user & orbiter details
-    useEffect(() => {
-        const fetchUserDetails = async () => {
-            if (userCache[item.id]) {
-                const cached = userCache[item.id];
-                setUserDetails(cached);
-                setServices(cached.services);
-                setProducts(cached.products);
+  useEffect(() => {
+    const fetchUserDetails = async () => {
+        const cacheKey = item.mainId;
+
+        if (userCache[cacheKey]) {
+            const cached = userCache[cacheKey];
+            setUserDetails(cached);
+            setServices(cached.services);
+            setProducts(cached.products);
+            setSelectedOption(item?.name || '');
+        } else {
+            const snap = await getDoc(doc(db, 'usersdetail', item.mainId));
+            if (snap.exists()) {
+                const data = snap.data();
+                const userData = {
+                    name: data.Name || '',
+                    email: data.Email || '',
+                    phone: data.MobileNo || '',
+                    businessName: data.BusinessName || 'N/A',
+                    logo: data.BusinessLogo || '',
+                    services: data.services ? Object.values(data.services) : [],
+                    products: data.products ? Object.values(data.products) : [],
+                };
+
+                setUserCache(prev => ({ ...prev, [cacheKey]: userData }));
+
+                setUserDetails(userData);
+                setServices(userData.services);
+                setProducts(userData.products);
                 setSelectedOption(item?.name || '');
-            } else {
-                const snap = await getDoc(doc(db, 'userdetail', item.id));
-                if (snap.exists()) {
-                    const data = snap.data();
-                    const userData = {
-                        name: data[' Name']?.trim() || '',
-                        email: data.Email || '',
-                        phone: data['Mobile no'] || '',
-                        businessName: data['Business Name'] || 'N/A',
-                        logo: data['Business Logo'] || '',
-                        services: Array.isArray(data.services) ? data.services : [],
-                        products: Array.isArray(data.products) ? data.products : [],
-                    };
-                    setUserCache(prev => ({ ...prev, [item.id]: userData }));
-                    setUserDetails(userData);
-                    setServices(userData.services);
-                    setProducts(userData.products);
-                    setSelectedOption(item?.name || '');
-                }
             }
+        }
 
-            const storedPhone = localStorage.getItem('mmOrbiter');
-            if (storedPhone) {
-                const orbSnap = await getDoc(doc(db, 'userdetail', storedPhone.trim()));
-                if (orbSnap.exists()) {
-                    const d = orbSnap.data();
-                    setOrbiterDetails({
-                        name: d[' Name'] || '',
-                        email: d.Email || '',
-                        phone: d['Mobile no'] || '',
-                    });
-                }
+        const storedPhone = localStorage.getItem('mmOrbiter');
+        if (storedPhone) {
+            const orbSnap = await getDoc(doc(db, 'usersdetail', storedPhone.trim()));
+            if (orbSnap.exists()) {
+                const d = orbSnap.data();
+                setOrbiterDetails({
+                    name: d.Name || '',
+                    email: d.Email || '',
+                    phone: d.MobileNo || '',
+                });
             }
-        };
+        }
+    };
 
-        fetchUserDetails();
-    }, [item, userCache, setUserCache]);
+    fetchUserDetails();
+}, [item, userCache, setUserCache]);
+
 
     // 🔹 Close dropdown when clicking outside
     useEffect(() => {
