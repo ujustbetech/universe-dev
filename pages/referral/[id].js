@@ -440,6 +440,48 @@ const ReferralDetails = () => {
   // -----------------------
   // PAYMENT FLOW HELPERS (NEW: partial payments + auto distribution)
   // -----------------------
+// ===== UNIVERSAL WHATSAPP SENDER =====
+const sendWhatsAppMessage = async (phone, parameters = []) => {
+  const formattedPhone = String(phone || "").replace(/\s+/g, "");
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: formattedPhone,
+    type: "template",
+    template: {
+        name: "referral_module",
+      language: { code: "en" },
+      components: [
+        {
+          type: "body",
+          parameters: parameters.map((text) => ({
+            type: "text",
+            text,
+          })),
+        },
+      ],
+    },
+  };
+
+  try {
+    const response = await fetch("https://graph.facebook.com/v19.0/527476310441806/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:
+          "Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("WhatsApp API Error:", data);
+    }
+  } catch (err) {
+    console.error("WhatsApp send error:", err);
+  }
+};
 
   // get agreed amount (from latest dealLog or computed)
   const getAgreedAmount = () => {
@@ -1218,65 +1260,130 @@ const openPaymentModal = () => {
   // -----------------------
   // HANDLE STATUS UPDATE
   // -----------------------
-  const handleUpdate = async (e) => {
-    e.preventDefault();
+ const handleUpdate = async (e) => {
+  e.preventDefault();
 
-    if (isUpdatingStatusRef.current) return;
-    setIsUpdatingStatus(true);
+  if (isUpdatingStatusRef.current) return;
+  setIsUpdatingStatus(true);
 
-    try {
-      const referralRef = doc(db, COLLECTIONS.referral, id);
-      const snap = await getDoc(referralRef);
-      const dbStatus = snap.exists() ? snap.data().dealStatus : null;
-      if (dbStatus === formState.dealStatus) {
-        await Swal.fire({
-          icon: "info",
-          title: "No change",
-          text: "Deal status is already set to the selected value.",
-        });
-        setIsUpdatingStatus(false);
-        return;
-      }
+  try {
+    const referralRef = doc(db, COLLECTIONS.referral, id);
+    const snap = await getDoc(referralRef);
+    const oldStatus = snap.exists() ? snap.data().dealStatus : null;
 
-      const newLog = {
-        status: formState.dealStatus,
-        updatedAt: Timestamp.now(),
-      };
-
-      await updateDoc(referralRef, {
-        dealStatus: formState.dealStatus,
-        statusLogs: arrayUnion(newLog),
-        lastUpdated: Timestamp.now(),
-      });
-
+    if (oldStatus === formState.dealStatus) {
       await Swal.fire({
-        icon: "success",
-        title: "Status Updated",
-        text: "Referral status updated successfully.",
+        icon: "info",
+        title: "No change",
+        text: "Deal status is already set to the selected value.",
       });
-
-      const paymentEligibleStatuses = [
-        "Deal Won",
-        "Work in Progress",
-        "Work Completed",
-        "Received Part Payment and Transferred to UJustBe",
-        "Received Full and Final Payment",
-        "Agreed % Transferred to UJustBe",
-      ];
-      if (paymentEligibleStatuses.includes(formState.dealStatus)) {
-        setDealEverWon(true);
-      }
-    } catch (error) {
-      console.error("Error updating referral:", error);
-      await Swal.fire({
-        icon: "error",
-        title: "Failed",
-        text: "Failed to update referral status.",
-      });
-    } finally {
       setIsUpdatingStatus(false);
+      return;
     }
-  };
+
+    const newStatus = formState.dealStatus;
+
+    const newLog = {
+      status: newStatus,
+      updatedAt: Timestamp.now(),
+    };
+
+    // === UPDATE Firestore ===
+    await updateDoc(referralRef, {
+      dealStatus: newStatus,
+      statusLogs: arrayUnion(newLog),
+      lastUpdated: Timestamp.now(),
+    });
+
+    await Swal.fire({
+      icon: "success",
+      title: "Status Updated",
+      text: "Referral status updated successfully.",
+    });
+
+    // ============================================================
+    // 🚀 SEND WHATSAPP MESSAGES
+    // ============================================================
+    const serviceOrProductName =
+      referralData?.service?.name || referralData?.product?.name || "the service";
+
+    // 👤 Orbiter
+    if (referralData?.orbiter?.phone) {
+      await sendWhatsAppMessage(
+        referralData.orbiter.phone,
+        [
+          referralData.orbiter.name,
+          `Status for your referral of *${serviceOrProductName}* is updated to *${newStatus}*.`,
+        ],
+        "deal_status_update"
+      );
+    }
+
+    // 👤 Cosmo Orbiter
+    if (referralData?.cosmoOrbiter?.phone) {
+      await sendWhatsAppMessage(
+        referralData.cosmoOrbiter.phone,
+        [
+          referralData.cosmoOrbiter.name,
+          `The referral you received for *${serviceOrProductName}* is now *${newStatus}*.`,
+        ],
+        "deal_status_update"
+      );
+    }
+
+    // ⭐ Mentors get messages ONLY on important statuses
+    if (
+      ["Deal Won", "Deal Lost", "Agreed % Transferred to UJustBe"].includes(newStatus)
+    ) {
+      // Orbiter Mentor
+      if (referralData.orbiter?.mentorPhone) {
+        await sendWhatsAppMessage(
+          referralData.orbiter.mentorPhone,
+          [
+            referralData.orbiter.mentorName,
+            `Your mentee *${referralData.orbiter.name}* has a referral update: *${newStatus}* for *${serviceOrProductName}*.`,
+          ],
+          "deal_status_update"
+        );
+      }
+
+      // Cosmo Mentor
+      if (referralData.cosmoOrbiter?.mentorPhone) {
+        await sendWhatsAppMessage(
+          referralData.cosmoOrbiter.mentorPhone,
+          [
+            referralData.cosmoOrbiter.mentorName,
+            `Your mentee *${referralData.cosmoOrbiter.name}* has an update: *${newStatus}* for *${serviceOrProductName}*.`,
+          ],
+          "deal_status_update"
+        );
+      }
+    }
+    // ============================================================
+
+    // update UI flags
+    const paymentEligibleStatuses = [
+      "Deal Won",
+      "Work in Progress",
+      "Work Completed",
+      "Received Part Payment and Transferred to UJustBe",
+      "Received Full and Final Payment",
+      "Agreed % Transferred to UJustBe",
+    ];
+    if (paymentEligibleStatuses.includes(newStatus)) {
+      setDealEverWon(true);
+    }
+  } catch (error) {
+    console.error("Error updating referral:", error);
+    await Swal.fire({
+      icon: "error",
+      title: "Failed",
+      text: "Failed to update referral status.",
+    });
+  } finally {
+    setIsUpdatingStatus(false);
+  }
+};
 
   // -----------------------
   // New helpers for inline distribution
