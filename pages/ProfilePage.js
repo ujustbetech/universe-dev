@@ -44,24 +44,32 @@ useEffect(() => {
   }
 }, []);
 
-  const fetchUserDetails = async (ujbCode) => {
-  const docSnap = await getDoc(doc(db, 'usersdetail', ujbCode));
+const fetchUserDetails = async (ujbCode) => {
+  try {
+    const docSnap = await getDoc(doc(db, "usersdetail", ujbCode));
 
-  if (docSnap.exists()) {
-    const data = docSnap.data();
+    if (docSnap.exists()) {
+      const data = docSnap.data();
 
-    setUserDetails({
-      ...data,
-      name: data['Name'] || '',
-      email: data.Email || '',
-      dob: data.DOB || '',
-      gender: data.Gender || '',
-      mobile: data['MobileNo'] || '',
-      category: data.Category || '',
-      ujbCode: ujbCode, // 🔥 doc ID = UJB Code
-      services: Array.isArray(data.services) ? data.services : [],
-      products: Array.isArray(data.products) ? data.products : [],
-    });
+      console.log("🔥 Firestore Data:", data);
+
+      setUserDetails({
+        ...data,
+        name: data.Name || '',
+        email: data.Email || '',
+        dob: data.DOB || '',
+        gender: data.Gender || '',
+        mobile: data.MobileNo || '',
+        category: data.Category || '',
+        ujbCode,
+
+        // ✅ FIXED: convert numbered object → array
+        services: data.services ? Object.values(data.services) : [],
+        products: data.products ? Object.values(data.products) : [],
+      });
+    }
+  } catch (err) {
+    console.error("❌ Error fetching user details:", err);
   }
 };
 

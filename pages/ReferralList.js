@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React, { useEffect, useState } from "react";
 import {
@@ -30,7 +30,7 @@ const db = getFirestore(app);
 const getDynamicMessage = (template, referral) => {
     if (!template) return "";
 
-    const serviceOrProduct = referral.product?.name || referral.service?.name || "-";
+        "-";
 
     return template
         .replace(/\(CosmOrbiter Name\)/g, referral.cosmoOrbiter.name)
@@ -41,15 +41,14 @@ const getDynamicMessage = (template, referral) => {
 // Example usage:
 
 
-
-// ✅ Predefined status messages
+// Predefined status messages
 const statusMessages = {
     "Not Connected": {
         Orbiter: `Referral Accepted! 🤝 Good news! (CosmOrbiter Name) has accepted your referral for (Product/Service). You may reach out directly if the matter is urgent. 🌟`,
         CosmOrbiter: `Let’s Connect! 📲 You’ve accepted a referral from (Orbiter Name) for (Product/Service). Time to reach out and explore possibilities within the next 24 hours!`,
     },
     "Called but Not Answered": {
-        Orbiter: `Hello knock knock! 📞 Our CosmOrbiter (Name) tried connecting with you for the referral you passed. Please reconnect so the opportunity doesn’t go cold. 🔄`,
+        Orbiter: `Hello knock knock! 📞 Our CosmOrbiter (CosmOrbiter Name) tried connecting with you for the referral you passed. Please reconnect so the opportunity doesn’t go cold. 🔄`,
         CosmOrbiter: `Effort Noticed! 🙏 We see your attempt to connect with (Orbiter Name). The Orbiter’s been notified — kindly try again after 24 hours. Your persistence builds trust! 💪`,
     },
     "Discussion in Progress": {
@@ -90,32 +89,47 @@ const statusMessages = {
     },
 };
 
+const statusOptions = [
+    "Not Connected",
+    "Called but Not Answered",
+    "Discussion in Progress",
+    "Deal Lost",
+    "Deal Won",
+    "Work in Progress",
+    "Work Completed",
+    "Received Full and Final Payment",
+    "Received Part Payment & Transferred to UJustBe",
+    "Agreed % Transferred to UJustBe",
+    "Hold",
+];
+
 const UserReferrals = () => {
     // const [referrals, setReferrals] = useState([]);
     const [loading, setLoading] = useState(true);
     const [ntMeetCount, setNtMeetCount] = useState(0);
     const [monthlyMetCount, setMonthlyMetCount] = useState(0);
+    const [ntMeetCount, setNtMeetCount] = useState(0); // My referrals count
     const [activeTab, setActiveTab] = useState("my");
     const [allReferrals, setAllReferrals] = useState({
         my: [],
         passed: [],
     });
 
-
-    // Tabs
     const tabs = [
         { name: "My Referrals", key: "my" },
         { name: "Passed Referrals", key: "passed" },
     ];
 
-
-
-
+    // Firestore realtime subscriptions (lists + counts)
     useEffect(() => {
-        const fetchReferrals = async () => {
-            try {
-                setLoading(true);
+        const storedUJB = localStorage.getItem("mmUJBCode");
+        if (!storedUJB) {
+            console.warn("UJB code not found in localStorage");
 
+
+
+        const fetchReferrals = async () => {
+                setLoading(true);
                 const storedUJB = localStorage.getItem("mmUJBCode");
                 if (!storedUJB) {
                     console.warn("UJB code not found in localStorage");
@@ -127,7 +141,6 @@ const UserReferrals = () => {
 
                 // My Referrals (cosmoOrbiter.ujbCode)
                 const myQuery = query(
-                    referralsCol,
                     where("cosmoOrbiter.ujbCode", "==", storedUJB),
                     orderBy("timestamp", "desc")
                 );
@@ -141,7 +154,6 @@ const UserReferrals = () => {
                 const passedQuery = query(
                     referralsCol,
                     where("orbiter.ujbCode", "==", storedUJB),
-                    orderBy("timestamp", "desc")
                 );
                 const passedSnapshot = await getDocs(passedQuery);
                 const passedReferrals = passedSnapshot.docs.map((doc) => ({
@@ -151,211 +163,214 @@ const UserReferrals = () => {
 
                 setAllReferrals({ my: myReferrals, passed: passedReferrals });
             } catch (error) {
-                console.error("Error fetching referrals:", error);
-            } finally {
+                setAllReferrals((prev) => ({ ...prev, my: myReferrals }));
+                setNtMeetCount(myReferrals.length);
+                setLoading(false);
+            },
+            (error) => {
+                console.error("Error fetching my referrals:", error);
                 setLoading(false);
             }
-        };
+        );
 
-        fetchReferrals();
+        const unsubPassed = onSnapshot(
+            passedQuery,
+            (snapshot) => {
+                const passedReferrals = snapshot.docs.map((d) => ({
+                    id: d.id,
+                    ...d.data(),
+                }));
+                setAllReferrals((prev) => ({
+                    ...prev,
+                    passed: passedReferrals,
+                }));
+                setMonthlyMetCount(passedReferrals.length);
+                setLoading(false);
+            },
+            (error) => {
+                console.error("Error fetching passed referrals:", error);
+                setLoading(false);
+            }
+        );
+
+        return () => {
+            unsubMy();
+            unsubPassed();
+        };
     }, []);
 
-    // ✅ WhatsApp sending
- const sendWhatsAppTemplate = async (phone, name, message) => {
-  if (!message || !phone) return;
-
-  const formatted = String(phone).replace(/\D/g, ""); // clean phone
-
-  const payload = {
-    messaging_product: "whatsapp",
-    to: formatted,
-    type: "template",
-    template: {
-      name: "referral_module", // must match WhatsApp template name
-      language: { code: "en" },
-      components: [
-        {
-          type: "body",
-          parameters: [
-            { type: "text", text: name },
-            { type: "text", text: message },
-          ],
-        },
-      ],
-    },
-  };
-
-  const res = await fetch("https://graph.facebook.com/v19.0/527476310441806/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD", // replace with your real token
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const result = await res.json();
-  console.log("WhatsApp API Response:", result);
-};
-
-
-    // ✅ Handle status change
-    const handleStatusChange = async (referralId, newStatus) => {
+    // Handle deal status change (My Referrals)
+    const handleStatusChange = async (referral, newStatus) => {
         try {
-            const ref = referrals.find((r) => r.id === referralId);
-            if (!ref) return;
-
-            const docRef = doc(db, COLLECTIONS.referral, referralId);
+            const docRef = doc(db, COLLECTIONS.referral, referral.id);
             const statusLog = { status: newStatus, updatedAt: Timestamp.now() };
 
             await updateDoc(docRef, {
                 dealStatus: newStatus,
+                "cosmoOrbiter.dealStatus": newStatus,
                 statusLogs: arrayUnion(statusLog),
                 lastUpdated: Timestamp.now(),
             });
 
-            setReferrals((prev) =>
-                prev.map((r) => (r.id === referralId ? { ...r, dealStatus: newStatus } : r))
-            );
-
-            // Send messages dynamically
-            const serviceOrProduct = ref.product?.name || ref.service?.name || "-";
-
-
-            await Promise.all([
-                sendWhatsAppTemplate(ref.orbiter.phone, ref.orbiter.name, getDynamicMessage(statusMessages[newStatus].Orbiter, ref)),
-                sendWhatsAppTemplate(ref.cosmoOrbiter.phone, ref.cosmoOrbiter.name, getDynamicMessage(statusMessages[newStatus].CosmOrbiter, ref)),
-            ]);
-
+            // Send WhatsApp messages dynamically if templates exist
+            const templates = statusMessages[newStatus];
+            if (templates) {
+                await Promise.all([
+                    sendWhatsAppTemplate(
+                        referral.orbiter.phone,
+                        referral.orbiter.name,
+                        getDynamicMessage(templates.Orbiter, referral)
+                    ),
+                    sendWhatsAppTemplate(
+                        referral.cosmoOrbiter.phone,
+                        referral.cosmoOrbiter.name,
+                        getDynamicMessage(templates.CosmOrbiter, referral)
+                    ),
+                ]);
+            }
         } catch (error) {
             console.error("Error updating deal status:", error);
-            alert("Failed to update deal status.");
+            Swal.fire("Error", "Failed to update deal status.", "error");
         }
     };
 
-    const statusOptions = [
-        "Not Connected",
-        "Called but Not Answered",
-        "Discussion in Progress",
-        "Deal Lost",
-        "Deal Won",
-        "Work in Progress",
-        "Work Completed",
-        "Received Full & Final Payment",
-        "Received Part Payment & Transferred to UJustBe",
-        "Agreed % Transferred to UJustBe",
-        "Hold",
-    ];
-const handleAccept = async (ref) => {
-    Swal.fire({
-        title: "Accept Referral?",
-        text: "Are you sure you want to accept this referral?",
-        icon: "question",
-        showCancelButton: true,
-        confirmButtonColor: "#3085d6",
-        cancelButtonColor: "#d33",
-        confirmButtonText: "Yes, Accept",
-        cancelButtonText: "No",
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            try {
-                const docRef = doc(db, COLLECTIONS.referral, ref.id);
+    // Accept referral (My Referrals)
+    const handleAccept = async (ref) => {
+        Swal.fire({
+            title: "Accept Referral?",
+            text: "Are you sure you want to accept this referral?",
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            confirmButtonText: "Yes, Accept",
+            cancelButtonText: "No",
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const docRef = doc(db, COLLECTIONS.referral, ref.id);
 
-                // ✅ Update nested field in Firestore
-                await updateDoc(docRef, {
-                    "cosmoOrbiter.dealStatus": "Not Connected",
-                    statusLogs: arrayUnion({
-                        status: "Not Connected",
-                        updatedAt: Timestamp.now(),
-                    }),
-                    lastUpdated: Timestamp.now(),
-                });
+                    const newStatus = "Not Connected";
 
-                // ✅ Send WhatsApp messages dynamically
-                await Promise.all([
-                    sendWhatsAppTemplate(
-                        ref.orbiter.phone,
-                        ref.orbiter.name,
-                        getDynamicMessage(statusMessages["Not Connected"].Orbiter, ref)
-                    ),
-                    sendWhatsAppTemplate(
-                        ref.cosmoOrbiter.phone,
-                        ref.cosmoOrbiter.name,
-                        getDynamicMessage(statusMessages["Not Connected"].CosmOrbiter, ref)
-                    ),
-                ]);
+                    await updateDoc(docRef, {
+                        dealStatus: newStatus,
+                        "cosmoOrbiter.dealStatus": newStatus,
+                        statusLogs: arrayUnion({
+                            status: newStatus,
+                            updatedAt: Timestamp.now(),
+                        }),
+                        lastUpdated: Timestamp.now(),
+                    });
 
-                // ✅ Show success alert
-                Swal.fire({
-                    title: "Accepted!",
-                    text: "Referral has been accepted successfully.",
-                    icon: "success",
-                    timer: 2000,
-                    showConfirmButton: false,
-                });
+                    const templates = statusMessages[newStatus];
+                    if (templates) {
+                        await Promise.all([
+                            sendWhatsAppTemplate(
+                                ref.orbiter.phone,
+                                ref.orbiter.name,
+                                getDynamicMessage(templates.Orbiter, ref)
+                            ),
+                            sendWhatsAppTemplate(
+                                ref.cosmoOrbiter.phone,
+                                ref.cosmoOrbiter.name,
+                                getDynamicMessage(templates.CosmOrbiter, ref)
+                            ),
+                        ]);
+                    }
 
-                // ✅ Instantly update UI
-                setAllReferrals((prev) => ({
-                    ...prev,
-                    my: prev.my.map((r) =>
-                        r.id === ref.id
-                            ? { ...r, cosmoOrbiter: { ...r.cosmoOrbiter, dealStatus: "Not Connected" } }
-                            : r
-                    ),
-                    passed: prev.passed.map((r) =>
-                        r.id === ref.id
-                            ? { ...r, cosmoOrbiter: { ...r.cosmoOrbiter, dealStatus: "Not Connected" } }
-                            : r
-                    ),
-                }));
-            } catch (error) {
-                console.error("Error accepting referral:", error);
-                Swal.fire("Error", "Failed to accept referral. Try again.", "error");
+                    Swal.fire({
+                        title: "Accepted!",
+                        text: "Referral has been accepted successfully.",
+                        icon: "success",
+                        timer: 2000,
+                        showConfirmButton: false,
+                    });
+                    // UI auto-updates via onSnapshot
+                } catch (error) {
+                    console.error("Error accepting referral:", error);
+                    Swal.fire(
+                        "Error",
+                        "Failed to accept referral. Try again.",
+                        "error"
+                    );
+                }
             }
-        }
-    });
-};
+        });
+    };
 
-    // ✅ Handle tab change
+    // Reject referral with reason
+    const handleReject = async (ref) => {
+        Swal.fire({
+            title: "Reject Referral?",
+            html: `
+                <p>Please enter the reason for rejection:</p>
+                <textarea id="rejectReason" class="swal2-textarea" placeholder="Reason here..."></textarea>
+            `,
+            showCancelButton: true,
+            confirmButtonText: "Reject",
+            cancelButtonText: "Cancel",
+            preConfirm: () => {
+                const reasonEl = document.getElementById("rejectReason");
+                const reason = reasonEl ? reasonEl.value : "";
+                if (!reason.trim()) {
+                    Swal.showValidationMessage("Reason is required");
+                    return false;
+                }
+                return reason;
+            },
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                const reason = result.value;
+
+                try {
+                    const docRef = doc(db, COLLECTIONS.referral, ref.id);
+
+                    await updateDoc(docRef, {
+                        dealStatus: "Rejected",
+                        "cosmoOrbiter.dealStatus": "Rejected",
+                        rejectReason: reason,
+                        statusLogs: arrayUnion({
+                            status: "Rejected",
+                            reason: reason,
+                            updatedAt: Timestamp.now(),
+                        }),
+                        lastUpdated: Timestamp.now(),
+                    });
+
+                    const orbiterMsg = `Your referral was rejected.\nReason: ${reason}`;
+                    const cosmoMsg = `You have rejected a referral.\nReason: ${reason}`;
+
+                    await Promise.all([
+                        sendWhatsAppTemplate(
+                            ref.orbiter.phone,
+                            ref.orbiter.name,
+                            orbiterMsg
+                        ),
+                        sendWhatsAppTemplate(
+                            ref.cosmoOrbiter.phone,
+                            ref.cosmoOrbiter.name,
+                            cosmoMsg
+                        ),
+                    ]);
+
+                    Swal.fire({
+                        icon: "success",
+                        title: "Referral Rejected",
+                        text: "Reason saved & notifications sent.",
+                    });
+                } catch (error) {
+                    console.error("Reject error:", error);
+                    Swal.fire("Error", "Failed to reject referral.", "error");
+                }
+            }
+        });
+    };
+
     const handleTabClick = (tabKey) => {
         setActiveTab(tabKey);
     };
 
-    // Referrals for the active tab
     const referrals = allReferrals[activeTab];
-
-
-    // ✅ Referral Count Logic
-    useEffect(() => {
-        const fetchReferralData = async () => {
-            const storedUjb = localStorage.getItem('mmUJBCode');
-            if (!storedUjb) return;
-
-            const referralSnap = await getDocs(collection(db, COLLECTIONS.referral));
-
-            let myReferral = 0;
-            let passedReferral = 0;
-
-            referralSnap.forEach(doc => {
-                const data = doc.data();
-
-                // ✅ My Referral → logged-in user's UJB is inside cosmoOrbiter
-                if (data.cosmoOrbiter?.ujbCode === storedUjb) {
-                    myReferral++;
-                }
-
-                // ✅ Passed Referral → logged-in user's UJB is inside orbiter
-                if (data.orbiter?.ujbCode === storedUjb) {
-                    passedReferral++;
-                }
-            });
-
-            setNtMeetCount(myReferral);        // ✅ My Referral
-            setMonthlyMetCount(passedReferral); // ✅ Passed Referral
-        };
-
-        fetchReferralData();
-    }, []);
 
     return (
         <main className="pageContainer">
@@ -366,12 +381,9 @@ const handleAccept = async (ref) => {
                     <h2>
                         {activeTab === "my"
                             ? `My Referrals (${ntMeetCount})`
-                            : `Passed Referrals (${monthlyMetCount})`
-                        }
+                            : `Passed Referrals (${monthlyMetCount})`}
                     </h2>
                 </div>
-
-
 
                 {/* Tabs */}
                 <div className="referralTabs">
@@ -379,13 +391,14 @@ const handleAccept = async (ref) => {
                         <button
                             key={tab.key}
                             onClick={() => handleTabClick(tab.key)}
-                            className={`tabButton ${activeTab === tab.key ? "active" : ""}`}
+                            className={`tabButton ${
+                                activeTab === tab.key ? "active" : ""
+                            }`}
                         >
                             {tab.name}
                         </button>
                     ))}
                 </div>
-
 
                 <div className="container eventList">
                     {loading ? (
@@ -395,106 +408,240 @@ const handleAccept = async (ref) => {
                     ) : referrals.length === 0 ? (
                         <p className="noDataText">No referrals found.</p>
                     ) : (
-                        referrals.map((ref) => (
-                            <div key={ref.id} className="referralBox">
-                                <div className="boxHeader">
-                                  <div className="statuslabel">
-  <span
-    className={
-      ref.cosmoOrbiter?.dealStatus === "Pending"
-        ? "meetingLable-pending"
-        : ref.cosmoOrbiter?.dealStatus === "Deal Lost" ||
-          ref.cosmoOrbiter?.dealStatus === "Rejected"
-        ? "meetingLable-rejected"
-        : "meetingLable"
-    }
-  >
-    {ref.cosmoOrbiter?.dealStatus || "-"}
-  </span>
-</div>
+                        referrals.map((ref) => {
+                            const status =
+                                ref.dealStatus ||
+                                (ref.cosmoOrbiter &&
+                                    ref.cosmoOrbiter.dealStatus) ||
+                                "Pending";
 
-                                    <div className="referralDetails">
-                                        <abbr>{ref.referralId ? ref.referralId : null}</abbr>
-                                        <abbr>Date:{" "}
-                                            {ref.timestamp?.toDate
-                                                ? ref.timestamp.toDate().toLocaleString()
-                                                : "N/A"}</abbr>
+                            const isRejected =
+                                status === "Rejected" || status === "Reject";
+                            const isPending = status === "Pending";
+
+                            return (
+                                <div key={ref.id} className="referralBox">
+                                    <div className="boxHeader">
+                                        <div className="statuslabel">
+                                            <span
+                                                className={
+                                                    status === "Pending"
+                                                        ? "meetingLable-pending"
+                                                        : status ===
+                                                              "Deal Lost" ||
+                                                          status ===
+                                                              "Rejected" ||
+                                                          status === "Reject"
+                                                        ? "meetingLable-rejected"
+                                                        : "meetingLable"
+                                                }
+                                            >
+                                                {status}
+                                            </span>
+                                        </div>
+
+                                        <div className="referralDetails">
+                                            <abbr>
+                                                {ref.referralId
+                                                    ? ref.referralId
+                                                    : null}
+                                            </abbr>
+                                            <abbr>
+                                                Date:{" "}
+                                                {ref.timestamp &&
+                                                ref.timestamp.toDate
+                                                    ? ref.timestamp
+                                                          .toDate()
+                                                          .toLocaleString()
+                                                    : "N/A"}
+                                            </abbr>
+                                        </div>
                                     </div>
-                                    
 
+                                    <div className="cosmoCard-info">
+                                        <p className="cosmoCard-category">
+                                            {(ref.product &&
+                                                ref.product.name) ||
+                                                (ref.service &&
+                                                    ref.service.name) ||
+                                                "-"}
+                                        </p>
 
-                                </div>
-                                <div className="cosmoCard-info">
-                                    <p className="cosmoCard-category">
-                                        {ref.product?.name || ref.service?.name || "-"}
-                                    </p>
-                                    <h3 className="cosmoCard-owner">
-                                        {activeTab === "passed"
-                                            ? ref.cosmoOrbiter?.businessName || ref.cosmoOrbiter?.name || "-"
-                                            : ref.orbiter?.businessName || ref.orbiter?.name || "-"
-                                        }
-                                    </h3>
+                                        {ref.leadDescription && (
+                                            <p className="leadDesc">
+                                                {ref.leadDescription}
+                                            </p>
+                                        )}
 
-                                    {ref.cosmoOrbiter?.dealStatus === "Pending" ? (
-                                        <>
-                                            {/* <p className="">Contact details hidden (Deal Lost)</p> */}
-                                            {/* <button>Accept</button> */}
-                                        </>
-                                    ) : (
+                                        <h3
+                                            className={`cosmoCard-owner ${
+                                                activeTab === "my" &&
+                                                isPending
+                                                    ? "blur-info"
+                                                    : ""
+                                            }`}
+                                        >
+                                            {activeTab === "passed"
+                                                ? (ref.cosmoOrbiter &&
+                                                      (ref.cosmoOrbiter
+                                                          .businessName ||
+                                                          ref.cosmoOrbiter
+                                                              .name)) || "-"
+                                                : (ref.orbiter &&
+                                                      (ref.orbiter
+                                                          .businessName ||
+                                                          ref.orbiter
+                                                              .name)) || "-"}
+                                        </h3>
+
                                         <div className="cosmoCard-contactDetails">
                                             {activeTab === "passed" ? (
+                                                // Passed Referrals → always show all details
                                                 <ul>
                                                     <li>
-                                                        <HiOutlineMail /> {ref.cosmoOrbiter?.email}
+                                                        <HiOutlineMail />{" "}
+                                                        {ref.cosmoOrbiter &&
+                                                            ref.cosmoOrbiter
+                                                                .email}
                                                     </li>
                                                     <li>
-                                                        <IoIosCall /> {ref.cosmoOrbiter?.phone}
+                                                        <IoIosCall />{" "}
+                                                        {ref.cosmoOrbiter &&
+                                                            ref.cosmoOrbiter
+                                                                .phone}
                                                     </li>
                                                 </ul>
                                             ) : (
-                                                <ul>
-                                                    <li><HiOutlineMail /> {ref.orbiter?.email}</li>
-                                                    <li><IoIosCall /> {ref.orbiter?.phone}</li>
-                                                </ul>
+                                                // My Referrals
+                                                <>
+                                                    {isRejected ? (
+                                                        <p className="lockedNote">
+                                                            Contact details
+                                                            hidden (Referral
+                                                            Rejected).
+                                                        </p>
+                                                    ) : (
+                                                        <ul
+                                                            className={
+                                                                isPending
+                                                                    ? "blur-info"
+                                                                    : ""
+                                                            }
+                                                        >
+                                                            <li>
+                                                                <HiOutlineMail />{" "}
+                                                                {ref.orbiter &&
+                                                                    ref.orbiter
+                                                                        .email}
+                                                            </li>
+                                                            <li>
+                                                                <IoIosCall />{" "}
+                                                                {ref.orbiter &&
+                                                                    ref.orbiter
+                                                                        .phone}
+                                                            </li>
+                                                        </ul>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
-                                    )}
 
+                                        {ref.rejectReason && (
+                                            <p className="rejectReason">
+                                                <strong>Reject Reason:</strong>{" "}
+                                                {ref.rejectReason}
+                                            </p>
+                                        )}
 
-                                    
+                                        {/* Deal status dropdown for My Referrals (accepted & not rejected & not pending) */}
+                                        {activeTab === "my" &&
+                                            !isPending &&
+                                            !isRejected && (
+                                                <div className="statusDropdown">
+                                                    <label>
+                                                        Deal Status:{" "}
+                                                    </label>
+                                                    <select
+                                                        value={status}
+                                                        onChange={(e) =>
+                                                            handleStatusChange(
+                                                                ref,
+                                                                e.target.value
+                                                            )
+                                                        }
+                                                    >
+                                                        {statusOptions.map(
+                                                            (opt) => (
+                                                                <option
+                                                                    key={opt}
+                                                                    value={opt}
+                                                                >
+                                                                    {opt}
+                                                                </option>
+                                                            )
+                                                        )}
+                                                    </select>
+                                                </div>
+                                            )}
+                                    </div>
 
+                                    <div className="cosmoCard-actions">
+                                        {activeTab === "my" ? (
+                                            isRejected ? (
+                                                <Link
+                                                    href={`/ReferralsDetails/${ref.id}`}
+                                                    className="viewDetails"
+                                                >
+                                                    View Details
+                                                </Link>
+                                            ) : !(
+                                                  ref.cosmoOrbiter &&
+                                                  ref.cosmoOrbiter.dealStatus
+                                              ) || isPending ? (
+                                                <>
+                                                    <button
+                                                        className="m-button-5"
+                                                        onClick={() =>
+                                                            handleAccept(ref)
+                                                        }
+                                                    >
+                                                        Accept
+                                                    </button>
+                                                    <button
+                                                        className="m-button-5 rejectBtn"
+                                                        onClick={() =>
+                                                            handleReject(ref)
+                                                        }
+                                                    >
+                                                        Reject
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <Link
+                                                    href={`/ReferralsDetails/${ref.id}`}
+                                                    className="viewDetails"
+                                                >
+                                                    View Details
+                                                </Link>
+                                            )
+                                        ) : (
+                                            <Link
+                                                href={`/ReferralsDetails/${ref.id}`}
+                                                className="viewDetails"
+                                            >
+                                                View Details
+                                            </Link>
+                                        )}
+                                    </div>
                                 </div>
-                            
- <div className="cosmoCard-actions">
-  {activeTab === "my" ? (
-    (!ref.cosmoOrbiter?.dealStatus || ref.cosmoOrbiter?.dealStatus === "Pending") ? (
-      <button className="m-button-5" onClick={() => handleAccept(ref)}>
-        Accept
-      </button>
-    ) : (
-      <Link href={`/ReferralsDetails/${ref.id}`} className="viewDetails">
-        View Details
-      </Link>
-    )
-  ) : (
-    <Link href={`/ReferralsDetails/${ref.id}`} className="viewDetails">
-      View Details
-    </Link>
-  )}
-</div>
-
- 
-
-                            </div>
-
-                        ))
+                            );
+                        })
                     )}
                 </div>
 
-
                 <HeaderNav />
             </section>
-        </main >
+        </main>
     );
 };
 
