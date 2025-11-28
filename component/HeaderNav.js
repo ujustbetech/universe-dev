@@ -19,13 +19,12 @@ const HeaderNav = () => {
 
   const navItems = useMemo(() => [
     { label: "Home", icon: <FiHome size={26} />, path: "/" },
+    { label: "Business", icon: <MdBusinessCenter size={26} />, path: "/ReferralDetails" },
+    { label: "Referrals", icon: <FaPeopleArrows size={26} />, path: `/ReferralList` },
     { label: "MM", icon: <MdOutlineBusinessCenter size={26} />, path: "/Monthlymeetdetails" },
     { label: "Conclave", icon: <GrGroup size={26} />, path: "/ConclaveMeeting" },
-    { label: "Referrals", icon: <FaPeopleArrows size={26} />, path: `/ReferralList` },
-     { label: "Payments", icon: <MdPayment size={26} />, path: `/PaymentRec` },
-    { label: "Business", icon: <MdBusinessCenter size={26} />, path: "/ReferralDetails" },
- 
-      { label: "Prospect", icon: <GiNewBorn size={26} />, path: "/UsersProspect" },
+    { label: "Prospect", icon: <GiNewBorn size={26} />, path: "/UsersProspect" },
+    { label: "Payments", icon: <MdPayment size={26} />, path: `/PaymentRec` },
     { label: "Profile", icon: <HiUser size={26} />, path: "/ProfilePage" },
   ], [user.phoneNumber]);
 

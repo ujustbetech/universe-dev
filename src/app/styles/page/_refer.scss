@@ -1,3 +1,9 @@
+$bluecolor: #16274f;
+$bordercolor: #ced4da;
+$radiobtn: #0bb197;
+$pclr: #a1cbd9;
+$mcolor: #fe6f06;
+
 /* Modal Overlay */
 .ref-modal-overlay {
     position: fixed;
@@ -326,7 +332,7 @@
     flex: 1;
     flex-direction: column;
     row-gap: 5px;
-    .leadDesc{
+    .leadDesc {
         color: $bodytextcolor;
     }
 }
@@ -694,6 +700,27 @@
     }
 }
 
+.statusDropdown {
+    display: flex;
+    column-gap: 10px; 
+    color: $bodytextcolor;
+    align-items: center;
+        select {
+            border: 1px solid $bordercolor;
+            border-radius: 8px;
+            padding: 0.65rem 0.75rem;
+            background: #fff;
+            font-size: 0.95rem;
+            color: $bodytextcolor;
+            width: 100%;
+
+            &:focus {
+                border-color: $bluecolor;
+                outline: none;
+            }
+        }
+    }
+
 .referralBox {
     background: #fff;
     border-radius: 10px;
@@ -722,6 +749,8 @@
             }
         }
     }
+
+    
 
     .cosmoCard-actions {
         display: flex;
