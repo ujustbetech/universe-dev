@@ -211,7 +211,7 @@ const sendAssesmentMessage = async (orbiterName, prospectName, phone,formLink) =
     }
   
     try {
-      const prospectRef = collection(db, 'Prospects_dev');
+      const prospectRef = collection(db, 'Prospects');
       const formattedDate = date ? formatReadableDate(date) : null;
   
       const data = {

@@ -54,7 +54,7 @@ const EditAdminEvent = () => {
 
   const fetchEvent = async (index) => {
     try {
-      const eventDoc = doc(db, 'Prospects', id);
+      const eventDoc = doc(db, 'Prospects_dev', id);
       const eventSnapshot = await getDoc(eventDoc);
       if (eventSnapshot.exists()) {
         const data = eventSnapshot.data();
