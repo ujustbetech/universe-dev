@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import {
     getFirestore,
     collection,
-    getDocs,
     query,
     where,
     orderBy,
@@ -12,9 +11,10 @@ import {
     updateDoc,
     Timestamp,
     arrayUnion,
+    onSnapshot,
 } from "firebase/firestore";
 import { app } from "../firebaseConfig";
-import Link from 'next/link';
+import Link from "next/link";
 import HeaderNav from "../component/HeaderNav";
 import Swal from "sweetalert2";
 
@@ -24,12 +24,15 @@ import "../src/app/styles/user.scss";
 import { HiOutlineMail } from "react-icons/hi";
 import { IoIosCall } from "react-icons/io";
 
-
 const db = getFirestore(app);
+
 // Function to get dynamic message
 const getDynamicMessage = (template, referral) => {
     if (!template) return "";
 
+    const serviceOrProduct =
+        (referral.product && referral.product.name) ||
+        (referral.service && referral.service.name) ||
         "-";
 
     return template
@@ -37,9 +40,6 @@ const getDynamicMessage = (template, referral) => {
         .replace(/\(Orbiter Name\)/g, referral.orbiter.name)
         .replace(/\(Product\/Service\)/g, serviceOrProduct);
 };
-
-// Example usage:
-
 
 // Predefined status messages
 const statusMessages = {
@@ -103,12 +103,52 @@ const statusOptions = [
     "Hold",
 ];
 
+// WhatsApp sending
+const sendWhatsAppTemplate = async (phone, name, message) => {
+    if (!message || !phone) return;
+
+    const formatted = String(phone).replace(/\D/g, ""); // clean phone
+
+    const payload = {
+        messaging_product: "whatsapp",
+        to: formatted,
+        type: "template",
+        template: {
+            name: "referral_module", // must match WhatsApp template name
+            language: { code: "en" },
+            components: [
+                {
+                    type: "body",
+                    parameters: [
+                        { type: "text", text: name },
+                        { type: "text", text: message },
+                    ],
+                },
+            ],
+        },
+    };
+
+    const res = await fetch(
+        "https://graph.facebook.com/v19.0/527476310441806/messages",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization:
+                    "Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD", // move to env in real app
+            },
+            body: JSON.stringify(payload),
+        }
+    );
+
+    const result = await res.json();
+    console.log("WhatsApp API Response:", result);
+};
+
 const UserReferrals = () => {
-    // const [referrals, setReferrals] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [ntMeetCount, setNtMeetCount] = useState(0);
-    const [monthlyMetCount, setMonthlyMetCount] = useState(0);
     const [ntMeetCount, setNtMeetCount] = useState(0); // My referrals count
+    const [monthlyMetCount, setMonthlyMetCount] = useState(0); // Passed referrals count
     const [activeTab, setActiveTab] = useState("my");
     const [allReferrals, setAllReferrals] = useState({
         my: [],
@@ -125,44 +165,33 @@ const UserReferrals = () => {
         const storedUJB = localStorage.getItem("mmUJBCode");
         if (!storedUJB) {
             console.warn("UJB code not found in localStorage");
+            setLoading(false);
+            return;
+        }
 
+        setLoading(true);
 
+        const referralsCol = collection(db, COLLECTIONS.referral);
 
-        const fetchReferrals = async () => {
-                setLoading(true);
-                const storedUJB = localStorage.getItem("mmUJBCode");
-                if (!storedUJB) {
-                    console.warn("UJB code not found in localStorage");
-                    setLoading(false);
-                    return;
-                }
+        const myQuery = query(
+            referralsCol,
+            where("cosmoOrbiter.ujbCode", "==", storedUJB),
+            orderBy("timestamp", "desc")
+        );
 
-                const referralsCol = collection(db, COLLECTIONS.referral);
+        const passedQuery = query(
+            referralsCol,
+            where("orbiter.ujbCode", "==", storedUJB),
+            orderBy("timestamp", "desc")
+        );
 
-                // My Referrals (cosmoOrbiter.ujbCode)
-                const myQuery = query(
-                    where("cosmoOrbiter.ujbCode", "==", storedUJB),
-                    orderBy("timestamp", "desc")
-                );
-                const mySnapshot = await getDocs(myQuery);
-                const myReferrals = mySnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
+        const unsubMy = onSnapshot(
+            myQuery,
+            (snapshot) => {
+                const myReferrals = snapshot.docs.map((d) => ({
+                    id: d.id,
+                    ...d.data(),
                 }));
-
-                // Passed Referrals (orbiter.ujbCode)
-                const passedQuery = query(
-                    referralsCol,
-                    where("orbiter.ujbCode", "==", storedUJB),
-                );
-                const passedSnapshot = await getDocs(passedQuery);
-                const passedReferrals = passedSnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
-
-                setAllReferrals({ my: myReferrals, passed: passedReferrals });
-            } catch (error) {
                 setAllReferrals((prev) => ({ ...prev, my: myReferrals }));
                 setNtMeetCount(myReferrals.length);
                 setLoading(false);

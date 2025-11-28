@@ -1,0 +1,193 @@
+/* ===============================
+   Minimal UI — Prospect Form
+   Clean class names (pf-*)
+================================== */
+
+$bg-main: #f5f6f8;
+$card-bg: #ffffff;
+$border: #e5e7eb;
+$text-main: #111827;
+$text-muted: #6b7280;
+$accent: #2563eb;
+$accent-hover: #1e40af;
+
+/* ---------- Page Container ---------- */
+.pf-container {
+    //   min-height: 100vh;
+    //   background: $bg-main;
+    //   padding: 2rem 1rem 6rem;
+    //   font-family: Inter, sans-serif;
+    width: 100%;
+    padding: 0 15px;
+}
+
+/* ---------- Logo ---------- */
+.pf-logo {
+    text-align: center;
+    margin-bottom: 1rem;
+
+    img {
+        width: 110px;
+    }
+}
+
+/* ---------- Card ---------- */
+.pf-card {
+    background: $card-bg;
+    border: 1px solid $border;
+    border-radius: 12px;
+    padding: 15px;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* ---------- Step Progress ---------- */
+.pf-steps {
+    display: flex;
+    gap: 0.7rem;
+    margin-bottom: 1.4rem;
+}
+
+.pf-step {
+    flex: 1;
+    text-align: center;
+    padding: 0.55rem 0;
+    border-radius: 6px;
+    background: #fafafa;
+    border: 1px solid $border;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+
+    &.active {
+        background: $accent;
+        color: #fff;
+        border-color: $accent;
+    }
+}
+
+/* ---------- Section Wrapper ---------- */
+.pf-section {
+    margin-bottom: 2rem;
+
+    .formtitle {
+        font-size: 1.32rem;
+        font-weight: 600;
+        margin-bottom: 1.2rem;
+        color: $text-main;
+    }
+}
+
+/* ---------- Form Fields ---------- */
+.pf-field {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+
+    label {
+        font-size: 0.86rem;
+        font-weight: 500;
+        color: $text-muted;
+        margin-bottom: 0.25rem;
+    }
+
+    input,
+    select,
+    textarea {
+        border: 1px solid $border;
+        border-radius: 8px;
+        padding: 0.65rem 0.75rem;
+        background: #fff;
+        font-size: 0.95rem;
+        color: $text-main;
+
+        &:focus {
+            border-color: $accent;
+            outline: none;
+        }
+    }
+
+    textarea {
+        resize: vertical;
+    }
+}
+
+/* ---------- Checkbox Groups ---------- */
+.pf-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+
+    .pf-checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+
+        input[type="checkbox"] {
+            width: 17px;
+            height: 17px;
+        }
+    }
+}
+
+/* ---------- Navigation Buttons ---------- */
+.pf-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.6rem;
+
+    button {
+        padding: 0.65rem 1.2rem;
+        border: 1px solid $border;
+        background: #fff;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+
+        &:hover:not(:disabled) {
+            background: #f3f4f6;
+        }
+
+        &:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+    }
+}
+
+.pf-submit {
+    background: $accent !important;
+    color: #fff !important;
+    border-color: $accent !important;
+
+    &:hover {
+        background: $accent-hover !important;
+    }
+}
+
+/* ---------- Footer ---------- */
+.pf-footer {
+    text-align: center;
+    font-size: 0.9rem;
+    color: $text-muted;
+    margin-top: 2.4rem;
+}
+
+/* ---------- Responsive ---------- */
+@media (min-width: 800px) {
+    .pf-card {
+        padding: 2rem;
+    }
+
+    .pf-two-cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem 1.3rem;
+    }
+
+    .pf-submit {
+        width: 220px;
+        justify-self: end;
+    }
+}
