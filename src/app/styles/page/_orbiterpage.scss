@@ -1,118 +1,124 @@
+// Colors — Minimal & Neutral
+$bg-main: #f5f6f8;
+$card-bg: #ffffff;
+$border: #e5e7eb;
+$text-main: #111827;
+$text-muted: #6b7280;
+$accent: #072c50; // soft blue
+$accent-hover: #072c50;
+$mcolor:#fe6f06;
+
 .dashBoardMain {
-    &.profileMainPage {
-        .profile-photo-wrapper {
-            margin-top: 0px;
-        }
-
-        .profile-details {
-            h2 {
-                font-family: $forum;
-                color: $mcolor;
-                font-size: 24px;
-                margin-bottom: 0px;
-            }
-
-            span {
-                color: $pclr
-            }
-        }
-
-        .tab-contents {
-            padding: 0 15px;
-
-            .tab-header {
-                padding-bottom: 0rem;
-            }
-
-            .business-logo-section {
-
-
-                .businessLogo {
-                    overflow: hidden;
-                    border-radius: 10px;
-
-                    img {
-                        width: 100%;
-                    }
-                }
-            }
-
-            .vertical-tabs {
-                row-gap: 15px;
-
-                .tab-btn {
-                    font-family: $mukta;
-                    text-transform: uppercase;
-                    padding: 8px 16px;
-                    border-radius: 10px;
-                }
-            }
-
-            .offerings-section {
-                margin: 0px;
-            }
-
-            .tab-content-area {
-                display: flex;
-                flex-direction: column;
-                row-gap: 15px;
-            }
-
-            .offering-list {
-                display: flex;
-                flex-direction: column;
-                row-gap: 20px;
-                width: 100%;
-                align-items: center;
-                justify-content: center;
-
-
-                .offering-card {
-                    width: 100%;
-                    box-shadow: 0 0px 0px rgba(0, 0, 0, 0.1);
-                    padding: 0px;
-                    border: 0px solid #ccc;
-                    min-height: auto;
-
-                    // padding: 50px;
-                    .nothumbnail {
-                        background-color: $bordercolor;
-                        justify-content: center;
-                        display: flex;
-                        border-radius: 10px;
-                        padding: 50px 0px;
-                        font-size: 60px;
-                        color: $bodytextcolor;
-                    }
-
-                    .offerImage {
-                        img {
-                            width: 100%;
-                        }
-                    }
-
-                    .offerDesc {
-                        padding: 15px;
-                        text-align: left;
-                    }
-
-                    h4 {
-                        margin: 0px;
-                    }
-                }
-            }
-
-        }
-
-        .new-profile-container {
-            background: #fff;
-            padding: 25px;
-            border-radius: 10px;
-            max-width: 400px;
-            margin: auto;
-        }
+  &.profileMainPage {
+    .profile-photo-wrapper {
+      margin-top: 0px;
     }
-}/* Container */
+
+    .profile-details {
+      h2 {
+        font-family: $forum;
+        color: $mcolor;
+        font-size: 24px;
+        margin-bottom: 0px;
+      }
+
+      span {
+        color: $pclr;
+      }
+    }
+
+    .tab-contents {
+      padding: 0 15px;
+
+      .tab-header {
+        padding-bottom: 0rem;
+      }
+
+      .business-logo-section {
+        .businessLogo {
+          overflow: hidden;
+          border-radius: 10px;
+
+          img {
+            width: 100%;
+          }
+        }
+      }
+
+      .vertical-tabs {
+        row-gap: 15px;
+
+        .tab-btn {
+          font-family: $mukta;
+          text-transform: uppercase;
+          padding: 8px 16px;
+          border-radius: 10px;
+        }
+      }
+
+      .offerings-section {
+        margin: 0px;
+      }
+
+      .tab-content-area {
+        display: flex;
+        flex-direction: column;
+        row-gap: 15px;
+      }
+
+      .offering-list {
+        display: flex;
+        flex-direction: column;
+        row-gap: 20px;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+
+        .offering-card {
+          width: 100%;
+          box-shadow: 0 0px 0px rgba(0, 0, 0, 0.1);
+          padding: 0px;
+          border: 0px solid #ccc;
+          min-height: auto;
+
+          // padding: 50px;
+          .nothumbnail {
+            background-color: $bordercolor;
+            justify-content: center;
+            display: flex;
+            border-radius: 10px;
+            padding: 50px 0px;
+            font-size: 60px;
+            color: $bodytextcolor;
+          }
+
+          .offerImage {
+            img {
+              width: 100%;
+            }
+          }
+
+          .offerDesc {
+            padding: 15px;
+            text-align: left;
+          }
+
+          h4 {
+            margin: 0px;
+          }
+        }
+      }
+    }
+
+    .new-profile-container {
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      max-width: 400px;
+      margin: auto;
+    }
+  }
+} /* Container */
 .referralTabsWrapper {
   margin: 20px auto;
   max-width: 900px;
@@ -125,19 +131,19 @@
   max-width: 100%; /* Don't exceed viewport */
   box-sizing: border-box;
   overflow: hidden; /* Prevent tabs from going outside */
-  padding: 0 15px;  /* Optional horizontal padding */
+  padding: 0 15px; /* Optional horizontal padding */
 }
 
 /* Tabs Header (Scrollable) */
 .referralTabsHeader {
   display: flex;
-  flex-wrap: nowrap;             /* Stay in one line */
+  flex-wrap: nowrap; /* Stay in one line */
   gap: 10px;
   border-bottom: 2px solid #e6e9ef;
   margin-bottom: 20px;
-  overflow-x: auto;              /* Horizontal scroll if needed */
+  overflow-x: auto; /* Horizontal scroll if needed */
   -webkit-overflow-scrolling: touch; /* Smooth scroll on mobile */
-  width: 100%;                   /* Full container width */
+  width: 100%; /* Full container width */
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: #f133 #e6e9ef;
@@ -156,8 +162,8 @@
 
 /* Individual Tab Buttons */
 .referralTabButton {
-  flex: 0 0 auto;       /* Prevent shrinking */
-  white-space: nowrap;   /* Prevent text wrap */
+  flex: 0 0 auto; /* Prevent shrinking */
+  white-space: nowrap; /* Prevent text wrap */
   background: #f6f7fb;
   border: none;
   border-radius: 10px 10px 0 0;
@@ -186,7 +192,6 @@
 .referralTabButton {
   scroll-snap-align: start;
 }
-
 
 /* Tab Content Area */
 .referralTabsContent {
@@ -288,3 +293,141 @@
     max-width: 100%;
   }
 }
+
+// Form card
+.step-form-container {
+  background: $card-bg;
+  border: 1px solid $border;
+  border-radius: 12px;
+  padding: 20px;
+
+  .formtitle {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+
+  h2 {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: $text-muted;
+    margin-bottom: 1.4rem;
+  }
+
+  form{
+    display: flex;
+    flex-direction: column;
+    row-gap: 10px;
+  }
+}
+
+// Mentor info block
+.mentor-info {
+  border-bottom: 1px solid $border;
+  // border-radius: 10px;
+  padding: 1rem 1.2rem;
+  background: #fafafa;
+  margin: 1rem -1.2rem;
+  margin-bottom: 1.4rem;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem 1rem;
+}
+
+// Form fields
+.input-group {
+  display: flex;
+  flex-direction: column;
+  // gap: 10px;
+
+  label {
+    font-size: 14px;
+    color: $text-muted;
+    font-weight: 500;
+  }
+
+  input,
+  select {
+    border: 1px solid $border;
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.92rem;
+    background: #ffffff;
+    color: $text-main;
+    outline: none;
+
+    &:focus {
+      border-color: $accent;
+    }
+
+    &:disabled {
+      background: #f1f1f1;
+      color: $text-muted;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// Submit button — minimal & clean
+.save-button {
+  margin-top: 1.2rem;
+  width: 100%;
+  background: $mcolor;
+  border: none;
+  color: white;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    background: $accent-hover;
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.skeleton {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    #e3e3e3 0%,
+    #f5f5f5 50%,
+    #e3e3e3 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.profile-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.input-group .skeleton {
+  margin-top: 6px;
+}
+
+.connects-list,
+.offering-list {
+  .skeleton {
+    display: block;
+  }
+}
+

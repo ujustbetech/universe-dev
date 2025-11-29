@@ -7,6 +7,7 @@ import { useRouter } from "next/router";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import "../src/app/styles/user.scss";
 import HeaderNav from "../component/HeaderNav";
+import Headertop from "../component/Header";
 
 const UserProspects = () => {
   const router = useRouter();
@@ -49,97 +50,90 @@ const UserProspects = () => {
 
   return (
     <main className="pageContainer">
-      {/* -------- HEADER -------- */}
-      <header className="Main m-Header">
-        <section className="container">
-          <div className="innerLogo">
-            <img src="/ujustlogo.png" alt="Logo" className="logo" />
-          </div>
-        </section>
-      </header>
+      <Headertop />
 
       {/* -------- LIST AREA -------- */}
       <section className="dashBoardMain">
-    
-      
-         <div className='sectionHeadings'>
-  <h2>Your Prospects</h2>
 
-  <button
-    className="m-button"
-    onClick={() => router.push('/IntroProspect')}
-  >
-    + Add Prospect
-  </button>
-</div>
 
-         
-     
+        <div className='sectionHeadings'>
+          <h2>Your Prospects</h2>
 
-            {loading ? (
-               <div className="loader">
-                            <span className="loader2"></span>
-                        </div>
-            ) : prospects.length === 0 ? (
-              <p className="loading-text">No prospects found.</p>
-            ) : (
-              <div className="container eventList">
-  {prospects.map((p, index) => {
-    const status = p.sections?.[0]?.status || "Not Updated";
-    const type = p.sections?.[0]?.type || "-";
-    const regDate = p.registeredAt?.toDate?.().toLocaleString("en-GB") || "-";
-
-    return (
-      <Link
-        href={`/prospectform/${p.id}`}
-        key={p.id}
-        className="meetingBoxLink"
-      >
-        <div className="meetingBox">
-
-          {/* ---- TOP LABEL (STATUS) ---- */}
-          <div className="suggestionDetails">
-            <span className="meetingLable3">{status}</span>
-
-            <span className="suggestionTime">{regDate}</span>
-          </div>
-
-          {/* ---- MAIN NAME ---- */}
-          <div className="meetingDetails">
-            <h3 className="eventName">
-              {index + 1}. {p.prospectName}
-            </h3>
-          </div>
-
-          {/* ---- FOOTER ---- */}
-          <div className="meetingBoxFooter">
-            <div className="viewDetails">
-              <Link href={`/prospectform/${p.id}`}>View Details</Link>
-            </div>
-
-            <button
-              className="register-now-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.location.href = `/prospectform/${p.id}`;
-              }}
-            >
-         
-            </button>
-          </div>
-
+          <button
+            className="m-button"
+            onClick={() => router.push('/IntroProspect')}
+          >
+            + Add Prospect
+          </button>
         </div>
-      </Link>
-    );
-  })}
-</div>
-
-            )}
 
 
-      
 
-        <HeaderNav/>
+
+        {loading ? (
+          <div className="loader">
+            <span className="loader2"></span>
+          </div>
+        ) : prospects.length === 0 ? (
+          <p className="loading-text">No prospects found.</p>
+        ) : (
+          <div className="container eventList">
+            {prospects.map((p, index) => {
+              const status = p.sections?.[0]?.status || "Not Updated";
+              const type = p.sections?.[0]?.type || "-";
+              const regDate = p.registeredAt?.toDate?.().toLocaleString("en-GB") || "-";
+
+              return (
+                <Link
+                  href={`/prospectform/${p.id}`}
+                  key={p.id}
+                  className="meetingBoxLink"
+                >
+                  <div className="meetingBox">
+
+                    {/* ---- TOP LABEL (STATUS) ---- */}
+                    <div className="suggestionDetails">
+                      <span className="meetingLable3">{status}</span>
+
+                      <span className="suggestionTime">{regDate}</span>
+                    </div>
+
+                    {/* ---- MAIN NAME ---- */}
+                    <div className="meetingDetails">
+                      <h3 className="eventName">
+                        {index + 1}. {p.prospectName}
+                      </h3>
+                    </div>
+
+                    {/* ---- FOOTER ---- */}
+                    <div className="meetingBoxFooter">
+                      <div className="viewDetails">
+                        <Link href={`/prospectform/${p.id}`}>View Details</Link>
+                      </div>
+
+                      <button
+                        className="register-now-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.location.href = `/prospectform/${p.id}`;
+                        }}
+                      >
+
+                      </button>
+                    </div>
+
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+        )}
+
+
+
+
+        <HeaderNav />
       </section>
     </main>
   );
