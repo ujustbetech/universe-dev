@@ -18,7 +18,7 @@ const { conclaveId, id: meetingId } = router.query;
 
  const fetchDoc = async () => {
   if (!conclaveId || !meetingId) return;
-  const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+  const docRef = doc(db, 'COLLECTIONS.conclaves', conclaveId, 'meetings', meetingId);
   const docSnap = await getDoc(docRef);
 
   if (docSnap.exists()) {
@@ -62,7 +62,7 @@ const { conclaveId, id: meetingId } = router.query;
         });
       }
   
-    const eventRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const eventRef = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
 
   
       await updateDoc(eventRef, {

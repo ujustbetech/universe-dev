@@ -76,7 +76,7 @@ const handleRemoveReqSection = async (index) => {
   if (toRemove.reqfrom || toRemove.reqDescription) {
     try {
       if (!conclaveId || !meetingId) throw new Error("Missing IDs");
-      const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+      const docRef = doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
       const snapshot = await getDoc(docRef);
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -95,7 +95,7 @@ const handleSaveRequirements = async () => {
   setLoading(true);
   try {
     if (!conclaveId || !meetingId) throw new Error("Missing IDs");
-    const docRef = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const docRef = doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
 
     const cleanedRequirementSections = requirementSections.map(
       ({ reqDescription, reqfrom }) => ({

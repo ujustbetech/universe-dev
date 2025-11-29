@@ -15,7 +15,7 @@ const ManageEvents = () => {
   useEffect(() => {
     const fetchConclavesAndUsers = async () => {
       try {
-        const conclaveSnapshot = await getDocs(collection(db, 'Conclaves'));
+        const conclaveSnapshot = await getDocs(collection(db, COLLECTIONS.conclaves));
         const conclaveList = conclaveSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),

@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../../../component/Layout';
 import "../../../../pages/feedback.css";
 import "../../../../src/app/styles/main.scss";
+import { COLLECTIONS } from "/utility_collection";
 import { addDoc, collection, doc, getDoc,getDocs, Timestamp } from 'firebase/firestore';
 import Edit from '../../../../component/EditConclave';
 
@@ -32,7 +33,7 @@ const [meetings, setMeetings] = useState([]);
       if (!id) return;
       setLoading(true);
       try {
-        const docRef = doc(db, 'Conclaves', id);
+        const docRef = doc(db,COLLECTIONS.conclaves, id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           seteventData(docSnap.data());
@@ -50,14 +51,14 @@ useEffect(() => {
     if (!id) return;
     setLoading(true);
     try {
-      const docRef = doc(db, 'Conclaves', id);
+      const docRef = doc(db,COLLECTIONS.conclaves, id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         seteventData(docSnap.data());
       }
 
       // 🔁 Fetch meetings
-      const meetingsRef = collection(db, 'Conclaves', id, 'meetings');
+      const meetingsRef = collection(db, COLLECTIONS.conclaves, id, 'meetings');
       const snapshot = await getDocs(meetingsRef);
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -150,7 +151,7 @@ const handleMeetingSubmit = async (e) => {
       createdAt: Timestamp.now()
     };
 
-    const meetingRef = collection(db, 'Conclaves', id, 'meetings');
+    const meetingRef = collection(db, COLLECTIONS.conclaves, id, 'meetings');
     const newDocRef = await addDoc(meetingRef, meetingData);
 
     alert('Meeting added successfully!');

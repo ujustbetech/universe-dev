@@ -7,6 +7,7 @@ import "../../../../pages/feedback.css";
 import "../../../../src/app/styles/main.scss";
 import DocumentUpload from '../../../../component/MeetingUploadMOM';
 import Edit from '../../../../component/AddMeeting';
+import { COLLECTIONS } from "/utility_collection";
 import ReferralSection from '../../../../component/ConclaveReferral';
 import RequirementPage from '../../../../component/MeetingRequirement';
 import ParticipantSection from '../../../../component/ConclaveParticipants';
@@ -35,7 +36,7 @@ const fetchEvent = async (index) => {
   if (!conclaveId || !meetingId) return;
 
   try {
-    const eventDoc = doc(db, 'Conclaves', conclaveId, 'meetings', meetingId);
+    const eventDoc = doc(db, COLLECTIONS.conclaves, conclaveId, 'meetings', meetingId);
     const eventSnapshot = await getDoc(eventDoc);
 
     if (eventSnapshot.exists()) {

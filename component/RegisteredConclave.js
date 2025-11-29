@@ -44,7 +44,7 @@ const RegisteredUsers = () => {
   useEffect(() => {
     if (!router.isReady || !conclaveId || !effectiveEventId) return;
 
-    const registeredUsersRef = collection(db, `Conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers`);
+    const registeredUsersRef = collection(db, `COLLECTIONS.conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers`);
     const usersQuery = query(registeredUsersRef, orderBy('registeredAt', 'desc'));
 
     const unsubscribe = onSnapshot(usersQuery, async (snapshot) => {
@@ -112,7 +112,7 @@ const RegisteredUsers = () => {
     };
 
     try {
-      const ref = doc(db, `Conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers/${currentUserId}`);
+      const ref = doc(db, `COLLECTIONS.conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers/${currentUserId}`);
       await updateDoc(ref, {
         feedback: arrayUnion(entry)
       });
@@ -126,7 +126,7 @@ const RegisteredUsers = () => {
 
   const markAttendance = async (userId) => {
     try {
-      const ref = doc(db, `Conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers/${userId}`);
+      const ref = doc(db, `COLLECTIONS.conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers/${userId}`);
       await updateDoc(ref, { attendanceStatus: true });
       setMarkedAttendance(prev => ({ ...prev, [userId]: true }));
     } catch (err) {
@@ -136,7 +136,7 @@ const RegisteredUsers = () => {
 
   useEffect(() => {
     const fetchAttendance = async () => {
-      const ref = collection(db, `Conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers`);
+      const ref = collection(db, `COLLECTIONS.conclaves/${conclaveId}/meetings/${effectiveEventId}/registeredUsers`);
       const snap = await getDocs(ref);
       const statusMap = {};
       snap.forEach(doc => {
