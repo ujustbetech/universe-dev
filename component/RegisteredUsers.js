@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, doc, getDoc, updateDoc, arrayUnion,query,orderBy,onSnapshot,where,serverTimestamp } from 'firebase/firestore';
-import { useRouter } from 'next/router'; 
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+  query,
+  orderBy,
+  onSnapshot,
+  where,
+  serverTimestamp
+} from 'firebase/firestore';
+import { useRouter } from 'next/router';
 import Layout from './Layout';
 import "../src/app/styles/main.scss";
 import { IoMdClose } from "react-icons/io";
@@ -10,7 +22,8 @@ import ExportToExcel from '../ExporttoExcel';
 import Modal from 'react-modal';
 import { FaSearch } from "react-icons/fa";
 
-Modal.setAppElement('#__next'); 
+Modal.setAppElement('#__next');
+
 const customStyles = {
   content: { 
     top: '50%',
@@ -28,27 +41,25 @@ const customStyles = {
 
 const RegisteredUsers = ({ eventId }) => {
   const router = useRouter();
-const [markedAttendance, setMarkedAttendance] = useState({});
 
   const [registeredUsers, setRegisteredUsers] = useState([]);
-  const [filteredUsers, setFilteredUsers] = useState([]); 
-  const [searchTerm, setSearchTerm] = useState(''); 
+  const [filteredUsers, setFilteredUsers] = useState([]);
+
   const [registeredNumberFilter, setRegisteredNumberFilter] = useState('');
-  const [ujbCodeFilter, setUjbCodeFilter] = useState('');
   const [userNameFilter, setUserNameFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
 
-  const [feedbacks, setFeedbacks] = useState({});
+  const [markedAttendance, setMarkedAttendance] = useState({});
   const [modalIsOpen, setModalIsOpen] = useState(false);
-  const [addFeedbackModalIsOpen, setAddFeedbackModalIsOpen] = useState(false); // State for add feedback modal
+  const [addFeedbackModalIsOpen, setAddFeedbackModalIsOpen] = useState(false);
+
   const [selectedUserName, setSelectedUserName] = useState('');
   const [selectedFeedbacks, setSelectedFeedbacks] = useState([]);
-  const [error, setError] = useState('');
-  const [currentUserId, setCurrentUserId] = useState(''); 
-  const [predefinedFeedback, setPredefinedFeedback] = useState(''); 
-  const [customFeedback, setCustomFeedback] = useState(''); 
+  const [currentUserId, setCurrentUserId] = useState('');
 
-  
+  const [predefinedFeedback, setPredefinedFeedback] = useState('');
+  const [customFeedback, setCustomFeedback] = useState('');
+
   const predefinedFeedbacks = [
     "Available",
     "Not Available",
@@ -58,479 +69,354 @@ const [markedAttendance, setMarkedAttendance] = useState({});
     "Other response",
   ];
 
+  // ✅ REAL FIX HERE — Correctly fetch name/category using MobileNo
   useEffect(() => {
     if (!router.isReady || !eventId) return;
-    console.log('Event ID:', eventId);
-    const registeredUsersRef = collection(db, `MonthlyMeeting/${eventId}/registeredUsers`);
+
+    const registeredUsersRef = collection(
+      db,
+      `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`
+    );
+
     const usersQuery = query(registeredUsersRef, orderBy('registeredAt', 'desc'));
-  
+
     const unsubscribe = onSnapshot(usersQuery, async (snapshot) => {
-      if (!snapshot.empty) {
-        const userDetails = snapshot.docs.map((doc) => ({
-          id: doc.id, // User's phone number as doc ID
-          ...doc.data(),
-        }));
-  
-        try {
-          const nameAndUJBPromises = userDetails.map(async (user) => {
-            const userDocRef = doc(db, `userdetails/${user.id}`);
-            const userDocSnap = await getDoc(userDocRef);
-  
-            return {
-              id: user.id,
-              name: userDocSnap.exists() ? userDocSnap.data()[" Name"] : 'Unknown',
-              ujbcode: userDocSnap.exists() ? userDocSnap.data()["UJB Code"] : 'Unknown',
-              category: userDocSnap.exists() ? userDocSnap.data()["Category"] : 'Unknown',
-              ...user,
-            };
-          });
-  
-          const completeUsers = await Promise.all(nameAndUJBPromises);
-          setRegisteredUsers(completeUsers);
-          console.log("Fetched Users with Details:", completeUsers);
-  
-        } catch (error) {
-          console.error("Error fetching additional user details:", error);
-        }
-      } else {
-        console.log("No registered users found.");
+      if (snapshot.empty) {
         setRegisteredUsers([]);
+        return;
       }
-    }, (error) => {
-      console.error('Error fetching registered users:', error);
+
+      const rawUsers = snapshot.docs.map((doc) => ({
+        id: doc.id,   // phone number
+        ...doc.data(),
+      }));
+
+      const enrichedUsers = await Promise.all(
+        rawUsers.map(async (user) => {
+          const phone = user.id;
+
+          // 🔥 FIX: since userdetails docId = UJB Code, find via MobileNo
+          const q = query(
+            collection(db, COLLECTIONS.userDetail),
+            where("MobileNo", "==", phone)
+          );
+
+          const snap = await getDocs(q);
+          let userData = {};
+
+          if (!snap.empty) {
+            userData = snap.docs[0].data();
+          }
+
+          return {
+            id: phone,
+            name: userData["Name"] || "Unknown",
+            ujbcode: userData["UJBCode"] || "Unknown",
+            category: userData["Category"] || "Unknown",
+            ...user,
+          };
+        })
+      );
+
+      setRegisteredUsers(enrichedUsers);
     });
-  
-    return () => unsubscribe();  // Cleanup listener on unmount
-}, [router.isReady, eventId]);
-  
- useEffect(() => {
+
+    return () => unsubscribe();
+  }, [router.isReady, eventId]);
+
+  // Filters
+  useEffect(() => {
     const filtered = registeredUsers.filter((user) =>
       (user.id || '').toLowerCase().includes(registeredNumberFilter.toLowerCase()) &&
-      (user.ujbcode || '').toLowerCase().includes(ujbCodeFilter.toLowerCase()) &&
       (user.name || '').toLowerCase().includes(userNameFilter.toLowerCase()) &&
       (user.category || '').toLowerCase().includes(categoryFilter.toLowerCase())
     );
     setFilteredUsers(filtered);
-  }, [registeredUsers, registeredNumberFilter, ujbCodeFilter, userNameFilter, categoryFilter]);
-  
+  }, [registeredUsers, registeredNumberFilter, userNameFilter, categoryFilter]);
 
-  const handleSearchChange = (e, setFilter) => {
-    setFilter(e.target.value);
-  };
+  const handleSearchChange = (e, setter) => setter(e.target.value);
 
-  
-  const openModal = (userFeedbacks, userName) => {
-    setSelectedFeedbacks(userFeedbacks || []);
-    setSelectedUserName(userName);
+  // Feedback modals
+  const openModal = (fb, name) => {
+    setSelectedFeedbacks(fb || []);
+    setSelectedUserName(name);
     setModalIsOpen(true);
   };
 
-  // Open add feedback modal
-  const openAddFeedbackModal = (userId, userName) => {
-    setCurrentUserId(userId);
-    setSelectedUserName(userName);
+  const closeModal = () => setModalIsOpen(false);
+
+  const openAddFeedbackModal = (id, name) => {
+    setCurrentUserId(id);
+    setSelectedUserName(name);
     setAddFeedbackModalIsOpen(true);
   };
 
-  // Close feedback modal
-  const closeModal = () => {
-    setModalIsOpen(false);
-  };
-
-  // Close add feedback modal
   const closeAddFeedbackModal = () => {
     setAddFeedbackModalIsOpen(false);
-    setPredefinedFeedback(''); 
-    setCustomFeedback(''); 
+    setPredefinedFeedback('');
+    setCustomFeedback('');
   };
 
-  
-  const handlePredefinedFeedbackChange = (userId, feedback) => {
-    setFeedbacks(prev => ({
-      ...prev,
-      [userId]: { ...prev[userId], predefined: feedback, custom: prev[userId]?.custom || '' }
-    }));
-  };
-
-  // Handle custom feedback change in input
-  const handleCustomFeedbackChange = (userId, feedback) => {
-    setFeedbacks(prev => ({
-      ...prev,
-      [userId]: { ...prev[userId], custom: feedback }
-    }));
-  };
-
-
-  const submitFeedback = async (userId) => {
-    const { predefined, custom } = feedbacks[userId] || {};
-    if (!predefined && !custom) { 
-      alert("Please provide feedback before submitting.");
-      return;
-    }
-    
-    const timestamp = new Date().toLocaleString(); 
-    const feedbackEntry = {
-      predefined: predefined || 'No predefined feedback',
-      custom: custom || 'No custom feedback',
-      timestamp: `Submitted on: ${timestamp}`
-    };
-
-    await updateFeedback(userId, feedbackEntry);
-  };
-
-  // Update feedback in Firestore
   const updateFeedback = async (userId, feedbackEntry) => {
-    try {
-      const userRef = doc(db, `MonthlyMeeting/${eventId}/registeredUsers`, userId);
-      
-      await updateDoc(userRef, {
-        feedback: arrayUnion(feedbackEntry)
-      });
-      
-      alert("Feedback submitted successfully!");
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      alert("Error submitting feedback. Please try again.");
-    }
-  };
+    const ref = doc(
+      db,
+      `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`,
+      userId
+    );
 
-  // Submit feedback from the add feedback modal
-  const submitAddFeedback = async () => {
-    if (!predefinedFeedback && !customFeedback) {
-      alert("Please provide feedback before submitting.");
-      return;
-    }
-
-    const timestamp = new Date().toLocaleString();
-    const feedbackEntry = {
-      predefined: predefinedFeedback || 'No predefined feedback',
-      custom: customFeedback || 'No custom feedback',
-      timestamp: `Submitted on: ${timestamp}`
-    };
-
-    await updateFeedback(currentUserId, feedbackEntry);
-    closeAddFeedbackModal();
-  };
-const markAttendance = async (phoneNumber) => {
-  if (!eventId) {
-    console.error("Event ID is missing");
-    return;
-  }
-
-  try {
-    const userRef = doc(db, "MonthlyMeeting", eventId, "registeredUsers", phoneNumber);
-
-    await updateDoc(userRef, {
-      attendanceStatus: true,
-      timestamp: serverTimestamp()
+    await updateDoc(ref, {
+      feedback: arrayUnion(feedbackEntry),
     });
 
-    // Update local state to reflect UI change
-    setMarkedAttendance(prev => ({ ...prev, [phoneNumber]: true }));
-
-    alert("Attendance marked successfully!");
-  } catch (error) {
-    console.error("Failed to mark attendance:", error);
-    alert("Error marking attendance.");
-  }
-};
-useEffect(() => {
-  const fetchAttendanceStatuses = async () => {
-    try {
-      const usersSnapshot = await getDocs(collection(db, "MonthlyMeeting", eventId, "registeredUsers"));
-      const attendanceMap = {};
-      usersSnapshot.forEach(doc => {
-        const data = doc.data();
-        attendanceMap[doc.id] = data.attendanceStatus || false;
-      });
-      setMarkedAttendance(attendanceMap);
-    } catch (error) {
-      console.error("Error fetching attendance statuses:", error);
-    }
+    alert("Feedback submitted successfully!");
   };
 
-  if (eventId) {
-    fetchAttendanceStatuses();
-  }
-}, [eventId]);
-
-  const handleMeetingDone = async () => {
-    const accessToken = "EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD"; // Replace with your Meta API token
-    const phoneNumberId = "527476310441806";  
-  
-    if (!eventId) {
-      alert("Event ID is missing!");
+  const submitAddFeedback = async () => {
+    if (!predefinedFeedback && !customFeedback) {
+      alert("Please provide feedback.");
       return;
     }
-  
-    try {
-      const usersRef = collection(db, "MonthlyMeeting", eventId, "registeredUsers");
-      const q = query(usersRef, where("attendanceStatus", "==", true));
-      const querySnapshot = await getDocs(q);
-  
-      if (querySnapshot.empty) {
-        alert("No attendees found.");
-        return;
-      }
-  
-      for (const docSnap of querySnapshot.docs) {
-        const phoneNumber = docSnap.id;
-  
-        // Get user name from userdetails/{phoneNumber}
-        const userDocRef = doc(db, "userdetails", phoneNumber);
-        const userDocSnap = await getDoc(userDocRef);
-        const userName = userDocSnap.exists() ? userDocSnap.data()[" Name"] || "there" : "there";
-  
-        // Send WhatsApp Message
-        const response = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: `91${phoneNumber}`, // Make sure it's a valid WhatsApp number
-            type: "template",
-            template: {
-              name: "post_thankyou_mm",
-              language: {
-                code: "en",
-              },
-              components: [
-                {
-                  type: "body",
-                  parameters: [
-                    {
-                      type: "text",
-                      text: userName,
-                    },
-                  ],
-                },
-              ],
-            },
-          }),
-        });
-  
-        const result = await response.json();
-        console.log("WhatsApp Response:", result);
-      }
-  
-      alert("Thank you messages sent to all attendees.");
-    } catch (error) {
-      console.error("Error sending WhatsApp messages:", error);
-      alert("Something went wrong while sending messages.");
-    }
+
+    const entry = {
+      predefined: predefinedFeedback || "None",
+      custom: customFeedback || "None",
+      timestamp: new Date().toLocaleString(),
+    };
+
+    await updateFeedback(currentUserId, entry);
+    closeAddFeedbackModal();
   };
-  
-  
+
+  // Attendance
+  const markAttendance = async (phone) => {
+    const ref = doc(
+      db,
+      `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`,
+      phone
+    );
+
+    await updateDoc(ref, {
+      attendanceStatus: true,
+      timestamp: serverTimestamp(),
+    });
+
+    setMarkedAttendance((prev) => ({ ...prev, [phone]: true }));
+  };
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    const fetchAttendance = async () => {
+      const snap = await getDocs(
+        collection(db, `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`)
+      );
+
+      const map = {};
+      snap.forEach((d) => {
+        map[d.id] = d.data().attendanceStatus || false;
+      });
+
+      setMarkedAttendance(map);
+    };
+
+    fetchAttendance();
+  }, [eventId]);
+
+  // Meeting Done → Send thanks message
+  const handleMeetingDone = async () => {
+    const accessToken = "YOUR_META_TOKEN";
+    const phoneNumberId = "527476310441806";
+
+    const q = query(
+      collection(db, `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`),
+      where("attendanceStatus", "==", true)
+    );
+
+    const snapshot = await getDocs(q);
+
+    for (const docSnap of snapshot.docs) {
+      const phone = docSnap.id;
+
+      // find user by phone
+      const q2 = query(
+        collection(db, COLLECTIONS,userDetail),
+        where("MobileNo", "==", phone)
+      );
+
+      const snap2 = await getDocs(q2);
+
+      const name = !snap2.empty
+        ? snap2.docs[0].data()[" Name"] || "there"
+        : "there";
+
+      await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: `91${phone}`,
+          type: "template",
+          template: {
+            name: "post_thankyou_mm",
+            language: { code: "en" },
+            components: [
+              {
+                type: "body",
+                parameters: [{ type: "text", text: name }],
+              },
+            ],
+          },
+        }),
+      });
+    }
+
+    alert("Thank you messages sent!");
+  };
+
   return (
- <>
-   
+    <>
       <div className="twobtn">
         <ExportToExcel eventId={eventId} />
-        <button className="m-button-7" onClick={handleMeetingDone} style={{ marginLeft: '10px', backgroundColor: '#f16f06', color: 'white' }}>
- Meeting Done
-</button>
-</div>
-        <button className="m-button-5" onClick={() => window.history.back()}>
-          Back
+        <button className="m-button-7" onClick={handleMeetingDone}>
+          Meeting Done
         </button>
-      
+      </div>
 
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <table className='table-class'>
-          
-        </table>
-        {/* User Table */}
-        <table className='table-class'>
-          <thead>
-            <tr>
-              <th>Sr no</th>
-              <th>Registered Number</th>
-              {/* <th>UJB Code</th>  */}
-              <th>User Name</th> 
-              <th>Category</th>
-              <th>Type</th>
-    <th>Register</th>
-    <th>Interested In</th>
-              <th>Feedback</th>
-              <th>Attendance</th>
-            </tr>
-          </thead>
-          <thead>
-            <tr>
-              <th></th>
-              <th>
-            
-   <div class="search">
-      <input type="text" class="searchTerm" placeholder="Search by Registered Number"
-            value={registeredNumberFilter}
-            onChange={(e) => handleSearchChange(e, setRegisteredNumberFilter)}/>
-      <button type="submit" class="searchButton">
-        <FaSearch/>
-     </button>
-   </div>
- 
-          </th>
-          {/* <th>
-          <div class="search">
-      <input type="text" class="searchTerm" placeholder="Search by UJB Code"
-            value={ujbCodeFilter}
-            onChange={(e) => handleSearchChange(e, setUjbCodeFilter)}/>
-      <button type="submit" class="searchButton">
-        <FaSearch/>
-     </button>
-   </div>
-         
-          </th> */}
-          <th>
+      <button className="m-button-5" onClick={() => window.history.back()}>
+        Back
+      </button>
 
-          <div class="search">
-      <input type="text" class="searchTerm" p placeholder="Search by User Name"
-            value={userNameFilter}
-            onChange={(e) => handleSearchChange(e, setUserNameFilter)}/>
-      <button type="submit" class="searchButton">
-        <FaSearch/>
-     </button>
-   </div>    
-       
-          </th>
-          <th>
-          <div class="search">
-      <input type="text" class="searchTerm"   placeholder="Search by Category"
-            value={categoryFilter}
-            onChange={(e) => handleSearchChange(e, setCategoryFilter)}/>
-      <button type="submit" class="searchButton">
-        <FaSearch/>
-     </button>
-   </div>    
-       
-          </th>
-          <th></th>
+      <table className="table-class">
+        <thead>
+          <tr>
+            <th>Sr No</th>
+            <th>Registered Number</th>
+            <th>User Name</th>
+            <th>Category</th>
+            <th>Feedback</th>
+            <th>Attendance</th>
           </tr>
-          </thead>
-          <tbody>
-          {filteredUsers.length > 0 ? (
-              filteredUsers.map((user, index) => (
-                <tr key={user.id}>
-                  <td>{index + 1}</td> 
-                  <td>{user.id}</td> 
-                  {/* <td>{user.ujbcode}</td>   */}
-                  <td>{user.name || 'Unknown'}</td> 
-                  <td>{user.category}</td> 
-                  <td>{user.type || '—'}</td>
-        <td>{user.register ? '✅' : '❌'}</td>
-        <td>
-          {user.interestedIn ? (
-            <ul className="list-disc ml-4">
-              {Object.entries(user.interestedIn).map(([key, value]) =>
-                value ? <li key={key}>{key}</li> : null
-              )}
-            </ul>
-          ) : (
-            '—'
-          )}
-        </td>
 
-                  <td>
-                    <div className="twobtn">
-                    <button className='m-button-7' onClick={() => openModal(user.feedback, user.name)} style={{ marginLeft: '10px', backgroundColor: '#e2e2e2', color: 'black' }}>
-                      View
-                    </button>
-                    <button className='m-button-7' onClick={() => openAddFeedbackModal(user.id, user.name)} style={{ marginLeft: '10px', backgroundColor: '#f16f06', color: 'white' }}>
-                      Add 
-                    </button>
-                    </div>
-                  </td>
-               {markedAttendance[user.id] ? (
-  <button style={{margin:'5px'}}>Marked Present</button>
-) : (
-  <button className='m-button-7' onClick={() => markAttendance(user.id)}>
-    Mark Present
-  </button>
-)}
+          <tr>
+            <th></th>
 
-                </tr>
-              ))
-            ) : (
+            <th>
+              <input
+                placeholder="Search Number"
+                value={registeredNumberFilter}
+                onChange={(e) => handleSearchChange(e, setRegisteredNumberFilter)}
+              />
+            </th>
+
+            <th>
+              <input
+                placeholder="Search Name"
+                value={userNameFilter}
+                onChange={(e) => handleSearchChange(e, setUserNameFilter)}
+              />
+            </th>
+
+            <th>
+              <input
+                placeholder="Search Category"
+                value={categoryFilter}
+                onChange={(e) => handleSearchChange(e, setCategoryFilter)}
+              />
+            </th>
+
+            <th></th>
+            <th></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {filteredUsers.map((user, index) => (
+            <tr key={user.id}>
+              <td>{index + 1}</td>
+              <td>{user.id}</td>
+              <td>{user.name}</td>
+              <td>{user.category}</td>
+
+              <td>
+                <button onClick={() => openModal(user.feedback, user.name)}>
+                  View
+                </button>
+                <button onClick={() => openAddFeedbackModal(user.id, user.name)}>
+                  Add
+                </button>
+              </td>
+
+              <td>
+                {markedAttendance[user.id] ? (
+                  <button disabled>Marked</button>
+                ) : (
+                  <button onClick={() => markAttendance(user.id)}>
+                    Mark Present
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* View Feedback Modal */}
+      <Modal isOpen={modalIsOpen} onRequestClose={closeModal}>
+        <button onClick={closeModal}><IoMdClose /></button>
+        <h2>Feedback for {selectedUserName}</h2>
+
+        {selectedFeedbacks.length ? (
+          <table>
+            <thead>
               <tr>
-              <td colSpan="6" style={{ textAlign: 'center' }}>No registered users found</td>
-            </tr>
-            )}
-          </tbody>
-        </table>
+                <th>Sr No</th>
+                <th>Predefined</th>
+                <th>Custom</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedFeedbacks.map((fb, i) => (
+                <tr key={i}>
+                  <td>{i + 1}</td>
+                  <td>{fb.predefined}</td>
+                  <td>{fb.custom}</td>
+                  <td>{fb.timestamp}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <>No feedback available.</>
+        )}
+      </Modal>
 
-        {/* Feedback Modal */}
-        <Modal isOpen={modalIsOpen} onRequestClose={closeModal} className="modal"
-  overlayClassName="overlay">
-  
-  <button className="closes-modal" onClick={closeModal}><IoMdClose /></button>
-  
-  <h2 className="modal-title">Feedback for {selectedUserName}</h2>
-  
-  {selectedFeedbacks.length > 0 ? (
-    <table className="feedback-table">
-      <thead>
-        <tr>
-          <th>Sr no</th>
-          <th>Feedback</th>
-          <th>Remark</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        {selectedFeedbacks.map((feedback, index) => (
-          <tr key={index}>
-            <td>{index+1}</td>
-            <td>{feedback.predefined}</td>
-            <td>{feedback.custom}</td>
-            <td>{feedback.timestamp}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  ) : (
-    <p className="no-feedback-message">No feedback available.</p>
-  )}
-</Modal>
+      {/* Add Feedback Modal */}
+      <Modal isOpen={addFeedbackModalIsOpen} onRequestClose={closeAddFeedbackModal}>
+        <button onClick={closeAddFeedbackModal}><IoMdClose /></button>
+        <h2>Add Feedback for {selectedUserName}</h2>
 
-        {/* Add Feedback Modal */}
-        <Modal isOpen={addFeedbackModalIsOpen} onRequestClose={closeAddFeedbackModal} className="modal"
-      overlayClassName="overlay">
-          <button className="close-modal" onClick={closeAddFeedbackModal}><IoMdClose /></button>
-          <h2 className="modal-title">Add Feedback for {selectedUserName}</h2>
-          <div className="leave-container">
-          <div className="form-group">
-          <select
-            onChange={(e) => setPredefinedFeedback(e.target.value)}
-            value={predefinedFeedback}
-          >
-            <option value="">Select Feedback</option>
-            {predefinedFeedbacks.map((feedback, idx) => (
-              <option key={idx} value={feedback}>{feedback}</option>
-            ))}
-          </select>
-          </div>
-          </div>
-          <div className="form-group">
-          <textarea
-            value={customFeedback}
-            onChange={(e) => setCustomFeedback(e.target.value)}
-            placeholder="Enter feedback"
-          />
-          </div>
-          <div className="twobtn">
-          <button className='m-button-7' onClick={submitAddFeedback} style={{ marginLeft: '10px', backgroundColor: '#f16f06', color: 'white' }} >
-            Submit
-          </button>
-          <button className='m-button-7' onClick={closeAddFeedbackModal} style={{ marginLeft: '10px', backgroundColor: '#e2e2e2', color: 'black' }}>
-            Cancel
-          </button>
-          </div>
-          
-        </Modal>
-  
+        <select
+          value={predefinedFeedback}
+          onChange={(e) => setPredefinedFeedback(e.target.value)}
+        >
+          <option value="">Select Feedback</option>
+          {predefinedFeedbacks.map((fb, i) => (
+            <option key={i}>{fb}</option>
+          ))}
+        </select>
+
+        <textarea
+          value={customFeedback}
+          onChange={(e) => setCustomFeedback(e.target.value)}
+          placeholder="Custom feedback"
+        />
+
+        <button onClick={submitAddFeedback}>Submit</button>
+      </Modal>
     </>
   );
 };

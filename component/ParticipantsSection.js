@@ -25,7 +25,7 @@ const ParticipantSection = ({ eventID }) => {
   const [modalVenue, setModalVenue] = useState('');
 
   const fetchData = async () => {
-    const docRef = doc(db, 'MonthlyMeeting', eventID);
+    const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
     const snapshot = await getDoc(docRef);
     if (snapshot.exists()) {
       const data = snapshot.data();
@@ -37,23 +37,26 @@ const ParticipantSection = ({ eventID }) => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const snapshot = await getDocs(collection(db, 'userdetails'));
-        const users = snapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data()[' Name'],
-          email: doc.data()[' Email'],
-          phone: doc.data()[' Phone'],
-        }));
-        setUserList(users);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-    fetchUsers();
-  }, []);
+useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const userRef = collection(db, COLLECTIONS.userDetail);
+      const snapshot = await getDocs(userRef);
+
+      const users = snapshot.docs.map(doc => ({
+        ujbCode: doc.id,                    // 🔥 UJB Code from doc ID
+        name: doc.data()["Name"] || "",    // Name field
+        phone: doc.data().MobileNo || "",   // 🔥 Phone number
+      }));
+
+      setUserList(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  fetchUsers();
+}, []);
 
   const handleSearch = (value, index, key) => {
     const updatedSections = [...sections];
@@ -103,14 +106,14 @@ const ParticipantSection = ({ eventID }) => {
   const handleRemoveSection = async (index) => {
     const updated = sections.filter((_, i) => i !== index);
     setSections(updated);
-    const docRef = doc(db, 'MonthlyMeeting', eventID);
+    const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
     await updateDoc(docRef, { sections: updated });
   };
 
   const handleSaveParticipants = async () => {
     setLoading(true);
     try {
-      const docRef = doc(db, 'MonthlyMeeting', eventID);
+      const docRef = doc(db,COLLECTIONS.monthlyMeeting, eventID);
       await updateDoc(docRef, { sections });
       alert('Participants saved successfully!');
     } catch (error) {
@@ -157,7 +160,7 @@ const ParticipantSection = ({ eventID }) => {
     updatedSections[selectedSectionIndex] = updatedSection;
     setSections(updatedSections);
 
-    const docRef = doc(db, 'MonthlyMeeting', eventID);
+    const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
     await updateDoc(docRef, { sections: updatedSections });
 
     const participants = [section.selectedParticipant1, section.selectedParticipant2].filter(Boolean);

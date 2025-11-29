@@ -18,32 +18,37 @@ export default function Conclave({ eventId, fetchData }) {
   const [invitationSaved, setInvitationSaved] = useState(false);
   const [conclaves, setConclaves] = useState([]);
   const [selectedConclaveId, setSelectedConclaveId] = useState('');
+useEffect(() => {
+  const fetchUsersAndConclaves = async () => {
 
-  useEffect(() => {
-    const fetchUsersAndConclaves = async () => {
-      const snapshot = await getDoc(doc(db, COLLECTIONS.monthlyMeeting, eventId));
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        setInvitedList(data.invitedUsers || []);
-      }
+    // 1️⃣ Fetch Monthly Meeting Data
+    const snapshot = await getDoc(doc(db, COLLECTIONS.monthlyMeeting, eventId));
+    if (snapshot.exists()) {
+      const data = snapshot.data();
+      setInvitedList(data.invitedUsers || []);
+    }
 
-      const userSnapshot = await getDocs(collection(db, 'userdetails'));
-      const userList = userSnapshot.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data()[" Name"] || 'Unnamed'
-      }));
-      setUsers(userList);
+    // 2️⃣ Fetch All Users (UJB Code + Name + Phone)
+    const userSnapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
+    const userList = userSnapshot.docs.map(doc => ({
+      ujbCode: doc.id,                       // 🔥 UJB Code from doc ID
+      name: doc.data()["Name"] || "Unnamed",
+      phone: doc.data().MobileNo || "",      // 🔥 Add phone number
+    }));
+    setUsers(userList);
 
-      const conclaveSnap = await getDocs(collection(db, COLLECTIONS.conclaves));
-      const conclaveList = conclaveSnap.docs.map(doc => ({
-        id: doc.id,
-        stream: doc.data().conclaveStream || 'Unnamed Stream'
-      }));
-      setConclaves(conclaveList);
-    };
+    // 3️⃣ Fetch All Conclaves
+    const conclaveSnap = await getDocs(collection(db, COLLECTIONS.conclaves));
+    const conclaveList = conclaveSnap.docs.map(doc => ({
+      id: doc.id,
+      stream: doc.data().conclaveStream || "Unnamed Stream",
+    }));
+    setConclaves(conclaveList);
+  };
 
-    fetchUsersAndConclaves();
-  }, [eventId, invitationSaved]);
+  fetchUsersAndConclaves();
+}, [eventId, invitationSaved]);
+
 
   const handleSaveInvitation = async () => {
     if (!selectedUser.id || !eventId || !selectedConclaveId) {

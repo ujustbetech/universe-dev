@@ -24,7 +24,7 @@ const MultiImageUploadAccordion = ({ eventID, fetchData }) => {
   const [uploadedImages, setUploadedImages] = useState([]);
 
   const fetchImages = async () => {
-    const docRef = doc(db, 'MonthlyMeeting', eventID);
+    const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
     const docSnap = await getDoc(docRef);
   
     if (docSnap.exists()) {
@@ -67,7 +67,7 @@ const handleDeleteImage = async (upload) => {
       await deleteObject(fileRef);
 
       // Update Firestore
-      const docRef = doc(db, 'MonthlyMeeting', eventID);
+      const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const currentUploads = docSnap.data().imageUploads || [];
@@ -97,12 +97,12 @@ const handleDeleteImage = async (upload) => {
     try {
       const fileRef = ref(
         storage,
-        `MonthlyMeeting/${eventID}/${section.type}/${Date.now()}_${section.image.name}`
+        `COLLECTIONS.monthlyMeeting/${eventID}/${section.type}/${Date.now()}_${section.image.name}`
       );
       await uploadBytes(fileRef, section.image);
       const url = await getDownloadURL(fileRef);
 
-      const eventRef = doc(db, 'MonthlyMeeting', eventID);
+      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
       await updateDoc(eventRef, {
         imageUploads: arrayUnion({
           type: section.type,

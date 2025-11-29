@@ -13,7 +13,7 @@ const DocumentUpload = ({ eventID, data = {}, fetchData }) => {
   const [documentUploads, setDocumentUploads] = useState([]);
 
   const fetchDoc = async () => {
-    const docRef = doc(db, 'MonthlyMeeting', eventID);
+    const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -46,7 +46,7 @@ const DocumentUpload = ({ eventID, data = {}, fetchData }) => {
       for (const file of selectedDocs) {
         const fileRef = ref(
           storage,
-          `MonthlyMeeting/${eventID}/docs/${Date.now()}_${file.name}`
+          `COLLECTIONS.monthlyMeeting/${eventID}/docs/${Date.now()}_${file.name}`
         );
         await uploadBytes(fileRef, file);
         const url = await getDownloadURL(fileRef);
@@ -56,7 +56,7 @@ const DocumentUpload = ({ eventID, data = {}, fetchData }) => {
         });
       }
   
-      const eventRef = doc(db, 'MonthlyMeeting', eventID);
+      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
   
       await updateDoc(eventRef, {
         documentUploads: arrayUnion({
@@ -90,7 +90,7 @@ const DocumentUpload = ({ eventID, data = {}, fetchData }) => {
     if (!confirmResult.isConfirmed) return;
   
     try {
-      const docRef = doc(db, 'MonthlyMeeting', eventID);
+      const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
       const docSnap = await getDoc(docRef);
   
       if (docSnap.exists()) {

@@ -23,20 +23,26 @@ const AddUser = ({ fetchData, eventId: propEventId, data }) => {
     const [filteredUsers, setFilteredUsers] = useState([]);
     const [userSearch, setUserSearch] = useState('');
 
-    // Fetch users from Firestore
-    useEffect(() => {
-        const fetchUsers = async () => {
-            const userCollection = collection(db,'userdetails');
-            const userSnapshot = await getDocs(userCollection);
-            const userList = userSnapshot.docs.map(doc => ({
-                id: doc.id, 
-                name: doc.data()[" Name"], // Ensure correct field name for name
-                phone: doc.data()["Mobile no"] // Correctly accessing the 'Mobile no' field for phone number
-            }));
-            setUserList(userList);
-        };
-        fetchUsers();
-    }, []);
+useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const userRef = collection(db, COLLECTIONS.userDetail);
+      const snapshot = await getDocs(userRef);
+
+      const users = snapshot.docs.map(doc => ({
+        ujbCode: doc.id,                    // 🔥 UJB Code from doc ID
+        name: doc.data()["Name"] || "",    // Name field
+        phone: doc.data().MobileNo || "",   // 🔥 Phone number
+      }));
+
+      setUserList(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  fetchUsers();
+}, []);
 
     // Handle Search Input
     const handleSearchUser = (e) => {
@@ -128,7 +134,7 @@ const AddUser = ({ fetchData, eventId: propEventId, data }) => {
             return;
         }
 
-        const userRef = doc(db, `MonthlyMeeting/${eventId}/registeredUsers/${phone}`);
+        const userRef = doc(db, `COLLECTIONS.monthlyMeeting/${eventId}/registeredUsers/${phone}`);
 
         try {
             await setDoc(userRef, {

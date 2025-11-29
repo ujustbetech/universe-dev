@@ -73,7 +73,7 @@ const TopicSection = (props) => {
     const sectionToRemove = sections[index];
     if (sectionToRemove.facilitator) {
       try {
-        const eventRef = doc(db, 'MonthlyMeeting', props.eventID);
+        const eventRef = doc(db, COLLECTIONS.monthlyMeeting, props.eventID);
         const docSnap = await getDoc(eventRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -93,7 +93,7 @@ const TopicSection = (props) => {
 
   const updateTopicSections = async () => {
     try {
-      const eventRef = doc(db, 'MonthlyMeeting', props.eventID);
+      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, props.eventID);
       await updateDoc(eventRef, {
         topicSections: sections,
         titleOfTheDay: titleOfTheDay,

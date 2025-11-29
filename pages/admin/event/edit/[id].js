@@ -19,6 +19,7 @@ import RegisteredUsers from '../../../../component/RegisteredUsers';
 import AddUser from '../../../../component/AddUsers';
 import TopicSection from '../../../../component/TopicOfTheDay';
 import Conclave from '../../../../component/Conclave';
+import { COLLECTIONS } from '../../../../utility_collection';
 
 const EditAdminEvent = () => {
   const router = useRouter();
@@ -39,7 +40,7 @@ const EditAdminEvent = () => {
 
   const fetchEvent = async (index) => {
     try {
-      const eventDoc = doc(db, 'MonthlyMeeting', id);
+      const eventDoc = doc(db, COLLECTIONS.monthlyMeeting, id);
       const eventSnapshot = await getDoc(eventDoc);
       if (eventSnapshot.exists()) {
         const data = eventSnapshot.data();

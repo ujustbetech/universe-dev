@@ -15,23 +15,27 @@ const FacilitatorSection = (props) => {
     setFacilitatorSearch(sections.map(section => section.facilitator || ''));
   }, [sections]);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const userRef = collection(db, 'userdetails');
-        const snapshot = await getDocs(userRef);
-        const users = snapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data()[" Name"],
-        }));
-        setUserList(users);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
+useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const userRef = collection(db, COLLECTIONS.userDetail);
+      const snapshot = await getDocs(userRef);
 
-    fetchUsers();
-  }, []);
+      const users = snapshot.docs.map(doc => ({
+        ujbCode: doc.id,                    // 🔥 UJB Code from doc ID
+        name: doc.data()["Name"] || "",    // Name field
+        phone: doc.data().MobileNo || "",   // 🔥 Phone number
+      }));
+
+      setUserList(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  fetchUsers();
+}, []);
+
 
   const handleSearchFacilitator = (index, value) => {
     const updatedSearch = [...facilitatorSearch];
@@ -76,7 +80,7 @@ const FacilitatorSection = (props) => {
     // Remove from Firestore only if it has valid facilitator
     if (sectionToRemove.facilitator) {
       try {
-        const eventRef = doc(db, 'MonthlyMeeting', props.eventID);
+        const eventRef = doc(db, COLLECTIONS.monthlyMeeting, props.eventID);
         const docSnap = await getDoc(eventRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -98,7 +102,7 @@ const FacilitatorSection = (props) => {
 
   const updateFacilitatorSections = async () => {
     try {
-      const eventRef = doc(db, 'MonthlyMeeting', props.eventID);
+      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, props.eventID);
       await updateDoc(eventRef, {
         facilitatorSections: sections,
       });

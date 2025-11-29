@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc,collection,getDocs,query,where } from 'firebase/firestore';
 import { app } from '../../firebaseConfig';
 import '../../src/app/styles/user.scss';
 import { COLLECTIONS } from "/utility_collection";
@@ -30,44 +30,76 @@ const [leaderName, setLeaderName] = useState('');
 
 useEffect(() => {
   const fetchData = async () => {
-    const phone = localStorage.getItem('mmOrbiter');
+    const phone = localStorage.getItem("mmOrbiter");
     if (!phone || !id || !conclaveId) return;
 
     setPhoneNumber(phone);
 
-    // Fetch user name
-    const userSnap = await getDoc(doc(db, 'userdetails', phone));
-    if (userSnap.exists()) setUserName(userSnap.data()[" Name"] || '');
+    // 1️⃣ Fetch user name (phone → userdetails lookup)
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.userDetail),
+        where("MobileNo", "==", phone)
+      );
+      const snap = await getDocs(q);
 
-    // Fetch meeting info
-    const meetingRef = doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', id);
+      if (!snap.empty) {
+        setUserName(snap.docs[0].data()["Name"] || "");
+      }
+    } catch (err) {
+      console.error("Error fetching user name:", err);
+    }
+
+    // 2️⃣ Fetch meeting info
+    const meetingRef = doc(db, COLLECTIONS.conclaves, conclaveId, "meetings", id);
     const meetingSnap = await getDoc(meetingRef);
     if (meetingSnap.exists()) setMeetingInfo(meetingSnap.data());
 
-    // Fetch conclave info
-    const conclaveRef = doc(db,  COLLECTIONS.conclaves, conclaveId);
+    // 3️⃣ Fetch conclave info
+    const conclaveRef = doc(db, COLLECTIONS.conclaves, conclaveId);
     const conclaveSnap = await getDoc(conclaveRef);
+
     if (conclaveSnap.exists()) {
       const conclaveData = conclaveSnap.data();
       setConclaveInfo(conclaveData);
 
-      // 🔍 Fetch leader name from userdetails using leader's phone number
+      // 4️⃣ Fetch Leader Name (leader = PHONE NUMBER)
       if (conclaveData.leader) {
-        const leaderSnap = await getDoc(doc(db, 'userdetails', conclaveData.leader));
-        if (leaderSnap.exists()) {
-          setLeaderName(leaderSnap.data()[" Name"] || conclaveData.leader);
+        const q2 = query(
+          collection(db, COLLECTIONS.userDetail),
+          where("MobileNo", "==", conclaveData.leader)
+        );
+
+        const leaderSnap = await getDocs(q2);
+
+        if (!leaderSnap.empty) {
+          setLeaderName(leaderSnap.docs[0].data()["Name"] || conclaveData.leader);
         } else {
-          setLeaderName(conclaveData.leader); // fallback if not found
+          setLeaderName(conclaveData.leader);
         }
       }
     }
 
-    // Registration check
-    const regSnap = await getDoc(doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', id, 'registeredUsers', phone));
+    // 5️⃣ Registration check
+    const regSnap = await getDoc(
+      doc(
+        db,
+        COLLECTIONS.conclaves,
+        conclaveId,
+        "meetings",
+        id,
+        "registeredUsers",
+        phone
+      )
+    );
+
     if (regSnap.exists()) {
       const data = regSnap.data();
-      setResponseStatus(data.response || '');
-      if (!data.response) setShowResponseModal(true);
+      setResponseStatus(data.response || "");
+
+      if (!data.response) {
+        setShowResponseModal(true);
+      }
     } else {
       setShowResponseModal(true);
     }

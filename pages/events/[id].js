@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import {  getFirestore, doc, getDoc, collection, getDocs, setDoc,  updateDoc} from 'firebase/firestore';
+import {  getFirestore, doc, getDoc, collection, getDocs, setDoc,  updateDoc,query,where} from 'firebase/firestore';
 import axios from 'axios';
 import './event.css'; // Ensure your CSS file is correctly linked
 import '../../src/app/styles/user.scss';
@@ -60,39 +60,58 @@ const db = getFirestore(app);
   useEffect(() => {
     if (!id) return;
 
-    const fetchEventData = async () => {
-      try {
-        const eventDocRef = doc(db, 'MonthlyMeeting', id);
-        const eventSnap = await getDoc(eventDocRef);
-        if (eventSnap.exists()) {
-          setEventInfo(eventSnap.data());
-        }
+  const fetchEventData = async () => {
+  try {
+    // 1️⃣ Fetch event info
+    const eventDocRef = doc(db, COLLECTIONS.monthlyMeeting, id);
+    const eventSnap = await getDoc(eventDocRef);
 
-        const registeredUsersRef = collection(db, `MonthlyMeeting/${id}/registeredUsers`);
-        const regUsersSnap = await getDocs(registeredUsersRef);
+    if (eventSnap.exists()) {
+      setEventInfo(eventSnap.data());
+    }
 
-        const userDetails = await Promise.all(
-          regUsersSnap.docs.map(async (docSnap) => {
-            const phone = docSnap.id;
-            const regUserData = docSnap.data();
-            const userData = docSnap.data();
-            const userDoc = await getDoc(doc(db, 'userdetails', phone));
-            const name = userDoc.exists() ? userDoc.data()[" Name"] : 'Unknown';
+    // 2️⃣ Fetch registered users (phone numbers)
+    const registeredUsersRef = collection(
+      db,
+      `${COLLECTIONS.monthlyMeeting}/${id}/registeredUsers`
+    );
 
-            return {
-              phone,
-              name,
-              attendance: regUserData.attendanceStatus === true ? 'Yes' : 'No',
-              feedback: userData.feedback || []
-            };
-          })
+    const regUsersSnap = await getDocs(registeredUsersRef);
+
+    const userDetails = await Promise.all(
+      regUsersSnap.docs.map(async (docSnap) => {
+        const phone = docSnap.id;       // registeredUsers docId = phone
+        const regUserData = docSnap.data();
+
+        // 🔥 Correct lookup — fetch userdetails using MobileNo
+        const q = query(
+          collection(db, COLLECTIONS.userDetail),
+          where("MobileNo", "==", phone)
         );
 
-        setUsers(userDetails);
-      } catch (err) {
-        console.error('Error fetching event/user data:', err);
-      }
-    };
+        const snap = await getDocs(q);
+        let name = "Unknown";
+
+        if (!snap.empty) {
+          name = snap.docs[0].data()["Name"] || "Unknown";
+        }
+
+        return {
+          phone,
+          name,
+          attendance: regUserData.attendanceStatus === true ? "Yes" : "No",
+          feedback: regUserData.feedback || [],
+        };
+      })
+    );
+
+    setUsers(userDetails);
+
+  } catch (err) {
+    console.error("Error fetching event/user data:", err);
+  }
+};
+
 
     fetchEventData();
   }, [id]);
@@ -114,26 +133,35 @@ const db = getFirestore(app);
   }, []);
   
 const fetchUserName = async (phoneNumber) => {
-  if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '') {
+  if (!phoneNumber || typeof phoneNumber !== "string" || phoneNumber.trim() === "") {
     console.error("Invalid phone number:", phoneNumber);
     return;
   }
 
-  console.log("Fetch User from Userdetails", phoneNumber);
   try {
-    const userRef = doc(db, 'userdetails', phoneNumber);
-    const userDoc = await getDoc(userRef);
+    console.log("Fetching user by phone:", phoneNumber);
 
-    if (userDoc.exists()) {
-      const orbitername = userDoc.data()[" Name"] || 'User';
-      setUserName(orbitername);
+    // 🔥 Correct lookup — find user by MobileNo
+    const q = query(
+      collection(db, COLLECTIONS.userDetail),
+      where("MobileNo", "==", phoneNumber)
+    );
+
+    const snap = await getDocs(q);
+
+    if (!snap.empty) {
+      const data = snap.docs[0].data();
+      const orbiterName = data["Name"] || "User";
+      setUserName(orbiterName);
     } else {
-      console.log("User not found in userdetails");
+      console.log("User not found in userdetails for phone:", phoneNumber);
     }
+
   } catch (err) {
     console.error("Error fetching user name:", err);
   }
 };
+
 
 
 
@@ -436,7 +464,7 @@ const fetchUserName = async (phoneNumber) => {
   
       if (storedEventId) {
         try {
-          const registeredUserRef = doc(db, 'MonthlyMeeting', id, 'registeredUsers', userPhoneNumber);
+          const registeredUserRef = doc(db, COLLECTIONS.monthlyMeeting, id, 'registeredUsers', userPhoneNumber);
           const userDoc = await getDoc(registeredUserRef);
           if (userDoc.exists()) {
             console.log('User is registered for this event:', userDoc.data());
@@ -480,28 +508,34 @@ const handleLogout = () => {
 
 
 
-  const handleLogin = async (e) => {
+ const handleLogin = async (e) => {
   e.preventDefault();
 
   try {
-    // Check if the phone number exists in Firestore 'userdetails'
-    const userDocRef = doc(db, "userdetails", phoneNumber);
-    const userDocSnap = await getDoc(userDocRef);
+    // 🔥 Search userdetails using MobileNo field
+    const q = query(
+      collection(db, COLLECTIONS.userDetail),
+      where("MobileNo", "==", phoneNumber)
+    );
 
-    if (userDocSnap.exists()) {
-      localStorage.setItem('mmOrbiter', phoneNumber);
+    const snap = await getDocs(q);
+
+    if (!snap.empty) {
+      // User found
+      localStorage.setItem("mmOrbiter", phoneNumber);
       setIsLoggedIn(true);
 
       await registerUserForEvent(phoneNumber);
       fetchEventDetails();
       fetchRegisteredUserCount();
-      fetchUserName(phoneNumber); // Fetch user name after login
+      fetchUserName(phoneNumber); 
     } else {
-      setError('Phone number not registered.');
+      setError("Phone number not registered.");
     }
+
   } catch (err) {
-    console.error('Error during login:', err);
-    setError('Login failed. Please try again.');
+    console.error("Error during login:", err);
+    setError("Login failed. Please try again.");
   }
 };
 
@@ -510,7 +544,7 @@ const handleLogout = () => {
   const registerUserForEvent = async (phoneNumber) => {
     if (!id) return;
   
-    const registeredUsersRef = collection(db, 'MonthlyMeeting', id, 'registeredUsers');
+    const registeredUsersRef = collection(db, COLLECTIONS.monthlyMeeting, id, 'registeredUsers');
     const newUserRef = doc(registeredUsersRef, phoneNumber);
   
     try {
@@ -580,7 +614,7 @@ useEffect(() => {
   // Fetch event details from Firestore
   const fetchEventDetails = async () => {
     if (id) {
-      const eventRef = doc(db, 'MonthlyMeeting', id);
+      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, id);
       const eventDoc = await getDoc(eventRef);
       if (eventDoc.exists()) {
         setEventDetails(eventDoc.data());
@@ -594,7 +628,7 @@ useEffect(() => {
   // Fetch the count of registered users from Firestore
   const fetchRegisteredUserCount = async () => {
     if (id) {
-      const registeredUsersRef = collection(db, 'MonthlyMeeting', id, 'registeredUsers');
+      const registeredUsersRef = collection(db, COLLECTIONS.monthlyMeeting, id, 'registeredUsers');
       const userSnapshot = await getDocs(registeredUsersRef);
       setRegisteredUserCount(userSnapshot.size);
     }

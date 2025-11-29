@@ -7,6 +7,7 @@ import Layout from '../../../component/Layout'
 import { useRouter } from 'next/router'; // Add this import
 
 import "../../../src/app/styles/main.scss";
+import { COLLECTIONS } from '../../../utility_collection';
 
 const CreateEventPage = () => {
   const router = useRouter();
@@ -444,7 +445,7 @@ const CreateEventPage = () => {
     setSuccess(''); // Clear success state
 
     try {
-      const monthlyMeetRef = collection(db, 'MonthlyMeeting_dev');
+      const monthlyMeetRef = collection(db, COLLECTIONS.monthlyMeeting);
       const uniqueId = doc(monthlyMeetRef).id;
       const eventDocRef = doc(monthlyMeetRef, uniqueId);
 

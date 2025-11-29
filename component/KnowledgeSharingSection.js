@@ -9,21 +9,26 @@ const KnowledgeSharingSection = ({ eventID, data = {}, fetchData }) => {
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [filteredUsersMap, setFilteredUsersMap] = useState({});
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const snapshot = await getDocs(collection(db, 'userdetails'));
-        const users = snapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data()[" Name"],
-        }));
-        setUserList(users);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-    fetchUsers();
-  }, []);
+useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const userRef = collection(db, COLLECTIONS.userDetail);
+      const snapshot = await getDocs(userRef);
+
+      const users = snapshot.docs.map(doc => ({
+        ujbCode: doc.id,                    // 🔥 UJB Code from doc ID
+        name: doc.data()["Name"] || "",    // Name field
+        phone: doc.data().MobileNo || "",   // 🔥 Phone number
+      }));
+
+      setUserList(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  fetchUsers();
+}, []);
   const handleSearchChange = (index, value) => {
     setKnowledgeSections(prev =>
       prev.map((section, i) =>
@@ -79,7 +84,7 @@ const KnowledgeSharingSection = ({ eventID, data = {}, fetchData }) => {
     const toRemove = knowledgeSections[index];
     if (toRemove.name || toRemove.topic || toRemove.description) {
       try {
-        const docRef = doc(db, 'MonthlyMeeting', eventID);
+        const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
         const snapshot = await getDoc(docRef);
         if (snapshot.exists()) {
           const data = snapshot.data();
@@ -96,7 +101,7 @@ const KnowledgeSharingSection = ({ eventID, data = {}, fetchData }) => {
 
   const handleSaveSections = async () => {
     try {
-      const docRef = doc(db, 'MonthlyMeeting', eventID);
+      const docRef = doc(db, COLLECTIONS.monthlyMeeting, eventID);
   
       // Clean unnecessary UI fields before saving
       const cleanedKnowledgeSections = knowledgeSections.map(
