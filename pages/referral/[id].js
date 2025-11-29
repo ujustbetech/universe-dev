@@ -39,6 +39,7 @@ const ReferralDetails = () => {
   const [showDealCard, setShowDealCard] = useState(false);
   const [orbiter, setOrbiter] = useState(null);
   const [showFollowups, setShowFollowups] = useState(false);
+const [adjustmentBreakdown, setAdjustmentBreakdown] = useState(null);
 
   const [cosmoOrbiter, setCosmoOrbiter] = useState(null);
   const [showEarned, setShowEarned] = useState(false); 
@@ -653,6 +654,408 @@ const sendWhatsAppMessage = async (phone, parameters = []) => {
   // -----------------------
   // HANDLE ADD PAYMENT (NEW FLOW: Cosmo partials -> auto distribution informational)
   // -----------------------
+  // ========================================================
+// UPDATED: UJB → Receiver Distribution WITH ADJUSTMENT LOGIC
+// ========================================================
+const processAdjustmentForTarget = async (
+  recipientKey,
+  amountRequested,
+  targetUser
+) => {
+  if (!targetUser?.ujbCode) return { adjustedAmount: 0, actualReceived: amountRequested };
+
+  const targetDocRef = doc(db, COLLECTIONS.userDetail, targetUser.ujbCode);
+  const snap = await getDoc(targetDocRef);
+
+  if (!snap.exists()) return { adjustedAmount: 0, actualReceived: amountRequested };
+
+  const data = snap.data();
+  let paySection = {};
+
+  // pick correct section
+  if (recipientKey === "Orbiter") paySection = data?.payment?.orbiter || {};
+  else paySection = data?.payment?.mentor || {};
+
+  const feeType = paySection.feeType || "";
+  const status = (paySection.status || "").toLowerCase();
+  const currentAmount = Number(paySection.amount || 0);
+  
+  // Only adjustment fee type is eligible
+  if (feeType !== "adjustment" || !["adjusted", "unpaid"].includes(status)) {
+    return { adjustedAmount: 0, actualReceived: amountRequested };
+  }
+
+  // FULL adjustment
+  if (amountRequested <= currentAmount) {
+    return {
+      adjustedAmount: amountRequested,
+      actualReceived: 0,
+      newAmountRemaining: currentAmount - amountRequested,
+      targetDocRef,
+      paySectionKey: recipientKey === "Orbiter" ? "payment.orbiter" : "payment.mentor"
+    };
+  }
+
+  // PARTIAL adjustment
+  return {
+    adjustedAmount: currentAmount,
+    actualReceived: amountRequested - currentAmount,
+    newAmountRemaining: 0,
+    targetDocRef,
+    paySectionKey: recipientKey === "Orbiter" ? "payment.orbiter" : "payment.mentor"
+  };
+};
+
+// ========================================================
+// HANDLER 1: Normal UJB Distribution (manual selection)
+// ========================================================
+const handleUJBDistribution = async () => {
+  if (isSubmittingPaymentRef.current) return;
+  setIsSubmittingPayment(true);
+
+  try {
+    const recipient = ujbDistForm.recipient;
+    const requestAmount = Number(ujbDistForm.amount || 0);
+
+    if (!recipient || requestAmount <= 0) {
+      Swal.fire({ icon: "warning", title: "Missing fields", text: "Invalid amount." });
+      setIsSubmittingPayment(false);
+      return;
+    }
+
+    // UJB cash balance
+    const currentUjb = Number(referralData?.ujbBalance || 0);
+    if (currentUjb <= 0) {
+      Swal.fire({ icon: "error", title: "No balance" });
+      setIsSubmittingPayment(false);
+      return;
+    }
+
+    // pick correct user
+    let targetUser = null;
+    if (recipient === "Orbiter") targetUser = orbiter;
+    if (recipient === "OrbiterMentor") targetUser = { ...orbiter, ujbCode: orbiter?.mentorUjbCode, name: orbiter?.mentorName };
+    if (recipient === "CosmoMentor") targetUser = { ...cosmoOrbiter, ujbCode: cosmoOrbiter?.mentorUjbCode, name: cosmoOrbiter?.mentorName };
+
+    // run adjustment logic
+    const adj = await processAdjustmentForTarget(recipient, requestAmount, targetUser);
+
+    const adjustedAmount = adj.adjustedAmount || 0;
+    const actualReceived = adj.actualReceived || 0;
+
+    // VALIDATE actual payment if needed
+    if (actualReceived > 0) {
+      if (!ujbDistForm.modeOfPayment) {
+        Swal.fire({ icon: "warning", title: "Mode required" });
+        setIsSubmittingPayment(false);
+        return;
+      }
+      if (
+        ujbDistForm.modeOfPayment !== "Cash" &&
+        !ujbDistForm.transactionRef
+      ) {
+        Swal.fire({ icon: "warning", title: "Transaction Ref required" });
+        setIsSubmittingPayment(false);
+        return;
+      }
+    }
+
+    // upload invoice (optional)
+    let invoiceURL = "";
+    if (ujbDistForm.paymentInvoice && actualReceived > 0) {
+      const fileRef = ref(storage, `ujbDistributions/${id}/${Date.now()}_${ujbDistForm.paymentInvoice.name}`);
+      await uploadBytes(fileRef, ujbDistForm.paymentInvoice);
+      invoiceURL = await getDownloadURL(fileRef);
+    }
+
+    // Final amount deducted from UJB = actualReceived (NOT adjusted part)
+    const ujbDeduction = actualReceived; 
+
+    if (ujbDeduction > currentUjb) {
+      Swal.fire({ icon: "error", title: "Insufficient UJB balance" });
+      setIsSubmittingPayment(false);
+      return;
+    }
+
+    // Prepare payment entry
+    const paymentId = generatePaymentId("UJB");
+    const record = {
+      paymentId,
+      paymentFrom: "UJustBe",
+      paymentFromName: "UJustBe",
+      paymentTo: recipient,
+      paymentToName: mapToActualName(recipient),
+      paymentDate: ujbDistForm.paymentDate,
+      modeOfPayment: ujbDistForm.modeOfPayment || "",
+      transactionRef: ujbDistForm.transactionRef || "",
+      comment: ujbDistForm.comment,
+      adjustedAmount,
+      actualReceived,
+      amountReceived: requestAmount, // shown as total
+      paymentInvoiceURL: invoiceURL,
+      feeType: "distribution",
+      createdAt: Timestamp.now(),
+      meta: { distributionType: "UJB_TO_PARTY" }
+    };
+
+    // update payments
+    const newPayments = [...payments, record];
+
+    const updates = {
+      payments: newPayments,
+      ujbBalance: Math.round((currentUjb - ujbDeduction) * 100) / 100
+    };
+
+    // update paidTo counters
+    if (recipient === "Orbiter") updates.paidToOrbiter = (paidToOrbiter + requestAmount).toFixed(2);
+    if (recipient === "OrbiterMentor") updates.paidToOrbiterMentor = (paidToOrbiterMentor + requestAmount).toFixed(2);
+    if (recipient === "CosmoMentor") updates.paidToCosmoMentor = (paidToCosmoMentor + requestAmount).toFixed(2);
+
+    await updateDoc(doc(db, COLLECTIONS.referral, id), updates);
+    setPayments(newPayments);
+
+    // Update User Detail (adjustment deduction)
+    if (adj.targetDocRef) {
+      const log = {
+        date: new Date().toISOString(),
+        receivedAmount: requestAmount,
+        adjustedAmount,
+        actualReceived,
+        referralId: id,
+        paymentMode: actualReceived > 0 ? ujbDistForm.modeOfPayment : "Adjusted",
+        transactionRef: actualReceived > 0 ? ujbDistForm.transactionRef : "",
+      };
+
+      await updateDoc(adj.targetDocRef, {
+        [`${adj.paySectionKey}.amount`]: adj.newAmountRemaining,
+        [`${adj.paySectionKey}.status`]: adj.newAmountRemaining === 0 ? "paid" : "adjusted",
+        [`${adj.paySectionKey}.lastUpdated`]: new Date().toISOString(),
+        [`${adj.paySectionKey}.adjustmentLogs`]: arrayUnion(log)
+      });
+    }
+
+    Swal.fire({ icon: "success", title: "Distributed Successfully" });
+
+    setShowUjbDistributionForm(false);
+    closeForm();
+  } catch (err) {
+    console.error(err);
+    Swal.fire({ icon: "error", title: "Error", text: "Failed to distribute." });
+  }
+
+  setIsSubmittingPayment(false);
+};
+
+// ========================================================
+// HANDLER 2: Distribution From Slot (same logic + slot linking)
+// ========================================================
+// ========================================================
+// HANDLER 2: Distribution From Slot (slot-aware version)
+// ========================================================
+const handleUJBDistributionFromSlot = async () => {
+  if (isSubmittingPaymentRef.current) return;
+  setIsSubmittingPayment(true);
+
+  try {
+    const recipient = ujbDistForm.recipient;
+    if (!recipient) {
+      Swal.fire({ icon: "warning", title: "Select recipient" });
+      setIsSubmittingPayment(false);
+      return;
+    }
+
+    // Determine requested amount:
+    const requestedFromForm = Number(ujbDistForm.amount || 0);
+    const requested = ujbDistributionFromSlot
+      ? ujbDistAllowAdjust
+        ? requestedFromForm
+        : Number(ujbDistributionOriginalSlotAmount || 0)
+      : requestedFromForm;
+
+    if (!requested || requested <= 0) {
+      Swal.fire({ icon: "warning", title: "Invalid amount", text: "Enter a valid amount." });
+      setIsSubmittingPayment(false);
+      return;
+    }
+
+    // UJB cash balance
+    const currentUjb = Number(referralData?.ujbBalance || 0);
+    if (currentUjb <= 0) {
+      Swal.fire({ icon: "error", title: "No UJustBe balance", text: "UJustBe has no balance to distribute." });
+      setIsSubmittingPayment(false);
+      return;
+    }
+
+    // Pick target user info
+    let targetUser = null;
+    if (recipient === "Orbiter") targetUser = orbiter;
+    if (recipient === "OrbiterMentor")
+      targetUser = { name: orbiter?.mentorName, ujbCode: orbiter?.mentorUjbCode };
+    if (recipient === "CosmoMentor")
+      targetUser = { name: cosmoOrbiter?.mentorName, ujbCode: cosmoOrbiter?.mentorUjbCode };
+
+    // Process adjustment against userDetail
+    const adj = await processAdjustmentForTarget(recipient, requested, targetUser);
+
+    const adjustedAmount = Number(adj.adjustedAmount || 0); // amount adjusted internally (no cash)
+    const actualReceived = Number(adj.actualReceived || 0); // cash that must be moved now
+    const newAmountRemaining = adj.newAmountRemaining; // for userDetail update (if provided)
+
+    // VALIDATE cash portion if any
+    if (actualReceived > 0) {
+      if (!ujbDistForm.modeOfPayment) {
+        Swal.fire({ icon: "warning", title: "Mode Required", text: "Select mode for actual transfer." });
+        setIsSubmittingPayment(false);
+        return;
+      }
+      if (ujbDistForm.modeOfPayment !== "Cash" && !ujbDistForm.transactionRef) {
+        Swal.fire({ icon: "warning", title: "Transaction Reference Required", text: "Provide a transaction reference." });
+        setIsSubmittingPayment(false);
+        return;
+      }
+    }
+
+    // Ensure UJB has enough cash for the actualReceived portion
+    if (actualReceived > currentUjb) {
+      Swal.fire({ icon: "error", title: "Insufficient UJB balance", text: `UJustBe balance is ₹${currentUjb}.` });
+      setIsSubmittingPayment(false);
+      return;
+    }
+
+    // upload invoice only if actual cash moved
+    let invoiceURL = "";
+    if (ujbDistForm.paymentInvoice && actualReceived > 0) {
+      const fileRef = ref(storage, `ujbDistributions/${id}/${Date.now()}_${ujbDistForm.paymentInvoice.name}`);
+      await uploadBytes(fileRef, ujbDistForm.paymentInvoice);
+      invoiceURL = await getDownloadURL(fileRef);
+    }
+
+    // Build payment record
+    const paymentId = generatePaymentId(recipient.toUpperCase().slice(0, 3));
+    const record = {
+      paymentId,
+      paymentFrom: "UJustBe",
+      paymentFromName: "UJustBe",
+      paymentTo: recipient,
+      paymentToName: mapToActualName(recipient),
+      paymentDate: ujbDistForm.paymentDate,
+      modeOfPayment: ujbDistForm.modeOfPayment || "",
+      transactionRef: ujbDistForm.transactionRef || "",
+      comment: ujbDistForm.comment || "",
+      // Store both the total requested (what recipient receives) and split info
+      amountReceived: requested,
+      adjustedAmount, // internal adjustment portion (no cash)
+      actualReceived, // cash portion moved now
+      paymentInvoiceURL: invoiceURL,
+      feeType: "distribution",
+      createdAt: Timestamp.now(),
+      meta: {
+        distributionType: "UJB_TO_PARTY",
+        viaSlot: true,
+        originalRequested: ujbDistributionOriginalSlotAmount || null,
+        belongsToPaymentId: ujbDistributionBelongsToPaymentId || null,
+      },
+    };
+
+    // Update payments list + ujbBalance
+    const newPayments = [...payments, record];
+    const newUjbBalance = Math.round((currentUjb - actualReceived) * 100) / 100;
+
+    const updates = {
+      payments: newPayments,
+      ujbBalance: newUjbBalance,
+    };
+
+    // Update paidTo counters by TOTAL recipient amount (requested)
+    if (recipient === "Orbiter") updates.paidToOrbiter = Math.round((paidToOrbiter + requested) * 100) / 100;
+    if (recipient === "OrbiterMentor")
+      updates.paidToOrbiterMentor = Math.round((paidToOrbiterMentor + requested) * 100) / 100;
+    if (recipient === "CosmoMentor")
+      updates.paidToCosmoMentor = Math.round((paidToCosmoMentor + requested) * 100) / 100;
+
+    await updateDoc(doc(db, COLLECTIONS.referral, id), updates);
+    setPayments(newPayments);
+
+    // If adjustment touched userDetail, update that doc
+    if (adj.targetDocRef) {
+      const paySectionKey = adj.paySectionKey || (recipient === "Orbiter" ? "payment.orbiter" : "payment.mentor");
+      const newStatus = Number(adj.newAmountRemaining || 0) === 0 ? "paid" : "adjusted";
+
+      const logEntry = {
+        date: new Date().toISOString(),
+        requestedAmount: requested,
+        adjustedAmount,
+        actualReceived,
+        referralId: id,
+        paymentMode: actualReceived > 0 ? ujbDistForm.modeOfPayment : "Adjusted",
+        transactionRef: actualReceived > 0 ? ujbDistForm.transactionRef || "" : "",
+      };
+
+      await updateDoc(adj.targetDocRef, {
+        [`${paySectionKey}.amount`]: adj.newAmountRemaining,
+        [`${paySectionKey}.status`]: newStatus,
+        [`${paySectionKey}.lastUpdated`]: new Date().toISOString(),
+        [`${paySectionKey}.adjustmentLogs`]: arrayUnion(logEntry),
+      });
+    }
+
+    await Swal.fire({
+      icon: "success",
+      title: "Distributed",
+      text: `₹${requested} processed to ${mapToActualName(recipient)} (₹${adjustedAmount} adjusted, ₹${actualReceived} transferred).`,
+    });
+
+    // Reset and close
+    setShowUjbDistributionForm(false);
+    setUjbDistributionFromSlot(false);
+    setUjbDistributionOriginalSlotAmount(0);
+    setUjbDistAllowAdjust(false);
+    setUjbDistributionBelongsToPaymentId(null);
+    closeForm();
+  } catch (err) {
+    console.error("Error in handleUJBDistributionFromSlot:", err);
+    await Swal.fire({ icon: "error", title: "Error", text: "Failed to distribute payment. Please try again." });
+  }
+
+  setIsSubmittingPayment(false);
+};
+
+useEffect(() => {
+  if (!referralData?.serviceName && !referralData?.productName) return;
+
+  const fetchItemDetails = async () => {
+    try {
+      const userId = referralData.userId; // owner of the service/product
+
+      const userDoc = await getDoc(doc(db, COLLECTIONS.userDetail, userId));
+      if (!userDoc.exists()) return;
+
+      const user = userDoc.data();
+
+      // find matching service
+      const foundService = user.services?.find(
+        s => s.name.toLowerCase() === referralData.serviceName?.toLowerCase()
+      );
+
+      // find matching product
+      const foundProduct = user.products?.find(
+        p => p.name.toLowerCase() === referralData.productName?.toLowerCase()
+      );
+
+      setReferralData(prev => ({
+        ...prev,
+        service: foundService,
+        product: foundProduct
+      }));
+
+    } catch (err) {
+      console.error("Error loading service/product details:", err);
+    }
+  };
+
+  fetchItemDetails();
+}, [referralData?.serviceName, referralData?.productName]);
+
   const handleAddPayment_NewFlow = async () => {
     if (isSubmittingPaymentRef.current) return;
     setIsSubmittingPayment(true);
@@ -868,363 +1271,13 @@ const sendWhatsAppMessage = async (phone, parameters = []) => {
   // -----------------------
   // HANDLE UJB -> Receiver Distribution (existing generic handler)
   // -----------------------
-  const handleUJBDistribution = async () => {
-    if (isSubmittingPaymentRef.current) return;
-    setIsSubmittingPayment(true);
-
-    try {
-      const recipient = ujbDistForm.recipient;
-      const requested = Number(ujbDistForm.amount || 0);
-      if (!recipient || !requested || requested <= 0) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Missing Fields",
-          text: "Please select recipient and enter a valid amount.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-
-      // ensure mode/txn if actual transfer (we consider UJB -> Receiver as actual money)
-      if (!ujbDistForm.modeOfPayment) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Mode Required",
-          text: "Select mode of payment for the distribution.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-      if (ujbDistForm.modeOfPayment !== "Cash" && !ujbDistForm.transactionRef) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Transaction Reference Required",
-          text: "Please provide transaction reference for the transfer.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-      // NOTE: Invoice is NO LONGER mandatory -> removed validation here
-
-      // shares earned ONLY from cosmo payments (used only to cap entitlement, not cash pool)
-      const totalCosmoPaid = getCosmoPaidSoFar(payments);
-
-      const earnedShares = {
-        orbiter: Math.round(totalCosmoPaid * 0.5 * 100) / 100,
-        orbiterMentor: Math.round(totalCosmoPaid * 0.15 * 100) / 100,
-        cosmoMentor: Math.round(totalCosmoPaid * 0.15 * 100) / 100,
-        ujb: Math.round(totalCosmoPaid * 0.2 * 100) / 100,
-      };
-
-      const paidToOrbiter = Number(referralData?.paidToOrbiter || 0);
-      const paidToOrbiterMentor = Number(referralData?.paidToOrbiterMentor || 0);
-      const paidToCosmoMentor = Number(referralData?.paidToCosmoMentor || 0);
-
-      const remainingObj = {
-        Orbiter: Math.max(0, earnedShares.orbiter - paidToOrbiter),
-        OrbiterMentor: Math.max(0, earnedShares.orbiterMentor - paidToOrbiterMentor),
-        CosmoMentor: Math.max(0, earnedShares.cosmoMentor - paidToCosmoMentor),
-      };
-
-      if (!remainingObj[recipient]) {
-        await Swal.fire({
-          icon: "error",
-          title: "Invalid recipient",
-          text: "Selected recipient has no remaining share or invalid recipient selected.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-
-      const remainingForRecipient = remainingObj[recipient];
-
-      // UJB CASH BALANCE (full Cosmo money collected minus payouts)
-      const currentUjbBalance = Number(referralData?.ujbBalance || 0);
-
-      if (currentUjbBalance <= 0) {
-        await Swal.fire({
-          icon: "error",
-          title: "No balance",
-          text: "UJustBe has no balance for this referral to distribute.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-
-      // amountToPay cannot exceed either remainingForRecipient or currentUjbBalance
-      const amountToPay = Math.min(requested, remainingForRecipient, currentUjbBalance);
-
-      if (amountToPay <= 0) {
-        await Swal.fire({
-          icon: "error",
-          title: "Nothing to pay",
-          text: "Calculated payable amount is zero. Check recipient remaining share and UJB balance.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-
-      // upload invoice (optional)
-      let invoiceURL = "";
-      if (ujbDistForm.paymentInvoice) {
-        const fileRef = ref(
-          storage,
-          `ujbDistributions/${id}/${Date.now()}_${ujbDistForm.paymentInvoice.name}`
-        );
-        await uploadBytes(fileRef, ujbDistForm.paymentInvoice);
-        invoiceURL = await getDownloadURL(fileRef);
-      }
-
-      // create payment record (no further distribution; this is a direct payout)
-      const paymentId = generatePaymentId(recipient.toUpperCase().slice(0, 3));
-      const toSave = {
-        paymentId,
-        paymentFrom: "UJustBe",
-        paymentFromName: "UJustBe",
-        paymentTo: recipient,
-        paymentToName: mapToActualName(recipient),
-        paymentDate: ujbDistForm.paymentDate,
-        modeOfPayment: ujbDistForm.modeOfPayment,
-        transactionRef: ujbDistForm.transactionRef || "",
-        comment: ujbDistForm.comment || "",
-        amountReceived: amountToPay,
-        adjustedAmount: 0,
-        actualReceived: amountToPay,
-        paymentInvoiceURL: invoiceURL,
-        feeType: "distribution",
-        createdAt: Timestamp.now(),
-        meta: {
-          distributionType: "UJB_TO_PARTY",
-          originalRequested: requested,
-          // NEW: link to cosmo payment if provided
-          belongsToPaymentId: ujbDistributionBelongsToPaymentId || null,
-        },
-      };
-
-      // update referral doc: payments[], ujbBalance, paidToX
-      const referralDocRef = doc(db, COLLECTIONS.referral, id);
-      const updatedPayments = [...payments, toSave];
-
-      const updates = {
-        payments: updatedPayments,
-        // UJB cash pool: subtract payout
-        ujbBalance: Math.round((currentUjbBalance - amountToPay) * 100) / 100,
-      };
-
-      if (recipient === "Orbiter") {
-        updates.paidToOrbiter = Math.round((paidToOrbiter + amountToPay) * 100) / 100;
-      } else if (recipient === "OrbiterMentor") {
-        updates.paidToOrbiterMentor =
-          Math.round((paidToOrbiterMentor + amountToPay) * 100) / 100;
-      } else if (recipient === "CosmoMentor") {
-        updates.paidToCosmoMentor =
-          Math.round((paidToCosmoMentor + amountToPay) * 100) / 100;
-      }
-
-      await updateDoc(referralDocRef, updates);
-      setPayments(updatedPayments);
-
-      await Swal.fire({
-        icon: "success",
-        title: "Distributed",
-        text: `₹${amountToPay} paid to ${mapToActualName(
-          recipient
-        )} from UJustBe balance.`,
-      });
-
-      // reset UJB form
-      setShowUjbDistributionForm(false);
-      setUjbDistForm({
-        recipient: "",
-        amount: "",
-        paymentDate: new Date().toISOString().split("T")[0],
-        modeOfPayment: "",
-        transactionRef: "",
-        paymentInvoice: null,
-        comment: "",
-      });
-      setUjbDistributionBelongsToPaymentId(null);
-
-      setIsSubmittingPayment(false);
-    } catch (err) {
-      console.error("Error in handleUJBDistribution:", err);
-      await Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to distribute payment. Please try again.",
-      });
-      setIsSubmittingPayment(false);
-    }
-  };
+ 
 
   // -----------------------
   // HANDLE UJB -> Receiver Distribution (FROM DISTRIBUTION SLOT)
   // This uses the exact slot amount shown in modal (unless admin toggles adjust)
   // -----------------------
-  const handleUJBDistributionFromSlot = async () => {
-    if (isSubmittingPaymentRef.current) return;
-    setIsSubmittingPayment(true);
-
-    try {
-      const recipient = ujbDistForm.recipient;
-      // amount used: if adjust allowed and changed, take ujbDistForm.amount; otherwise take original slot amount
-      const requestedFromForm = Number(ujbDistForm.amount || 0);
-      const requested = ujbDistributionFromSlot
-        ? ujbDistAllowAdjust
-          ? requestedFromForm
-          : Number(ujbDistributionOriginalSlotAmount || 0)
-        : requestedFromForm;
-
-      if (!recipient || !requested || requested <= 0) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Missing Fields",
-          text: "Please select recipient and enter a valid amount.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-
-      // ensure mode/txn if actual transfer (we consider UJB -> Receiver as actual money)
-      if (!ujbDistForm.modeOfPayment) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Mode Required",
-          text: "Select mode of payment for the distribution.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-      if (ujbDistForm.modeOfPayment !== "Cash" && !ujbDistForm.transactionRef) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Transaction Reference Required",
-          text: "Please provide transaction reference for the transfer.",
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-      // NOTE: Invoice is NO LONGER mandatory -> removed validation here
-
-      // UJB CASH BALANCE: full Cosmo money collected minus previous payouts
-      const currentUjbBalance = Number(referralData?.ujbBalance || 0);
-
-      if (requested > currentUjbBalance) {
-        await Swal.fire({
-          icon: "error",
-          title: "Insufficient UJB balance",
-          text: `UJustBe balance is ₹${currentUjbBalance}. Cannot pay ₹${requested}.`,
-        });
-        setIsSubmittingPayment(false);
-        return;
-      }
-
-      // upload invoice (optional)
-      let invoiceURL = "";
-      if (ujbDistForm.paymentInvoice) {
-        const fileRef = ref(
-          storage,
-          `ujbDistributions/${id}/${Date.now()}_${ujbDistForm.paymentInvoice.name}`
-        );
-        await uploadBytes(fileRef, ujbDistForm.paymentInvoice);
-        invoiceURL = await getDownloadURL(fileRef);
-      }
-
-      // pull current paidTo fields to update after
-      const paidToOrbiter = Number(referralData?.paidToOrbiter || 0);
-      const paidToOrbiterMentor = Number(referralData?.paidToOrbiterMentor || 0);
-      const paidToCosmoMentor = Number(referralData?.paidToCosmoMentor || 0);
-
-      // create payment record (direct payout; no further distribution)
-      const paymentId = generatePaymentId(recipient.toUpperCase().slice(0, 3));
-      const toSave = {
-        paymentId,
-        paymentFrom: "UJustBe",
-        paymentFromName: "UJustBe",
-        paymentTo: recipient,
-        paymentToName: mapToActualName(recipient),
-        paymentDate: ujbDistForm.paymentDate,
-        modeOfPayment: ujbDistForm.modeOfPayment,
-        transactionRef: ujbDistForm.transactionRef || "",
-        comment: ujbDistForm.comment || "",
-        amountReceived: requested,
-        adjustedAmount: ujbDistributionFromSlot
-          ? ujbDistAllowAdjust
-            ? Math.round((requested - ujbDistributionOriginalSlotAmount) * 100) / 100
-            : 0
-          : 0,
-        actualReceived: requested,
-        paymentInvoiceURL: invoiceURL,
-        feeType: "distribution",
-        createdAt: Timestamp.now(),
-        meta: {
-          distributionType: "UJB_TO_PARTY",
-          originalRequested: ujbDistributionFromSlot
-            ? ujbDistributionOriginalSlotAmount
-            : requested,
-          viaSlot: ujbDistributionFromSlot,
-          // NEW: link to cosmo payment if provided
-          belongsToPaymentId: ujbDistributionBelongsToPaymentId || null,
-        },
-      };
-
-      // update referral doc: payments[], ujbBalance, paidToX
-      const referralDocRef = doc(db, COLLECTIONS.referral, id);
-      const updatedPayments = [...payments, toSave];
-
-      const updates = {
-        payments: updatedPayments,
-        ujbBalance: Math.round((currentUjbBalance - requested) * 100) / 100,
-      };
-
-      if (recipient === "Orbiter") {
-        updates.paidToOrbiter = Math.round((paidToOrbiter + requested) * 100) / 100;
-      } else if (recipient === "OrbiterMentor") {
-        updates.paidToOrbiterMentor =
-          Math.round((paidToOrbiterMentor + requested) * 100) / 100;
-      } else if (recipient === "CosmoMentor") {
-        updates.paidToCosmoMentor =
-          Math.round((paidToCosmoMentor + requested) * 100) / 100;
-      }
-
-      await updateDoc(referralDocRef, updates);
-      setPayments(updatedPayments);
-
-      await Swal.fire({
-        icon: "success",
-        title: "Distributed",
-        text: `₹${requested} paid to ${mapToActualName(
-          recipient
-        )} from UJustBe balance.`,
-      });
-
-      // reset form
-      setShowUjbDistributionForm(false);
-      setUjbDistForm({
-        recipient: "",
-        amount: "",
-        paymentDate: new Date().toISOString().split("T")[0],
-        modeOfPayment: "",
-        transactionRef: "",
-        paymentInvoice: null,
-        comment: "",
-      });
-      setUjbDistributionFromSlot(false);
-      setUjbDistributionOriginalSlotAmount(0);
-      setUjbDistAllowAdjust(false);
-      setUjbDistributionBelongsToPaymentId(null);
-
-      setIsSubmittingPayment(false);
-    } catch (err) {
-      console.error("Error in handleUJBDistributionFromSlot:", err);
-      await Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to distribute payment. Please try again.",
-      });
-      setIsSubmittingPayment(false);
-    }
-  };
+ 
 
   // -----------------------
   // MAP PAYMENT LABEL
@@ -1245,6 +1298,56 @@ const sendWhatsAppMessage = async (phone, parameters = []) => {
         return key || "";
     }
   };
+// ---------------------------
+// UNIVERSAL AGREED VALUE CALCULATOR (SLABS + SINGLE MODE)
+// ---------------------------
+const calculateAgreedValue = (dealAmount, item) => {
+  if (!item?.agreedValue) return 0;
+
+  const av = item.agreedValue;
+  const amt = Number(dealAmount) || 0;
+
+  // SINGLE MODE
+  if (av.mode === "single") {
+    const type = av.single?.type;
+    const value = Number(av.single?.value || 0);
+
+    if (type === "percentage") return (amt * value) / 100;
+    if (type === "amount") return value;
+    return 0;
+  }
+
+  // MULTIPLE MODE → SLABS
+  if (av.mode === "multiple") {
+    const slabs = av.multiple?.slabs || [];
+    if (!slabs.length) return 0;
+
+    const matching = slabs
+      .map((s) => ({
+        ...s,
+        from: Number(s.from),
+        to: Number(s.to),
+        value: Number(s.value),
+      }))
+      .filter((s) => amt >= s.from && amt <= s.to);
+
+    if (!matching.length) return 0;
+
+    // Option C → best match (highest FROM)
+    const best = matching.reduce((a, b) => (b.from > a.from ? b : a));
+
+    if (best.type === "percentage") return (amt * best.value) / 100;
+    if (best.type === "amount") return best.value;
+
+    return 0;
+  }
+
+  return 0;
+};
+// ---------------------------
+// UPDATED DISTRIBUTION USING SLABS (Single + Multiple)
+// ---------------------------
+
 
   // -----------------------
   // PAYMENT SHEET UI TRIGGERS
@@ -1813,9 +1916,7 @@ const openPaymentModal = () => {
                       <p>
                         <strong>Deal Value:</strong> ₹{log.dealValue}
                       </p>
-                      <p>
-                        <strong>Percentage:</strong> {log.percentage}%
-                      </p>
+                     
                       <p>
                         <strong>Agreed Amount:</strong> ₹
                         {log.agreedAmount.toFixed(2)}
@@ -2683,212 +2784,305 @@ const openPaymentModal = () => {
         )}
 
         {/* ===================== UJB DISTRIBUTION FORM ===================== */}
-        {showUjbDistributionForm && (
-          <div className="addPaymentForm">
-            <h4>Distribute from UJustBe Balance</h4>
-            <p>
-              <strong>UJustBe balance (cash pool):</strong>{" "}
-              ₹{currentUjbBalance.toLocaleString("en-IN")}
-            </p>
+     {showUjbDistributionForm && (
+  <div className="addPaymentForm">
+    <h4>Distribute from UJustBe Balance</h4>
+    <p>
+      <strong>UJustBe balance (cash pool):</strong>{" "}
+      ₹{currentUjbBalance.toLocaleString("en-IN")}
+    </p>
 
-            <label>
-  Select Receiver:
-  <select
-    value={ujbDistForm.recipient}
-    disabled={ujbDistributionFromSlot}        // ← receiver locked when opened from slot
-    onChange={(e) => {
-      if (ujbDistributionFromSlot) return;   // prevent manual changes
-      const value = e.target.value;
+    {/* Receiver */}
+    <label>
+      Select Receiver:
+      <select
+        value={ujbDistForm.recipient}
+        disabled={ujbDistributionFromSlot}
+        onChange={(e) => {
+          if (ujbDistributionFromSlot) return;
 
-      setUjbDistributionFromSlot(false);
-      setUjbDistributionOriginalSlotAmount(0);
-      setUjbDistributionBelongsToPaymentId(null);
+          const value = e.target.value;
+
+          setUjbDistributionFromSlot(false);
+          setUjbDistributionOriginalSlotAmount(0);
+          setUjbDistributionBelongsToPaymentId(null);
+
+          setAdjustmentBreakdown(null);
+
+          setUjbDistForm((prev) => ({
+            ...prev,
+            recipient: value,
+            amount: "",
+          }));
+        }}
+      >
+        <option value="">-- Select --</option>
+        <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
+        <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
+        <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
+      </select>
+    </label>
+
+    {/* Amount */}
+  <label>
+  Amount to Pay (₹):
+  <input
+    type="number"
+    value={ujbDistForm.amount}
+    readOnly={ujbDistributionFromSlot}
+    onChange={async (e) => {
+      if (ujbDistributionFromSlot) return;
+
+      const amount = Number(e.target.value || 0);
 
       setUjbDistForm((prev) => ({
         ...prev,
-        recipient: value,
-        amount: "",
+        amount: e.target.value,
       }));
+
+      const recipient = ujbDistForm.recipient;
+
+      if (!recipient || amount <= 0) {
+        setAdjustmentBreakdown(null);
+        return;
+      }
+
+      let targetUser = null;
+      if (recipient === "Orbiter") targetUser = orbiter;
+      if (recipient === "OrbiterMentor")
+        targetUser = {
+          name: orbiter?.mentorName,
+          ujbCode: orbiter?.mentorUjbCode,
+        };
+      if (recipient === "CosmoMentor")
+        targetUser = {
+          name: cosmoOrbiter?.mentorName,
+          ujbCode: cosmoOrbiter?.mentorUjbCode,
+        };
+
+      const adj = await processAdjustmentForTarget(
+        recipient,
+        amount,
+        targetUser
+      );
+
+      setAdjustmentBreakdown({
+        requested: amount,
+        adjustedAmount: adj.adjustedAmount || 0,
+        actualReceived: adj.actualReceived || 0,
+        remainingAfterAdjustment:
+          typeof adj.newAmountRemaining === "number"
+            ? adj.newAmountRemaining
+            : null,
+      });
     }}
-  >
-    <option value="">-- Select --</option>
-    <option value="Orbiter">{orbiter?.name || "Orbiter"}</option>
-    <option value="OrbiterMentor">{orbiter?.mentorName || "Orbiter Mentor"}</option>
-    <option value="CosmoMentor">{cosmoOrbiter?.mentorName || "Cosmo Mentor"}</option>
-  </select>
+    min="0"
+    max={currentUjbBalance}
+    placeholder={`Max ₹${currentUjbBalance}`}
+  />
 </label>
 
 
-            <label>
-              Amount to Pay (₹):
-             <input
-  type="number"
-  value={ujbDistForm.amount}
-  readOnly={ujbDistributionFromSlot}      // ← FIXED amount if opened from slot
-  onChange={(e) => {
-    if (ujbDistributionFromSlot) return;  // block changes
-    setUjbDistForm((prev) => ({
-      ...prev,
-      amount: e.target.value,
-    }));
-  }}
-  min="0"
-  max={currentUjbBalance}
-  placeholder={`Max ₹${currentUjbBalance}`}
-/>
+    {/* 🔍 Adjustment Breakdown UI */}
+    {adjustmentBreakdown && (
+      <div
+        style={{
+          marginTop: "10px",
+          padding: "12px",
+          borderRadius: "8px",
+          background: "#f1f5f9",
+          border: "1px solid #d6dbe1",
+        }}
+      >
+        <strong
+          style={{
+            display: "block",
+            marginBottom: "6px",
+            color: "#334155",
+            fontSize: "14px",
+          }}
+        >
+          Payment Breakdown
+        </strong>
 
-            </label>
+        <div>
+          <span style={{ fontWeight: 600 }}>Requested:</span>{" "}
+          ₹{adjustmentBreakdown.requested}
+        </div>
 
-            {/* If this form was opened from a distribution slot, show that information and toggle for adjust */}
-            {ujbDistributionFromSlot && (
-              <div className="infoBox" style={{ marginTop: 8 }}>
-                <p>
-                  <strong>Opened from Distribution Slot.</strong>
-                </p>
-                <p>
-                  Original slot amount: ₹
-                  {ujbDistributionOriginalSlotAmount}
-                </p>
-                <p>
-                  <strong>
-                    Belongs to Cosmo Payment ID:
-                  </strong>{" "}
-                  {ujbDistributionBelongsToPaymentId || "—"}
-                </p>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={ujbDistAllowAdjust}
-                    onChange={(e) => {
-                      setUjbDistAllowAdjust(e.target.checked);
-                      // if turning off adjust, reset amount to original slot amount
-                      if (!e.target.checked) {
-                        setUjbDistForm((prev) => ({
-                          ...prev,
-                          amount: ujbDistributionOriginalSlotAmount,
-                        }));
-                      }
-                    }}
-                  />
-                  Allow Adjust Amount
-                </label>
-              </div>
-            )}
+        <div>
+          <span style={{ fontWeight: 600, color: "#2563eb" }}>Adjusted:</span>{" "}
+          ₹{adjustmentBreakdown.adjustedAmount}
+          {adjustmentBreakdown.adjustedAmount > 0 && (
+            <small style={{ color: "#475569" }}>
+              {" "}
+              (internal adjustment — no cash movement)
+            </small>
+          )}
+        </div>
 
-            <div className="infoBox">
-              <p>
-                Remaining to Orbiter: ₹
-                {orbiterRemaining.toLocaleString("en-IN")}
-              </p>
-              <p>
-                Remaining to Orbiter Mentor: ₹
-                {orbiterMentorRemaining.toLocaleString("en-IN")}
-              </p>
-              <p>
-                Remaining to Cosmo Mentor: ₹
-                {cosmoMentorRemaining.toLocaleString("en-IN")}
-              </p>
-            </div>
+        <div>
+          <span style={{ fontWeight: 600, color: "#16a34a" }}>
+            Cash Payable:
+          </span>{" "}
+          ₹{adjustmentBreakdown.actualReceived}
+        </div>
 
-            <label>
-              Mode of Payment:
-              <select
-                name="modeOfPayment"
-                value={ujbDistForm.modeOfPayment}
-                onChange={(e) =>
-                  setUjbDistForm({
-                    ...ujbDistForm,
-                    modeOfPayment: e.target.value,
-                  })
-                }
-                required
-              >
-                <option value="">-- Select Mode --</option>
-                <option value="GPay">GPay</option>
-                <option value="Razorpay">Razorpay</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Cash">Cash</option>
-                <option value="Other">Other</option>
-              </select>
-            </label>
-
-            {(ujbDistForm.modeOfPayment === "GPay" ||
-              ujbDistForm.modeOfPayment === "Razorpay" ||
-              ujbDistForm.modeOfPayment === "Bank Transfer" ||
-              ujbDistForm.modeOfPayment === "Other") && (
-              <label>
-                Transaction Reference:
-                <input
-                  type="text"
-                  value={ujbDistForm.transactionRef || ""}
-                  onChange={(e) =>
-                    setUjbDistForm({
-                      ...ujbDistForm,
-                      transactionRef: e.target.value,
-                    })
-                  }
-                  required
-                />
-              </label>
-            )}
-
-            <label>
-              Upload Invoice / Proof (optional):
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) =>
-                  setUjbDistForm({
-                    ...ujbDistForm,
-                    paymentInvoice: e.target.files[0],
-                  })
-                }
-              />
-            </label>
-
-            <label>
-              Payment Date:
-              <input
-                type="date"
-                name="paymentDate"
-                value={ujbDistForm.paymentDate}
-                onChange={(e) =>
-                  setUjbDistForm({
-                    ...ujbDistForm,
-                    paymentDate: e.target.value,
-                  })
-                }
-                max={new Date().toISOString().split("T")[0]}
-                required
-              />
-            </label>
-
-            <div className="formButtons">
-              {/* If it was opened from slot, call special slot handler; otherwise use existing handler */}
-              <button
-                onClick={
-                  ujbDistributionFromSlot
-                    ? handleUJBDistributionFromSlot
-                    : handleUJBDistribution
-                }
-                disabled={isSubmittingPayment}
-              >
-                {isSubmittingPayment
-                  ? "Processing..."
-                  : "Distribute from UJustBe"}
-              </button>
-              <button className="cancelBtn" onClick={closeForm}>
-                Cancel
-              </button>
-            </div>
+        {adjustmentBreakdown.remainingAfterAdjustment !== null && (
+          <div style={{ marginTop: "4px", color: "#475569" }}>
+            <span style={{ fontWeight: 600 }}>
+              Remaining Adjustment Balance:
+            </span>{" "}
+            ₹{adjustmentBreakdown.remainingAfterAdjustment}
           </div>
         )}
+      </div>
+    )}
+
+    {/* Slot info section */}
+    {ujbDistributionFromSlot && (
+      <div className="infoBox" style={{ marginTop: 8 }}>
+        <p>
+          <strong>Opened from Distribution Slot.</strong>
+        </p>
+        <p>Original slot amount: ₹{ujbDistributionOriginalSlotAmount}</p>
+        <p>
+          <strong>Belongs to Cosmo Payment ID:</strong>{" "}
+          {ujbDistributionBelongsToPaymentId || "—"}
+        </p>
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={ujbDistAllowAdjust}
+            onChange={(e) => {
+              setUjbDistAllowAdjust(e.target.checked);
+
+              if (!e.target.checked) {
+                setUjbDistForm((prev) => ({
+                  ...prev,
+                  amount: ujbDistributionOriginalSlotAmount,
+                }));
+                setAdjustmentBreakdown(null);
+              }
+            }}
+          />
+          Allow Adjust Amount
+        </label>
+      </div>
+    )}
+
+    {/* Remaining balances */}
+    <div className="infoBox">
+      <p>Remaining to Orbiter: ₹{orbiterRemaining.toLocaleString("en-IN")}</p>
+      <p>
+        Remaining to Orbiter Mentor: ₹
+        {orbiterMentorRemaining.toLocaleString("en-IN")}
+      </p>
+      <p>
+        Remaining to Cosmo Mentor: ₹
+        {cosmoMentorRemaining.toLocaleString("en-IN")}
+      </p>
+    </div>
+
+    {/* Mode of Payment */}
+    <label>
+      Mode of Payment:
+      <select
+        name="modeOfPayment"
+        value={ujbDistForm.modeOfPayment}
+        onChange={(e) =>
+          setUjbDistForm({
+            ...ujbDistForm,
+            modeOfPayment: e.target.value,
+          })
+        }
+        required
+      >
+        <option value="">-- Select Mode --</option>
+        <option value="GPay">GPay</option>
+        <option value="Razorpay">Razorpay</option>
+        <option value="Bank Transfer">Bank Transfer</option>
+        <option value="Cash">Cash</option>
+        <option value="Other">Other</option>
+      </select>
+    </label>
+
+    {(ujbDistForm.modeOfPayment === "GPay" ||
+      ujbDistForm.modeOfPayment === "Razorpay" ||
+      ujbDistForm.modeOfPayment === "Bank Transfer" ||
+      ujbDistForm.modeOfPayment === "Other") && (
+      <label>
+        Transaction Reference:
+        <input
+          type="text"
+          value={ujbDistForm.transactionRef || ""}
+          onChange={(e) =>
+            setUjbDistForm({
+              ...ujbDistForm,
+              transactionRef: e.target.value,
+            })
+          }
+          required
+        />
+      </label>
+    )}
+
+    <label>
+      Upload Invoice / Proof (optional):
+      <input
+        type="file"
+        accept="image/*,application/pdf"
+        onChange={(e) =>
+          setUjbDistForm({
+            ...ujbDistForm,
+            paymentInvoice: e.target.files[0],
+          })
+        }
+      />
+    </label>
+
+    <label>
+      Payment Date:
+      <input
+        type="date"
+        name="paymentDate"
+        value={ujbDistForm.paymentDate}
+        onChange={(e) =>
+          setUjbDistForm({
+            ...ujbDistForm,
+            paymentDate: e.target.value,
+          })
+        }
+        max={new Date().toISOString().split("T")[0]}
+        required
+      />
+    </label>
+
+    <div className="formButtons">
+      <button
+        onClick={
+          ujbDistributionFromSlot
+            ? handleUJBDistributionFromSlot
+            : handleUJBDistribution
+        }
+        disabled={isSubmittingPayment}
+      >
+        {isSubmittingPayment ? "Processing..." : "Distribute from UJustBe"}
+      </button>
+      <button className="cancelBtn" onClick={closeForm}>
+        Cancel
+      </button>
+    </div>
+  </div>
+)}
+
       </div>
     </Layouts>
   );
