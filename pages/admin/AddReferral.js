@@ -40,7 +40,7 @@ const Profiling = () => {
 
   const [leadDescription, setLeadDescription] = useState("");
 
-  // Fetching all users
+  // Fetch users
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(collection(db, "usersdetail"));
@@ -69,8 +69,17 @@ const Profiling = () => {
 
     if (userDoc.exists()) {
       const data = userDoc.data();
-      setServices(data.services || []);
-      setProducts(data.products || []);
+
+      // FIX: Convert Firestore map → array
+      const servicesArray = data.services
+        ? Object.values(data.services)
+        : [];
+      const productsArray = data.products
+        ? Object.values(data.products)
+        : [];
+
+      setServices(servicesArray);
+      setProducts(productsArray);
     }
   };
 
@@ -99,7 +108,6 @@ const Profiling = () => {
     return `${prefix}${String(lastNum + 1).padStart(8, "0")}`;
   };
 
-  // WhatsApp Template Sender
   const sendWhatsAppTemplate = async (phone, name, message) => {
     const formatted = String(phone || "").replace(/\s+/g, "");
 
@@ -136,7 +144,6 @@ const Profiling = () => {
     );
   };
 
-  // Submit Referral
   const handleSubmit = async () => {
     if (
       !selectedOrbiter ||
@@ -150,7 +157,6 @@ const Profiling = () => {
     try {
       const referralId = await generateReferralId();
 
-      // 🔥 FULL deep copy of service/product object (100% fields saved)
       const serviceData =
         selectedService ? JSON.parse(JSON.stringify(selectedService)) : null;
 
@@ -205,9 +211,10 @@ const Profiling = () => {
       alert("Referral submitted successfully!");
 
       const serviceOrProduct =
-        selectedService?.name || selectedProduct?.name || "";
+        selectedService?.serviceName ||
+        selectedProduct?.productName ||
+        "";
 
-      // WhatsApp notifications
       await Promise.all([
         sendWhatsAppTemplate(
           selectedOrbiter.MobileNo,
@@ -221,7 +228,7 @@ const Profiling = () => {
         ),
       ]);
 
-      // Reset form
+      // Reset fields
       setSelectedOrbiter(null);
       setSelectedCosmo(null);
       setOrbiterSearch("");
@@ -325,14 +332,16 @@ const Profiling = () => {
               <select
                 onChange={(e) =>
                   setSelectedService(
-                    services.find((s) => s.name === e.target.value)
+                    services.find(
+                      (s) => s.serviceName === e.target.value
+                    )
                   )
                 }
               >
                 <option value="">-- Select Service --</option>
                 {services.map((service, i) => (
-                  <option key={i} value={service.name}>
-                    {service.name}
+                  <option key={i} value={service.serviceName}>
+                    {service.serviceName}
                   </option>
                 ))}
               </select>
@@ -346,14 +355,16 @@ const Profiling = () => {
               <select
                 onChange={(e) =>
                   setSelectedProduct(
-                    products.find((p) => p.name === e.target.value)
+                    products.find(
+                      (p) => p.productName === e.target.value
+                    )
                   )
                 }
               >
                 <option value="">-- Select Product --</option>
                 {products.map((product, i) => (
-                  <option key={i} value={product.name}>
-                    {product.name}
+                  <option key={i} value={product.productName}>
+                    {product.productName}
                   </option>
                 ))}
               </select>
@@ -420,31 +431,6 @@ const Profiling = () => {
               <option value="Others">Others</option>
             </select>
           </li>
-
-          {/* OTHERS INFO */}
-          {refType === "Others" && (
-            <li className="form-group">
-              <h4>Orbiter Info (Others)</h4>
-              <input
-                type="text"
-                placeholder="Name"
-                value={otherName}
-                onChange={(e) => setOtherName(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Phone"
-                value={otherPhone}
-                onChange={(e) => setOtherPhone(e.target.value)}
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={otherEmail}
-                onChange={(e) => setOtherEmail(e.target.value)}
-              />
-            </li>
-          )}
 
           {/* REFERRAL SOURCE */}
           <li className="form-group">
