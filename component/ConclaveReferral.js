@@ -28,21 +28,26 @@ useEffect(() => {
   }
 }, [data.referralSections]);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const snapshot = await getDocs(collection(db, 'userdetails'));
-        const users = snapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data()[" Name"],
-        }));
-        setUserList(users);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-    fetchUsers();
-  }, []);
+useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const snapshot = await getDocs(collection(db,COLLECTIONS.userDetail));
+
+      const users = snapshot.docs.map(doc => ({
+        ujbCode: doc.id,                            // 🔥 UJB Code
+        name: doc.data()["Name"] || '',            // Name field
+        phone: doc.data().MobileNo || '',           // 🔥 Add phone number
+      }));
+
+      setUserList(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  fetchUsers();
+}, []);
+
   const handleSearchReferralFrom = (index, value) => {
     setReferralSearchFrom(prev =>
       prev.map((item, i) => (i === index ? value : item))

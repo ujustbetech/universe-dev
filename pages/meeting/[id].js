@@ -40,12 +40,12 @@ useEffect(() => {
     if (userSnap.exists()) setUserName(userSnap.data()[" Name"] || '');
 
     // Fetch meeting info
-    const meetingRef = doc(db, 'Conclaves', conclaveId, 'meetings', id);
+    const meetingRef = doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', id);
     const meetingSnap = await getDoc(meetingRef);
     if (meetingSnap.exists()) setMeetingInfo(meetingSnap.data());
 
     // Fetch conclave info
-    const conclaveRef = doc(db, 'Conclaves', conclaveId);
+    const conclaveRef = doc(db,  COLLECTIONS.conclaves, conclaveId);
     const conclaveSnap = await getDoc(conclaveRef);
     if (conclaveSnap.exists()) {
       const conclaveData = conclaveSnap.data();
@@ -63,7 +63,7 @@ useEffect(() => {
     }
 
     // Registration check
-    const regSnap = await getDoc(doc(db, 'Conclaves', conclaveId, 'meetings', id, 'registeredUsers', phone));
+    const regSnap = await getDoc(doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', id, 'registeredUsers', phone));
     if (regSnap.exists()) {
       const data = regSnap.data();
       setResponseStatus(data.response || '');
@@ -81,7 +81,7 @@ useEffect(() => {
 
 
   const handleAccept = async () => {
-    const ref = doc(db, 'Conclaves', conclaveId, 'meetings', id, 'registeredUsers', phoneNumber);
+    const ref = doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', id, 'registeredUsers', phoneNumber);
     await setDoc(ref, {
       phoneNumber,
       name: userName,
@@ -101,7 +101,7 @@ useEffect(() => {
   const submitDeclineReason = async () => {
     if (!declineReason.trim()) return;
 
-    const ref = doc(db, 'Conclaves', conclaveId, 'meetings', id, 'registeredUsers', phoneNumber);
+    const ref = doc(db,  COLLECTIONS.conclaves, conclaveId, 'meetings', id, 'registeredUsers', phoneNumber);
     await setDoc(ref, {
       phoneNumber,
       name: userName,

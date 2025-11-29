@@ -444,7 +444,7 @@ const CreateEventPage = () => {
     setSuccess(''); // Clear success state
 
     try {
-      const monthlyMeetRef = collection(db, 'MonthlyMeeting');
+      const monthlyMeetRef = collection(db, 'MonthlyMeeting_dev');
       const uniqueId = doc(monthlyMeetRef).id;
       const eventDocRef = doc(monthlyMeetRef, uniqueId);
 

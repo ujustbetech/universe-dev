@@ -17,19 +17,22 @@ const { conclaveId, id: meetingId } = router.query;
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const snapshot = await getDocs(collection(db, 'userdetails'));
+        const snapshot = await getDocs(collection(db,COLLECTIONS.userDetail));
+  
         const users = snapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data()[" Name"], // Adjust if the field name is different
+          ujbCode: doc.id,                            // 🔥 UJB Code
+          name: doc.data()["Name"] || '',            // Name field
+          phone: doc.data().MobileNo || '',           // 🔥 Add phone number
         }));
+  
         setUserList(users);
       } catch (error) {
         console.error('Error fetching users:', error);
       }
     };
+  
     fetchUsers();
   }, []);
-
   const handleSearch = (value, index, key) => {
     const updatedSections = [...sections];
     updatedSections[index][key === 'selectedParticipant1' ? 'participantSearchTerm1' : 'participantSearchTerm2'] = value;

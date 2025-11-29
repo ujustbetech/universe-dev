@@ -10,23 +10,26 @@ const KnowledgeSharingSection = ({ eventID, data = {}, fetchData }) => {
   const [userList, setUserList] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [filteredUsersMap, setFilteredUsersMap] = useState({});
+useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const snapshot = await getDocs(collection(db,COLLECTIONS.userDetail));
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const snapshot = await getDocs(collection(db, 'userdetails'));
-     const users = snapshot.docs.map(doc => ({
-  id: doc.id,
-  name: doc.data()[" Name"] || '',
-}));
+      const users = snapshot.docs.map(doc => ({
+        ujbCode: doc.id,                            // 🔥 UJB Code
+        name: doc.data()["Name"] || '',            // Name field
+        phone: doc.data().MobileNo || '',           // 🔥 Add phone number
+      }));
 
-        setUserList(users);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-    fetchUsers();
-  }, []);
+      setUserList(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  fetchUsers();
+}, []);
+
   const handleSearchChange = (index, value) => {
     setKnowledgeSections(prev =>
       prev.map((section, i) =>

@@ -51,20 +51,36 @@ const RegisteredUsers = () => {
       if (!snapshot.empty) {
         const rawUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        const enhancedUsers = await Promise.all(rawUsers.map(async (user) => {
-          const userDocRef = doc(db, `userdetails/${user.id}`);
-          const userDocSnap = await getDoc(userDocRef);
-          const data = userDocSnap.exists() ? userDocSnap.data() : {};
-          return {
-            id: user.id,
-            name: data[" Name"] || `Unknown (${user.id})`,
-            category: data["Category"] || 'Unknown',
-            feedback: user.feedback || [],
-            phoneNumber: user.phoneNumber || user.id,
-            response: user.response || '',
-            ...user,
-          };
-        }));
+        const enhancedUsers = await Promise.all(
+  rawUsers.map(async (user) => {
+
+    // user.id = phone number from registeredUsers
+
+    // 🔥 Search userdetails where MobileNo == phone
+    const q = query(
+      collection(db, COLLECTIONS.userDetail),
+      where("MobileNo", "==", user.id)
+    );
+
+    const snap = await getDocs(q);
+
+    let userData = {};
+    if (!snap.empty) {
+      userData = snap.docs[0].data();   // userdetail found
+    }
+
+    return {
+      id: user.id,                                 // phone
+      name: userData["Name"] || `Unknown (${user.id})`,
+      category: userData["Category"] || 'Unknown',
+      phoneNumber: user.id,
+      feedback: user.feedback || [],
+      response: user.response || '',
+      ...user,
+    };
+  })
+);
+
 
         // Filter users who have a response
         const respondedUsers = enhancedUsers.filter(user => user.response);

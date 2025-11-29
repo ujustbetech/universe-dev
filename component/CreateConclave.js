@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { COLLECTIONS } from "/utility_collection";
-import { collection, getDocs, addDoc ,getDoc,doc} from 'firebase/firestore';
+import { collection, getDocs, addDoc ,getDoc,doc,query,where} from 'firebase/firestore';
 
 export default function CreateConclavePage() {
   const [users, setUsers] = useState([]);
@@ -27,20 +27,25 @@ const [focusedInput, setFocusedInput] = useState(null);
   const [filteredNt, setFilteredNt] = useState([]);
   const [filteredOrbiters, setFilteredOrbiters] = useState([]);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      const querySnapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
-      const userList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data()[" Name"],
-      }));
-      setUsers(userList);
-      setFilteredLeaders(userList);
-      setFilteredNt(userList);
-      setFilteredOrbiters(userList);
-    };
-    fetchUsers();
-  }, []);
+ useEffect(() => {
+  const fetchUsers = async () => {
+    const querySnapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
+
+    const userList = querySnapshot.docs.map(doc => ({
+      id: doc.id,                // UJB CODE
+      ujbCode: doc.id,           // Optional alias
+      name: doc.data()["Name"], // Your field has a space, keeping it as is
+    }));
+
+    setUsers(userList);
+    setFilteredLeaders(userList);
+    setFilteredNt(userList);
+    setFilteredOrbiters(userList);
+  };
+
+  fetchUsers();
+}, []);
+
 useEffect(() => {
   const handleClickOutside = (e) => {
     if (!e.target.closest('.autosuggest')) {
@@ -84,34 +89,96 @@ const handleSearch = (query, setQuery, setFiltered, allUsers) => {
     }));
   };
 
- const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e.preventDefault();
+
   try {
-    const docRef = await addDoc(collection(db, COLLECTIONS.conclaves), form);
-    alert('Conclave created successfully!');
+    let finalForm = { ...form };
+
+    // 🔥 Convert Leader UJB Code → Phone number
+    if (form.leader) {
+      const ref = doc(db, COLLECTIONS.userDetail, form.leader);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        finalForm.leader = snap.data()?.MobileNo || form.leader;
+      }
+    }
+
+    // 🔥 Convert NT Members
+    if (form.ntMembers.length > 0) {
+      const ntPhones = [];
+      for (const ujb of form.ntMembers) {
+        const ref = doc(db, COLLECTIONS.userDetail, ujb);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          ntPhones.push(snap.data()?.MobileNo || ujb);
+        }
+      }
+      finalForm.ntMembers = ntPhones;
+    }
+
+    // 🔥 Convert Orbiters
+    if (form.orbiters.length > 0) {
+      const orbiterPhones = [];
+      for (const ujb of form.orbiters) {
+        const ref = doc(db, COLLECTIONS.userDetail, ujb);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          orbiterPhones.push(snap.data()?.MobileNo || ujb);
+        }
+      }
+      finalForm.orbiters = orbiterPhones;
+    }
+
+    // 1️⃣ Save Conclave with PHONE NUMBERS (not UJB codes)
+    await addDoc(collection(db, COLLECTIONS.conclaves), finalForm);
+
+    alert("Conclave created successfully!");
 
     const eventName = form.conclaveStream;
     const eventDate = form.startDate;
 
+    // 2️⃣ Prepare all recipients using final PHONE LISTS
     const allRecipients = [
-      { role: 'Leader', numbers: [form.leader] },
-      { role: 'NT Member', numbers: form.ntMembers },
-      { role: 'Orbiter', numbers: form.orbiters },
+      { role: "Leader", phones: [finalForm.leader] },
+      { role: "NT Member", phones: finalForm.ntMembers || [] },
+      { role: "Orbiter", phones: finalForm.orbiters || [] },
     ];
 
-    for (const group of allRecipients) {
-      for (const phone of group.numbers) {
-        const userDoc = await getDoc(doc(db,'userdetails', phone));
-        const userName = userDoc.exists() ? userDoc.data()[" Name"] : phone;
+    // 3️⃣ Loop and Send WhatsApp
+for (const group of allRecipients) {
+  for (const phone of group.phones) {
 
-   //     await sendWhatsAppMessage(userName, eventName, eventDate, '', phone);
-      }
+    // 🔥 Fetch user by MobileNo field (NOT docId)
+    const q = query(
+      collection(db, COLLECTIONS.userDetail),
+      where("MobileNo", "==", phone)
+    );
+
+    const snap = await getDocs(q);
+
+    let userName = phone; // fallback
+
+    if (!snap.empty) {
+      const userData = snap.docs[0].data();
+      userName = userData?.Name || phone;
     }
+
+    console.log("Sending WhatsApp →", phone, userName);
+
+    await sendWhatsAppMessage(userName, eventName, eventDate, "", phone);
+  }
+}
+
+
   } catch (err) {
-    console.error('Error adding document:', err);
-    alert('Failed to create conclave.');
+    console.error("Error adding document:", err);
+    alert("Failed to create conclave.");
   }
 };
+
+
 
 
   const getUserNameById = (id) => {
