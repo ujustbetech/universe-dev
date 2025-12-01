@@ -8,7 +8,7 @@ export default function PaymentHistory({
   paidToOrbiter = 0,
   paidToOrbiterMentor = 0,
   paidToCosmoMentor = 0,
-  ujb,
+  onRequestPayout, // NEW: callback to open UJB payout modal
 }) {
   const [expanded, setExpanded] = useState(null);
 
@@ -74,7 +74,7 @@ export default function PaymentHistory({
               </p>
             )}
 
-            {/* Adjustment UI for Orbiter payouts */}
+            {/* Adjustment UI for Orbiter payouts (UJB → Orbiter) */}
             {isUjbPayoutToOrbiter && (
               <div className="adjustmentBox">
                 <p>
@@ -133,11 +133,11 @@ export default function PaymentHistory({
                   amount={orbiterTotal}
                   paid={paidToOrbiter}
                   remaining={remainingOrbiter}
-                  onPay={async () =>
-                    ujb.payFromSlot({
+                  onPay={() =>
+                    onRequestPayout &&
+                    onRequestPayout({
                       recipient: "Orbiter",
                       amount: remainingOrbiter,
-                      logicalAmount: remainingOrbiter, // full logical share
                       fromPaymentId: paymentId,
                     })
                   }
@@ -148,8 +148,9 @@ export default function PaymentHistory({
                   amount={orbiterMentorTotal}
                   paid={paidToOrbiterMentor}
                   remaining={remainingOrbiterMentor}
-                  onPay={async () =>
-                    ujb.payFromSlot({
+                  onPay={() =>
+                    onRequestPayout &&
+                    onRequestPayout({
                       recipient: "OrbiterMentor",
                       amount: remainingOrbiterMentor,
                       fromPaymentId: paymentId,
@@ -162,8 +163,9 @@ export default function PaymentHistory({
                   amount={cosmoMentorTotal}
                   paid={paidToCosmoMentor}
                   remaining={remainingCosmoMentor}
-                  onPay={async () =>
-                    ujb.payFromSlot({
+                  onPay={() =>
+                    onRequestPayout &&
+                    onRequestPayout({
                       recipient: "CosmoMentor",
                       amount: remainingCosmoMentor,
                       fromPaymentId: paymentId,

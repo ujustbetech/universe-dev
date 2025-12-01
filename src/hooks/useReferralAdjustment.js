@@ -25,7 +25,6 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
   const [globalRemaining, setGlobalRemaining] = useState(0);
   const [feeType, setFeeType] = useState(null);
 
-  // ---------- INITIAL LOAD ----------
   const loadProfileAdjustment = useCallback(async () => {
     try {
       if (!orbiterUjbCode) return;
@@ -67,7 +66,6 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
     loadProfileAdjustment();
   }, [loadProfileAdjustment]);
 
-  // ---------- APPLY ADJUSTMENT BEFORE PAYING ORBITER ----------
   const applyAdjustmentBeforePayOrbiter = useCallback(
     async ({ requestedAmount, dealValue }) => {
       const safeAmount = Math.max(0, Number(requestedAmount) || 0);
@@ -103,14 +101,12 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
           dealValue,
         });
 
-        // PROFILE update (usersdetail)
         const profileRef = doc(db, COLLECTIONS.userDetail, profileDocId);
         await updateDoc(profileRef, {
           "payment.orbiter.adjustmentRemaining": increment(-deducted),
           "payment.orbiter.adjustmentCompleted": newGlobalRemaining <= 0,
         });
 
-        // REFERRAL update
         const referralRef = doc(db, COLLECTIONS.referral, referralId);
         const updatePayload = {
           adjustmentRemaining: increment(-deducted),

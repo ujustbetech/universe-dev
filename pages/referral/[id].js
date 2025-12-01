@@ -58,16 +58,43 @@ export default function ReferralDetailsPage() {
   const orbiterUjbCode = referralData?.orbiter?.UJBCode || null;
   const adjustment = useReferralAdjustment(id, orbiterUjbCode);
 
+  // Followup state
   const defaultFollowupForm = {
     priority: "Medium",
     date: "",
     description: "",
     status: "Pending",
   };
-
   const [followupForm, setFollowupForm] = useState(defaultFollowupForm);
   const [isEditingFollowup, setIsEditingFollowup] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
+
+  // UJB payout modal state
+  const [payoutModal, setPayoutModal] = useState({
+    open: false,
+    recipient: "",
+    amount: 0,
+    fromPaymentId: null,
+    modeOfPayment: "",
+    transactionRef: "",
+    paymentDate: new Date().toISOString().split("T")[0],
+  });
+
+  const openPayoutModal = ({ recipient, amount, fromPaymentId }) => {
+    setPayoutModal({
+      open: true,
+      recipient,
+      amount,
+      fromPaymentId,
+      modeOfPayment: "",
+      transactionRef: "",
+      paymentDate: new Date().toISOString().split("T")[0],
+    });
+  };
+
+  const closePayoutModal = () => {
+    setPayoutModal((prev) => ({ ...prev, open: false }));
+  };
 
   if (!router.isReady || loading || !referralData) {
     return <p style={{ padding: 20 }}>Loading referral...</p>;
@@ -98,37 +125,97 @@ export default function ReferralDetailsPage() {
     referralData?.paidToCosmoMentor || 0
   );
 
-  // ORBITER PAYOUT WITH ADJUSTMENT (slot fully settled, less cash paid)
-  const handleOrbiterPayout = async ({ amount, fromPaymentId }) => {
-    const deal = dealLogs?.[dealLogs.length - 1];
-    const dealValue = deal?.dealValue || null;
+  // ORBITER payout with adjustment: slot is fully settled (logical), cash reduced
+  const handleConfirmPayout = async () => {
+    const {
+      recipient,
+      amount,
+      fromPaymentId,
+      modeOfPayment,
+      transactionRef,
+      paymentDate,
+    } = payoutModal;
 
-    // 1) Apply global adjustment
-    const adj = await adjustment.applyAdjustmentBeforePayOrbiter({
-      requestedAmount: amount,
-      dealValue,
-    });
-
-    const { cashToPay, deducted } = adj;
-
-    if (cashToPay > referralData.ujbBalance) {
-      return { error: "Insufficient UJB balance after adjustment." };
+    if (!recipient || amount <= 0) {
+      alert("Invalid payout details");
+      return;
     }
 
-    // 2) Pay only cashToPay, but mark logical share as full `amount`
-    return await ujb.payFromSlot({
-      recipient: "Orbiter",
-      amount: cashToPay,
-      logicalAmount: amount, // slot considered fully settled
-      fromPaymentId,
-      extraMeta: {
-        adjustment: {
-          requestedAmount: amount,
-          deducted,
-          cashPaid: cashToPay,
+    if (!modeOfPayment) {
+      alert("Please select mode of payment");
+      return;
+    }
+
+    if (!transactionRef) {
+      alert("Please enter transaction/reference ID");
+      return;
+    }
+
+    if (!paymentDate) {
+      alert("Select payment date");
+      return;
+    }
+
+    if (recipient === "Orbiter") {
+      const deal = dealLogs?.[dealLogs.length - 1];
+      const dealValue = deal?.dealValue || null;
+
+      const adj = await adjustment.applyAdjustmentBeforePayOrbiter({
+        requestedAmount: amount,
+        dealValue,
+      });
+
+      const { cashToPay, deducted } = adj;
+
+      if (cashToPay > ujb.ujbBalance) {
+        alert("Insufficient UJB balance after adjustment.");
+        return;
+      }
+
+      const res = await ujb.payFromSlot({
+        recipient: "Orbiter",
+        amount: cashToPay,
+        logicalAmount: amount, // full slot settled
+        fromPaymentId,
+        modeOfPayment,
+        transactionRef,
+        paymentDate,
+        extraMeta: {
+          adjustment: {
+            requestedAmount: amount,
+            deducted,
+            cashPaid: cashToPay,
+          },
         },
-      },
-    });
+      });
+
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+    } else {
+      // Orbiter Mentor / Cosmo Mentor (no adjustment)
+      if (amount > ujb.ujbBalance) {
+        alert("Insufficient UJB balance.");
+        return;
+      }
+
+      const res = await ujb.payFromSlot({
+        recipient,
+        amount,
+        fromPaymentId,
+        modeOfPayment,
+        transactionRef,
+        paymentDate,
+      });
+
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+    }
+
+    closePayoutModal();
   };
 
   return (
@@ -159,7 +246,7 @@ export default function ReferralDetailsPage() {
           agreedAmount={payment.agreedAmount}
           cosmoPaid={payment.cosmoPaid}
           agreedRemaining={payment.agreedRemaining}
-          ujbBalance={referralData.ujbBalance || 0}
+          ujbBalance={ujb.ujbBalance}
           paidTo={{
             orbiter: paidToOrbiter,
             orbiterMentor: paidToOrbiterMentor,
@@ -170,36 +257,14 @@ export default function ReferralDetailsPage() {
         />
       )}
 
-      {/* HISTORY & SLOT PAYOUTS */}
+      {/* PAYMENT HISTORY + SLOT PAYOUT REQUESTS */}
       <PaymentHistory
         payments={payments}
         mapName={mapName}
         paidToOrbiter={paidToOrbiter}
         paidToOrbiterMentor={paidToOrbiterMentor}
         paidToCosmoMentor={paidToCosmoMentor}
-        ujb={{
-          ...ujb,
-          // Override Orbiter payouts to inject adjustment flow
-          payFromSlot: async ({
-            recipient,
-            amount,
-            fromPaymentId,
-            ...rest
-          }) => {
-            if (recipient === "Orbiter") {
-              return await handleOrbiterPayout({
-                amount,
-                fromPaymentId,
-              });
-            }
-            return await ujb.payFromSlot({
-              recipient,
-              amount,
-              fromPaymentId,
-              ...rest,
-            });
-          },
-        }}
+        onRequestPayout={openPayoutModal}
       />
 
       {/* FOLLOWUPS */}
@@ -234,7 +299,7 @@ export default function ReferralDetailsPage() {
         }}
       />
 
-      {/* COSMO PAYMENT MODAL */}
+      {/* COSMO → UJB PAYMENT MODAL */}
       {payment.showAddPaymentForm && (
         <div className="ModalContainer">
           <div className="Modal">
@@ -324,6 +389,80 @@ export default function ReferralDetailsPage() {
             <button className="cancel" onClick={payment.closePaymentModal}>
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* UJB → ORBITER / MENTORS PAYOUT MODAL */}
+      {payoutModal.open && (
+        <div className="ModalContainer">
+          <div className="Modal">
+            <h3>
+              UJB Payout to {mapName(payoutModal.recipient)}
+            </h3>
+
+            <p>
+              <strong>Auto Amount:</strong> ₹{payoutModal.amount}
+            </p>
+            <p>
+              <strong>UJB Balance:</strong> ₹{ujb.ujbBalance}
+            </p>
+
+            <label>
+              Mode of Payment
+              <select
+                value={payoutModal.modeOfPayment}
+                onChange={(e) =>
+                  setPayoutModal((prev) => ({
+                    ...prev,
+                    modeOfPayment: e.target.value,
+                  }))
+                }
+              >
+                <option value="">--Select--</option>
+                <option value="GPay">GPay</option>
+                <option value="Razorpay">Razorpay</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <label>
+              Transaction Ref / ID
+              <input
+                value={payoutModal.transactionRef}
+                onChange={(e) =>
+                  setPayoutModal((prev) => ({
+                    ...prev,
+                    transactionRef: e.target.value,
+                  }))
+                }
+              />
+            </label>
+
+            <label>
+              Payment Date
+              <input
+                type="date"
+                value={payoutModal.paymentDate}
+                onChange={(e) =>
+                  setPayoutModal((prev) => ({
+                    ...prev,
+                    paymentDate: e.target.value,
+                  }))
+                }
+              />
+            </label>
+
+            <div className="modalActions">
+              <button onClick={handleConfirmPayout}>
+                Confirm Payout
+              </button>
+              <button className="cancel" onClick={closePayoutModal}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

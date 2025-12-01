@@ -31,15 +31,19 @@ export function useUjbDistribution({
   /**
    * payFromSlot
    * recipient: "Orbiter" | "OrbiterMentor" | "CosmoMentor"
-   * amount: cash amount UJB will actually pay
-   * logicalAmount: (optional) how much to increment paidToX by (defaults to amount)
-   * extraMeta: (optional) extra meta object merged into entry.meta
+   * amount: cash amount UJB will pay
+   * logicalAmount: how much to increment paidToX by (defaults to amount)
+   * modeOfPayment, transactionRef, paymentDate: extra payment details
+   * extraMeta: extra info added to entry.meta (e.g. adjustment details)
    */
   const payFromSlot = async ({
     recipient,
     amount,
     fromPaymentId,
     logicalAmount,
+    modeOfPayment,
+    transactionRef,
+    paymentDate,
     extraMeta,
   }) => {
     const amt = Number(amount || 0);
@@ -68,9 +72,10 @@ export function useUjbDistribution({
       paymentToName: recipientNameMap[recipient],
       amountReceived: amt,
       createdAt: Timestamp.now(),
-      paymentDate: new Date().toISOString().split("T")[0],
-      modeOfPayment: "Internal",
-      transactionRef: "",
+      paymentDate:
+        paymentDate || new Date().toISOString().split("T")[0],
+      modeOfPayment: modeOfPayment || "Internal",
+      transactionRef: transactionRef || "",
       meta: {
         isUjbPayout: true,
         belongsToPaymentId: fromPaymentId,
