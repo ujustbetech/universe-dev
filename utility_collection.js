@@ -8,5 +8,5 @@ export const COLLECTIONS = {
   birthdayCanva: process.env.NEXT_PUBLIC_COLLECTION_BIRTHDAY_CANVA,
   userDetail: process.env.NEXT_PUBLIC_COLLECTION_USER_DETAIL,
   prospect: process.env.NEXT_PUBLIC_COLLECTION_PROSPECT,
-   orbiter: process.env.NEXT_PUBLIC_COLLECTION_ORBITER,
+  orbiter: process.env.NEXT_PUBLIC_COLLECTION_ORBITER,
 };

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import {
   collection,
@@ -11,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
+import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/main.scss";
 
 const Profiling = () => {
@@ -29,7 +32,6 @@ const Profiling = () => {
   const [dealStatus, setDealStatus] = useState("Pending");
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
-  const [referralType, setReferralType] = useState("Service");
   const [referralSource, setReferralSource] = useState("MonthlyMeeting");
   const [otherReferralSource, setOtherReferralSource] = useState("");
 
@@ -40,49 +42,52 @@ const Profiling = () => {
 
   const [leadDescription, setLeadDescription] = useState("");
 
-  // Fetch users
+  // ================== LOAD USERS (FROM usersdetail) ==================
   useEffect(() => {
     const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, "usersdetail"));
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
+      const data = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
       setUsers(data);
     };
     fetchUsers();
   }, []);
 
+  // ================== SELECT ORBITER ==================
   const handleOrbiterSelect = (user) => {
     setSelectedOrbiter(user);
-    setOrbiterSearch(user.Name);
+    setOrbiterSearch(user.Name || "");
   };
 
+  // ================== SELECT COSMO ORBITER ==================
   const handleCosmoSelect = async (user) => {
     setSelectedCosmo(user);
-    setCosmoSearch(user.Name);
+    setCosmoSearch(user.Name || "");
 
     setSelectedService(null);
     setSelectedProduct(null);
     setServices([]);
     setProducts([]);
 
-    const docRef = doc(db, "usersdetail", user.id);
+    // Fetch full user document to ensure we have services/products with agreedValue
+    const docRef = doc(db, COLLECTIONS.userDetail, user.id);
     const userDoc = await getDoc(docRef);
 
     if (userDoc.exists()) {
       const data = userDoc.data();
 
-      // FIX: Convert Firestore map → array
-      const servicesArray = data.services
-        ? Object.values(data.services)
-        : [];
-      const productsArray = data.products
-        ? Object.values(data.products)
-        : [];
+      // services & products are stored as arrays, keep them exactly
+      const servicesArray = Array.isArray(data.services) ? data.services : [];
+      const productsArray = Array.isArray(data.products) ? data.products : [];
 
       setServices(servicesArray);
       setProducts(productsArray);
     }
   };
 
+  // ================== GENERATE REFERRAL ID (Ref/YY-YY/0000xxxx) ==================
   const generateReferralId = async () => {
     const now = new Date();
     const year1 = now.getFullYear() % 100;
@@ -90,7 +95,7 @@ const Profiling = () => {
     const prefix = `Ref/${year1}-${year2}/`;
 
     const q = query(
-      collection(db, "Referraldev"),
+      collection(db, COLLECTIONS.referral),
       orderBy("referralId", "desc"),
       limit(1)
     );
@@ -98,16 +103,16 @@ const Profiling = () => {
     const snapshot = await getDocs(q);
 
     let lastNum = 2999;
-
     if (!snapshot.empty) {
       const lastRef = snapshot.docs[0].data().referralId;
       const match = lastRef?.match(/\/(\d{8})$/);
-      if (match) lastNum = parseInt(match[1]);
+      if (match) lastNum = parseInt(match[1], 10);
     }
 
     return `${prefix}${String(lastNum + 1).padStart(8, "0")}`;
   };
 
+  // ================== WHATSAPP TEMPLATE (UNCHANGED) ==================
   const sendWhatsAppTemplate = async (phone, name, message) => {
     const formatted = String(phone || "").replace(/\s+/g, "");
 
@@ -130,39 +135,55 @@ const Profiling = () => {
       },
     };
 
-    await fetch(
-      "https://graph.facebook.com/v19.0/527476310441806/messages",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            "Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    await fetch("https://graph.facebook.com/v19.0/527476310441806/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:
+          "Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD",
+      },
+      body: JSON.stringify(payload),
+    });
   };
 
+  // ================== SUBMIT REFERRAL ==================
   const handleSubmit = async () => {
-    if (
-      !selectedOrbiter ||
-      !selectedCosmo ||
-      (!selectedService && !selectedProduct)
-    ) {
-      alert("Please fill all required fields.");
+    if (!selectedOrbiter || !selectedCosmo || (!selectedService && !selectedProduct)) {
+      alert("Please select Orbiter, Cosmo, and Service OR Product.");
       return;
     }
 
     try {
       const referralId = await generateReferralId();
 
-      const serviceData =
-        selectedService ? JSON.parse(JSON.stringify(selectedService)) : null;
+      // ✅ keep entire service/product object, including agreedValue
+      const serviceData = selectedService
+        ? JSON.parse(JSON.stringify(selectedService))
+        : null;
 
-      const productData =
-        selectedProduct ? JSON.parse(JSON.stringify(selectedProduct)) : null;
+      const productData = selectedProduct
+        ? JSON.parse(JSON.stringify(selectedProduct))
+        : null;
 
+      // ================== ORBITER FEE ADJUSTMENT LOGIC ==================
+      // If orbiter feeType = "adjustment" (not paid upfront),
+      // we store a pending adjustment (e.g. 1000) on the referral.
+      let orbiterFeeAdjustment = 0;
+      try {
+        // We already have full user object, but we ensure fresh value:
+        const orbRef = doc(db, COLLECTIONS.userDetail, selectedOrbiter.id);
+        const orbSnap = await getDoc(orbRef);
+        if (orbSnap.exists()) {
+          const payment = orbSnap.data().payment?.orbiter;
+          if (payment?.feeType === "adjustment") {
+            orbiterFeeAdjustment = 1000; // your fixed fee to adjust later
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to check orbiter fee adjustment", err);
+      }
+
+      // ================== FINAL REFERRAL DATA ==================
       const data = {
         referralId,
 
@@ -204,31 +225,49 @@ const Profiling = () => {
         dealStatus,
         lastUpdated,
         timestamp: new Date(),
+
+        // 🔥 NEW payment-related fields (initialized for ReferralDetails & Payment screens)
+        payments: [],
+        dealLogs: [],
+        statusLogs: [
+          {
+            status: dealStatus || "Pending",
+            updatedAt: new Date().toISOString(),
+          },
+        ],
+        agreedTotal: 0,
+        agreedRemaining: 0,
+        ujbBalance: 0,
+        paidToOrbiter: 0,
+        paidToOrbiterMentor: 0,
+        paidToCosmoMentor: 0,
+
+        // 🔥 store pending orbiter fee to adjust from referral earnings
+        orbiterFeeAdjustment,
       };
 
-      await addDoc(collection(db, "Referraldev"), data);
+      await addDoc(collection(db, COLLECTIONS.referral), data);
 
-      alert("Referral submitted successfully!");
+      const serviceOrProductName =
+        selectedService?.name || selectedProduct?.name || "";
 
-      const serviceOrProduct =
-        selectedService?.serviceName ||
-        selectedProduct?.productName ||
-        "";
-
+      // WhatsApp notifications (same as earlier, but with updated name)
       await Promise.all([
         sendWhatsAppTemplate(
           selectedOrbiter.MobileNo,
           selectedOrbiter.Name,
-          `🚀 You’ve passed a referral for *${serviceOrProduct}* to *${selectedCosmo.Name}*. Will be actioned within 24 hours!`
+          `🚀 You’ve passed a referral for *${serviceOrProductName}* to *${selectedCosmo.Name}*. Will be actioned within 24 hours!`
         ),
         sendWhatsAppTemplate(
           selectedCosmo.MobileNo,
           selectedCosmo.Name,
-          `✨ You’ve received a referral from *${selectedOrbiter.Name}* for *${serviceOrProduct}*. Please act within 24 hours.`
+          `✨ You’ve received a referral from *${selectedOrbiter.Name}* for *${serviceOrProductName}*. Please act within 24 hours.`
         ),
       ]);
 
-      // Reset fields
+      alert("Referral submitted successfully!");
+
+      // Reset form
       setSelectedOrbiter(null);
       setSelectedCosmo(null);
       setOrbiterSearch("");
@@ -245,12 +284,14 @@ const Profiling = () => {
       setReferralSource("MonthlyMeeting");
       setOtherReferralSource("");
       setDealStatus("Pending");
+      setLastUpdated(new Date());
     } catch (error) {
       console.error("Error submitting referral:", error);
       alert("Failed to submit referral.");
     }
   };
 
+  // ================== RENDER ==================
   return (
     <Layout>
       <section className="admin-profile-container">
@@ -315,10 +356,7 @@ const Profiling = () => {
                   );
                 })
                 .map((user) => (
-                  <li
-                    key={user.id}
-                    onClick={() => handleCosmoSelect(user)}
-                  >
+                  <li key={user.id} onClick={() => handleCosmoSelect(user)}>
                     {user.Name}
                   </li>
                 ))}
@@ -330,18 +368,17 @@ const Profiling = () => {
             <li className="form-group">
               <label>Select Service</label>
               <select
+                value={selectedService?.name || ""}
                 onChange={(e) =>
                   setSelectedService(
-                    services.find(
-                      (s) => s.serviceName === e.target.value
-                    )
+                    services.find((s) => s.name === e.target.value) || null
                   )
                 }
               >
                 <option value="">-- Select Service --</option>
                 {services.map((service, i) => (
-                  <option key={i} value={service.serviceName}>
-                    {service.serviceName}
+                  <option key={i} value={service.name}>
+                    {service.name}
                   </option>
                 ))}
               </select>
@@ -353,18 +390,17 @@ const Profiling = () => {
             <li className="form-group">
               <label>Select Product</label>
               <select
+                value={selectedProduct?.name || ""}
                 onChange={(e) =>
                   setSelectedProduct(
-                    products.find(
-                      (p) => p.productName === e.target.value
-                    )
+                    products.find((p) => p.name === e.target.value) || null
                   )
                 }
               >
                 <option value="">-- Select Product --</option>
                 {products.map((product, i) => (
-                  <option key={i} value={product.productName}>
-                    {product.productName}
+                  <option key={i} value={product.name}>
+                    {product.name}
                   </option>
                 ))}
               </select>
@@ -431,6 +467,36 @@ const Profiling = () => {
               <option value="Others">Others</option>
             </select>
           </li>
+
+          {/* OTHERS INFO */}
+          {refType === "Others" && (
+            <>
+              <li className="form-group">
+                <label>Referrer Name</label>
+                <input
+                  type="text"
+                  value={otherName}
+                  onChange={(e) => setOtherName(e.target.value)}
+                />
+              </li>
+              <li className="form-group">
+                <label>Referrer Phone</label>
+                <input
+                  type="text"
+                  value={otherPhone}
+                  onChange={(e) => setOtherPhone(e.target.value)}
+                />
+              </li>
+              <li className="form-group">
+                <label>Referrer Email</label>
+                <input
+                  type="email"
+                  value={otherEmail}
+                  onChange={(e) => setOtherEmail(e.target.value)}
+                />
+              </li>
+            </>
+          )}
 
           {/* REFERRAL SOURCE */}
           <li className="form-group">

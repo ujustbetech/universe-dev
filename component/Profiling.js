@@ -13,7 +13,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Swal from 'sweetalert2';
 import { COLLECTIONS } from "/utility_collection";
 import { db, storage } from '../firebaseConfig';
-import { useSearchParams } from 'next/navigation'; 
+import { useSearchParams } from 'next/navigation';
 
 
 const UserProfileForm = () => {
@@ -23,7 +23,7 @@ const UserProfileForm = () => {
   const [activeTab, setActiveTab] = useState('Personal Info');
   const [profilePreview, setProfilePreview] = useState('');
   const [businessLogoPreview, setBusinessLogoPreview] = useState('');
-  const [servicePreviews, setServicePreviews] = useState([]); 
+  const [servicePreviews, setServicePreviews] = useState([]);
   const [productPreviews, setProductPreviews] = useState([]);
 
   // ---------- services/products initial state (replaces older declarations) ----------
@@ -79,7 +79,7 @@ const UserProfileForm = () => {
   const [formData, setFormData] = useState({});
   const [docId, setDocId] = useState('');
   const [profilePic, setProfilePic] = useState(null);
-  const [businessLogo, setBusinessLogo] = useState(null); 
+  const [businessLogo, setBusinessLogo] = useState(null);
 
   // --- social platform list ---
   const socialPlatforms = [
@@ -368,7 +368,7 @@ const UserProfileForm = () => {
   useEffect(() => {
     if (formData['ProfilePhotoURL']) setProfilePreview(formData['ProfilePhotoURL']);
     if (formData['BusinessLogo']) setBusinessLogoPreview(formData['BusinessLogo']);
-    
+
     if (Array.isArray(formData.services)) {
       setServicePreviews(
         formData.services.map(s =>
@@ -443,6 +443,7 @@ const UserProfileForm = () => {
   };
 
   const handleSubmit = async () => {
+    const orbiterIsAdjustment = payment.orbiter?.feeType === "adjustment";
     try {
       const profileURL = await uploadProfilePhoto();
 
@@ -499,23 +500,33 @@ const UserProfileForm = () => {
       // PAYMENT BLOCK
       const paymentToSave = {
         orbiter: {
-          feeType: payment.orbiter?.feeType || 'upfront',
+          feeType: payment.orbiter?.feeType || "upfront",
           amount: 1000,
-          status: payment.orbiter?.status || 'unpaid',
-          paidDate: payment.orbiter?.paidDate || '',
-          paymentMode: payment.orbiter?.paymentMode || '',
-          paymentId: payment.orbiter?.paymentId || '',
-          screenshotURL: payment.orbiter?.screenshotURL || ''
+          status: orbiterIsAdjustment
+            ? "adjusted"
+            : payment.orbiter?.status || "unpaid",
+          paidDate: orbiterIsAdjustment ? "" : (payment.orbiter?.paidDate || ""),
+          paymentMode: orbiterIsAdjustment ? "" : (payment.orbiter?.paymentMode || ""),
+          paymentId: orbiterIsAdjustment ? "" : (payment.orbiter?.paymentId || ""),
+          screenshotURL: orbiterIsAdjustment ? "" : (payment.orbiter?.screenshotURL || ""),
+
+          // 🔥 NEW: global adjustment fields
+          adjustmentRemaining: orbiterIsAdjustment
+            ? (payment.orbiter?.adjustmentRemaining ?? 1000) // default 1000 when enabling
+            : (payment.orbiter?.adjustmentRemaining ?? 0),
+          adjustmentCompleted: orbiterIsAdjustment
+            ? false
+            : (payment.orbiter?.adjustmentCompleted ?? false),
         },
         cosmo: {
           amount: 5000,
-          status: payment.cosmo?.status || 'unpaid',
-          paidDate: payment.cosmo?.paidDate || '',
-          paymentMode: payment.cosmo?.paymentMode || '',
-          paymentId: payment.cosmo?.paymentId || '',
-          screenshotURL: payment.cosmo?.screenshotURL || ''
-        }
-      };
+          status: payment.cosmo?.status || "unpaid",
+          paidDate: payment.cosmo?.paidDate || "",
+          paymentMode: payment.cosmo?.paymentMode || "",
+          paymentId: payment.cosmo?.paymentId || "",
+          screenshotURL: payment.cosmo?.screenshotURL || "",
+        },
+      };;
 
       // FINAL DATA TO SAVE
       const updatedData = {
@@ -574,7 +585,7 @@ const UserProfileForm = () => {
         }
       };
 
-      const userRef = doc(db,COLLECTIONS.userDetail, docId);
+      const userRef = doc(db, COLLECTIONS.userDetail, docId);
       await updateDoc(userRef, subscriptionData);
 
       Swal.fire({
@@ -621,7 +632,7 @@ const UserProfileForm = () => {
     'FamilyHistorySummary', 'MaritalStatus', 'ProfessionalHistory',
     'CurrentProfession', 'EducationalBackground', 'LanguagesKnown',
     'ContributionAreainUJustBe', 'ImmediateDesire', 'Mastery',
-    'SpecialSocialContribution', 'ProfileStatus',  'BusinessSocialMediaPages',
+    'SpecialSocialContribution', 'ProfileStatus', 'BusinessSocialMediaPages',
   ];
 
   const cosmorbiterFields = [
@@ -667,7 +678,7 @@ const UserProfileForm = () => {
     'Additional Info': [
       'Hobbies', 'InterestArea', 'Skills', 'ExclusiveKnowledge', 'Aspirations',
       'ContributionAreainUJustBe', 'ImmediateDesire', 'Mastery',
-      'SpecialSocialContribution', 'ProfileStatus' , 'BusinessSocialMediaPages',
+      'SpecialSocialContribution', 'ProfileStatus', 'BusinessSocialMediaPages',
     ],
   };
 
@@ -790,8 +801,8 @@ const UserProfileForm = () => {
     if (field.toLowerCase().includes('upload') || field.toLowerCase().includes('logo')) {
       const preview =
         field === 'Upload Photo' ? profilePreview :
-        field === 'BusinessLogo' ? businessLogoPreview : '';
-      
+          field === 'BusinessLogo' ? businessLogoPreview : '';
+
       return (
         <div>
           <label className="upload-label">
@@ -834,7 +845,7 @@ const UserProfileForm = () => {
         {formData && (
           <>
             <div className="step-progress-bar">
-              {['Personal Info', 'Health', 'Education', 'BusinessInfo', 'Additional Info','Payment'].map((tab, index) => (
+              {['Personal Info', 'Health', 'Education', 'BusinessInfo', 'Additional Info', 'Payment'].map((tab, index) => (
                 <div key={tab} className="step-container">
                   <button
                     className={`step ${activeTab === tab ? "active" : ""}`}
@@ -1507,23 +1518,23 @@ const UserProfileForm = () => {
                     )}
 
                     {formData.Category === 'CosmOrbiter' &&
-                     payment.cosmo?.status === 'paid' && (
-                      <>
-                        {!formData.subscription?.startDate ? (
-                          <button
-                            onClick={handleBusinessApprove}
-                            className="approve-btn"
-                          >
-                            Approve Business
-                          </button>
-                        ) : (
-                          <p className="approved-status">
-                            ✅ Business Approved on {formData.subscription.startDate}<br/>
-                            🔄 Renew on {formData.subscription.nextRenewalDate}
-                          </p>
-                        )}
-                      </>
-                    )}
+                      payment.cosmo?.status === 'paid' && (
+                        <>
+                          {!formData.subscription?.startDate ? (
+                            <button
+                              onClick={handleBusinessApprove}
+                              className="approve-btn"
+                            >
+                              Approve Business
+                            </button>
+                          ) : (
+                            <p className="approved-status">
+                              ✅ Business Approved on {formData.subscription.startDate}<br />
+                              🔄 Renew on {formData.subscription.nextRenewalDate}
+                            </p>
+                          )}
+                        </>
+                      )}
                   </div>
                 )}
               </div>
