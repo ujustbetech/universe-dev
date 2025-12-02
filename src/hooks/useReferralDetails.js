@@ -1,4 +1,4 @@
-// hooks/useReferralDetails.js
+// src/hooks/useReferralDetails.js
 import { useEffect, useState } from "react";
 import {
   doc,
@@ -8,8 +8,9 @@ import {
   Timestamp,
   arrayUnion,
 } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
-import { COLLECTIONS } from "../../utility_collection"; // ✅ use your central mapping
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../../firebaseConfig";
+import { COLLECTIONS } from "../../utility_collection";
 
 export default function useReferralDetails(id) {
   const [loading, setLoading] = useState(true);
@@ -32,13 +33,16 @@ export default function useReferralDetails(id) {
   const [dealAlreadyCalculated, setDealAlreadyCalculated] = useState(false);
   const [dealEverWon, setDealEverWon] = useState(false);
 
+  /* ------------------------------------------------------
+     REALTIME REFERRAL LISTENER
+  ------------------------------------------------------ */
   useEffect(() => {
     if (!id) return;
 
-    const ref = doc(db, COLLECTIONS.referral, id); // ✅ fixed
+    const refDoc = doc(db, COLLECTIONS.referral, id);
 
     const unsub = onSnapshot(
-      ref,
+      refDoc,
       async (snap) => {
         if (!snap.exists()) {
           console.error("Referral not found:", id);
@@ -49,6 +53,7 @@ export default function useReferralDetails(id) {
         const data = snap.data();
         setReferralData(data);
 
+        /* Update local form state */
         setFormState((prev) => ({
           ...prev,
           dealStatus: data.dealStatus || "Pending",
@@ -74,25 +79,52 @@ export default function useReferralDetails(id) {
         ];
         if (eligible.includes(data.dealStatus)) setDealEverWon(true);
 
-        // Orbiter profile
-        if (data.orbiter?.phone) {
-          const oSnap = await getDoc(
-            doc(db, COLLECTIONS.userDetail, data.orbiter.phone)
-          );
-          if (oSnap.exists()) setOrbiter({ ...data.orbiter, ...oSnap.data() });
-          else setOrbiter(data.orbiter);
+        /* ------------------------------------------------
+           LOAD ORBITER PROFILE (USING UJBCode)
+        ------------------------------------------------ */
+        if (data.orbiter?.ujbCode || data.orbiter?.UJBCode) {
+          const orbCode = data.orbiter.ujbCode || data.orbiter.UJBCode;
+
+          try {
+            const oSnap = await getDoc(
+              doc(db, COLLECTIONS.userDetail, orbCode)
+            );
+
+            if (oSnap.exists()) {
+              setOrbiter({ ...data.orbiter, ...oSnap.data() });
+            } else {
+              setOrbiter(data.orbiter);
+            }
+          } catch (e) {
+            console.error("Orbiter profile load failed:", e);
+            setOrbiter(data.orbiter || null);
+          }
         } else {
           setOrbiter(data.orbiter || null);
         }
 
-        // Cosmo profile
-        if (data.cosmoOrbiter?.phone) {
-          const cSnap = await getDoc(
-            doc(db, COLLECTIONS.userDetail, data.cosmoOrbiter.phone)
-          );
-          if (cSnap.exists())
-            setCosmoOrbiter({ ...data.cosmoOrbiter, ...cSnap.data() });
-          else setCosmoOrbiter(data.cosmoOrbiter);
+        /* ------------------------------------------------
+           LOAD COSMO ORBITER PROFILE (FIXED)
+           Previously was loading using .phone → WRONG
+        ------------------------------------------------ */
+        if (data.cosmoOrbiter?.ujbCode || data.cosmoOrbiter?.UJBCode) {
+          const cosmoCode =
+            data.cosmoOrbiter.ujbCode || data.cosmoOrbiter.UJBCode;
+
+          try {
+            const cSnap = await getDoc(
+              doc(db, COLLECTIONS.userDetail, cosmoCode)
+            );
+
+            if (cSnap.exists()) {
+              setCosmoOrbiter({ ...data.cosmoOrbiter, ...cSnap.data() });
+            } else {
+              setCosmoOrbiter(data.cosmoOrbiter);
+            }
+          } catch (e) {
+            console.error("Cosmo profile load failed:", e);
+            setCosmoOrbiter(data.cosmoOrbiter || null);
+          }
         } else {
           setCosmoOrbiter(data.cosmoOrbiter || null);
         }
@@ -108,6 +140,9 @@ export default function useReferralDetails(id) {
     return () => unsub();
   }, [id]);
 
+  /* ------------------------------------------------------
+     STATUS UPDATE
+  ------------------------------------------------------ */
   const handleStatusUpdate = async (newStatus) => {
     if (!id) return;
     try {
@@ -133,6 +168,9 @@ export default function useReferralDetails(id) {
     }
   };
 
+  /* ------------------------------------------------------
+     DEAL LOG SAVE
+  ------------------------------------------------------ */
   const handleSaveDealLog = async (distribution) => {
     if (!id || !distribution) return;
     try {
@@ -140,6 +178,7 @@ export default function useReferralDetails(id) {
         dealLogs: [distribution],
         lastDealCalculatedAt: Timestamp.now(),
         agreedTotal: distribution.agreedAmount,
+        dealValue: distribution.dealValue,
       });
 
       setDealLogs([distribution]);
@@ -149,6 +188,9 @@ export default function useReferralDetails(id) {
     }
   };
 
+  /* ------------------------------------------------------
+     FOLLOWUPS CRUD
+  ------------------------------------------------------ */
   const addFollowup = async (f) => {
     if (!id) return;
     const entry = {
@@ -159,8 +201,7 @@ export default function useReferralDetails(id) {
       createdAt: Date.now(),
     };
 
-    const current = Array.isArray(followups) ? followups : [];
-    const updated = [...current, entry];
+    const updated = [...(followups || []), entry];
 
     try {
       await updateDoc(doc(db, COLLECTIONS.referral, id), {
@@ -190,6 +231,7 @@ export default function useReferralDetails(id) {
     if (!id) return;
     const arr = [...followups];
     arr.splice(index, 1);
+
     try {
       await updateDoc(doc(db, COLLECTIONS.referral, id), {
         followups: arr,
@@ -200,6 +242,53 @@ export default function useReferralDetails(id) {
     }
   };
 
+  /* ------------------------------------------------------
+     FILE UPLOADS
+  ------------------------------------------------------ */
+  const uploadReferralFile = async (file, type = "supporting") => {
+    if (!id || !file) return { error: "Missing file or referral ID" };
+
+    try {
+      const path = `referrals/${id}/${type}-${Date.now()}-${file.name}`;
+      const storageRef = ref(storage, path);
+
+      await uploadBytes(storageRef, file);
+
+      const url = await getDownloadURL(storageRef);
+
+      const refDoc = doc(db, COLLECTIONS.referral, id);
+
+      if (type === "invoice") {
+        await updateDoc(refDoc, {
+          invoiceUrl: url,
+          invoiceName: file.name,
+        });
+      } else {
+        await updateDoc(refDoc, {
+          supportingDocs: arrayUnion({
+            url,
+            name: file.name,
+            type,
+            uploadedAt: Date.now(),
+          }),
+        });
+      }
+
+      return { success: true, url };
+    } catch (e) {
+      console.error("File upload failed:", e);
+      return { error: "File upload failed" };
+    }
+  };
+
+  const uploadInvoice = async (file) => uploadReferralFile(file, "invoice");
+  const uploadSupportingDoc = async (file, type = "supporting") =>
+    uploadReferralFile(file, type);
+  const uploadLeadDoc = async (file) => uploadReferralFile(file, "lead");
+
+  /* ------------------------------------------------------
+     RETURN HOOK VALUES
+  ------------------------------------------------------ */
   return {
     loading,
     referralData,
@@ -218,5 +307,8 @@ export default function useReferralDetails(id) {
     addFollowup,
     editFollowup,
     deleteFollowup,
+    uploadInvoice,
+    uploadSupportingDoc,
+    uploadLeadDoc,
   };
 }

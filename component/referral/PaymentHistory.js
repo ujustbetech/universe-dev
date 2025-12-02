@@ -1,6 +1,37 @@
 // components/referral/PaymentHistory.js
 import React, { useState } from "react";
 import SlotPayoutRow from "./SlotPayoutRow";
+import ProgressRing from "./ProgressRing";
+import StatusBadge from "./StatusBadge";
+
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return null;
+  const [y, m, d] = parts.map((p) => Number(p));
+  return new Date(y, m - 1, d);
+}
+
+// working days difference (skip Sundays only)
+function workingDaysDiff(from, to) {
+  if (!from || !to) return 0;
+  if (to < from) return 0;
+
+  let count = 0;
+  const cursor = new Date(from.getTime());
+  cursor.setHours(0, 0, 0, 0);
+  const end = new Date(to.getTime());
+  end.setHours(0, 0, 0, 0);
+
+  while (cursor <= end) {
+    const day = cursor.getDay(); // 0 = Sunday
+    if (day !== 0) {
+      count += 1;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
 
 export default function PaymentHistory({
   payments = [],
@@ -8,9 +39,10 @@ export default function PaymentHistory({
   paidToOrbiter = 0,
   paidToOrbiterMentor = 0,
   paidToCosmoMentor = 0,
-  onRequestPayout, // NEW: callback to open UJB payout modal
+  onRequestPayout,
 }) {
   const [expanded, setExpanded] = useState(null);
+  const today = new Date();
 
   const toggleExpand = (pid) => {
     setExpanded((prev) => (prev === pid ? null : pid));
@@ -43,17 +75,81 @@ export default function PaymentHistory({
           Math.max(cosmoMentorTotal - paidToCosmoMentor, 0)
         );
 
+        const totalSlotAmount =
+          orbiterTotal + orbiterMentorTotal + cosmoMentorTotal;
+        const remainingSlotsAmount =
+          remainingOrbiter +
+          remainingOrbiterMentor +
+          remainingCosmoMentor;
+        const paidSlotsAmount = Math.max(
+          totalSlotAmount - remainingSlotsAmount,
+          0
+        );
+        const progress =
+          totalSlotAmount > 0
+            ? Math.round((paidSlotsAmount / totalSlotAmount) * 100)
+            : 0;
+
+        // Determine status for Cosmo payments only
+        let status = null;
+        let workingDays = 0;
+        let isOverdue = false;
+
+        if (isCosmoPay && totalSlotAmount > 0) {
+          const dateObj = parseDate(pay.paymentDate);
+          workingDays = workingDaysDiff(dateObj, today);
+
+          if (remainingSlotsAmount <= 0) {
+            status = "settled";
+          } else if (workingDays > 7) {
+            status = "overdue";
+            isOverdue = true;
+          } else if (paidSlotsAmount > 0) {
+            status = "partial";
+          } else {
+            status = "pending";
+          }
+        }
+
         const isUjbPayoutToOrbiter =
           pay.paymentFrom === "UJustBe" &&
           pay.paymentTo === "Orbiter" &&
           pay.meta?.adjustment;
 
+        const cardClassNames = [
+          "paymentCard",
+          isCosmoPay && status === "overdue" ? "paymentCardOverdue" : "",
+          isCosmoPay && status === "partial" ? "paymentCardPartial" : "",
+          isCosmoPay && status === "settled" ? "paymentCardSettled" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
         return (
-          <div className="paymentCard" key={paymentId}>
+          <div className={cardClassNames} key={paymentId}>
             <div className="paymentCardHeader">
-              <h4>₹{pay.amountReceived}</h4>
-              <small>{paymentId}</small>
+              <div>
+                <h4>₹{pay.amountReceived}</h4>
+                <small>{paymentId}</small>
+              </div>
+
+              {isCosmoPay && (
+                <div className="paymentStatusColumn">
+                  <ProgressRing size={44} strokeWidth={4} progress={progress} />
+                  <StatusBadge status={status} />
+                  {status !== "settled" && (
+                    <span className="payoutRibbon">🏁 Payout Required</span>
+                  )}
+                </div>
+              )}
             </div>
+
+            {isCosmoPay && isOverdue && (
+              <div className="overdueBanner">
+                ⚠ Payment overdue for settlement (
+                {workingDays} working days since receipt)
+              </div>
+            )}
 
             <p>
               <strong>From:</strong> {mapName(pay.paymentFrom)}
@@ -74,18 +170,17 @@ export default function PaymentHistory({
               </p>
             )}
 
-            {/* Adjustment UI for Orbiter payouts (UJB → Orbiter) */}
             {isUjbPayoutToOrbiter && (
               <div className="adjustmentBox">
                 <p>
                   <strong>Orbiter Share Settled:</strong> ₹
                   {pay.meta.adjustment.requestedAmount}
                 </p>
-                <p style={{ color: "#b30000" }}>
+                <p className="adjustmentDeducted">
                   <strong>Adjustment Deducted:</strong> ₹
                   {pay.meta.adjustment.deducted}
                 </p>
-                <p style={{ color: "#0055aa" }}>
+                <p className="adjustmentCashPaid">
                   <strong>Cash Paid:</strong> ₹
                   {pay.meta.adjustment.cashPaid}
                 </p>
@@ -135,6 +230,7 @@ export default function PaymentHistory({
                   remaining={remainingOrbiter}
                   onPay={() =>
                     onRequestPayout &&
+                    remainingOrbiter > 0 &&
                     onRequestPayout({
                       recipient: "Orbiter",
                       amount: remainingOrbiter,
@@ -150,6 +246,7 @@ export default function PaymentHistory({
                   remaining={remainingOrbiterMentor}
                   onPay={() =>
                     onRequestPayout &&
+                    remainingOrbiterMentor > 0 &&
                     onRequestPayout({
                       recipient: "OrbiterMentor",
                       amount: remainingOrbiterMentor,
@@ -165,6 +262,7 @@ export default function PaymentHistory({
                   remaining={remainingCosmoMentor}
                   onPay={() =>
                     onRequestPayout &&
+                    remainingCosmoMentor > 0 &&
                     onRequestPayout({
                       recipient: "CosmoMentor",
                       amount: remainingCosmoMentor,

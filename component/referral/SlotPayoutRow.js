@@ -1,5 +1,8 @@
 // components/referral/SlotPayoutRow.js
-import React, { useState } from "react";
+import React from "react";
+
+const formatCurrency = (v) =>
+  `₹${Number(v || 0).toLocaleString("en-IN")}`;
 
 export default function SlotPayoutRow({
   label,
@@ -7,43 +10,63 @@ export default function SlotPayoutRow({
   paid = 0,
   remaining = 0,
   onPay,
+  payoutInfo, // optional: the payout record for this slot
 }) {
-  const [loading, setLoading] = useState(false);
-
-  const r2 = (n) => Math.round(n * 100) / 100;
-  const safeRemaining = r2(remaining);
+  const safeRemaining = Math.max(Number(remaining || 0), 0);
   const fullyPaid = safeRemaining <= 0;
 
-  const handlePay = async () => {
-    if (loading || fullyPaid) return;
-    setLoading(true);
-    const res = await onPay();
-    if (res?.error) {
-      alert(res.error);
-    }
-    setLoading(false);
-  };
+  const adjustedMeta = payoutInfo?.meta?.adjustment;
+  const hasAdjustment =
+    adjustedMeta && Number(adjustedMeta.deducted || 0) > 0;
+
+  const effectivePaid =
+    payoutInfo?.actualPaid ??
+    payoutInfo?.amountReceived ??
+    paid ??
+    0;
 
   return (
     <div className="slotRow">
-      <div>
+      <div className="slotInfo">
         <strong>{label}</strong>
-        <p>Share: ₹{r2(amount)}</p>
-        <p>Paid: ₹{r2(paid)}</p>
-        <p>Remaining: ₹{safeRemaining}</p>
+        <p>Slot Share: {formatCurrency(amount)}</p>
+
+        {fullyPaid ? (
+          <p>Remaining: {formatCurrency(0)}</p>
+        ) : (
+          <p>Remaining: {formatCurrency(safeRemaining)}</p>
+        )}
+
+        {fullyPaid && payoutInfo && (
+          <div className="slotPaidDetails">
+            <p>
+              <strong>Cash Paid:</strong> {formatCurrency(effectivePaid)}
+            </p>
+            {hasAdjustment && (
+              <p className="slotAdjustmentNote">
+                Adjustment used:{" "}
+                {formatCurrency(adjustedMeta.deducted)}
+                <br />
+                Onboarding fee pending before:{" "}
+                {formatCurrency(adjustedMeta.previousRemaining)}
+                <br />
+                Pending after payout:{" "}
+                {formatCurrency(adjustedMeta.newRemaining)}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      {fullyPaid ? (
-        <span className="paidBadge">PAID</span>
-      ) : (
-        <button
-          className="payBtn"
-          onClick={handlePay}
-          disabled={loading || safeRemaining <= 0}
-        >
-          {loading ? "Processing..." : `Pay ₹${safeRemaining}`}
-        </button>
-      )}
+      <div className="slotAction">
+        {fullyPaid ? (
+          <span className="paidBadge">PAID</span>
+        ) : (
+          <button className="payBtn" onClick={onPay}>
+            Pay {formatCurrency(safeRemaining)}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

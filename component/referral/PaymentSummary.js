@@ -1,4 +1,4 @@
-// components/referral/PaymentSummary.js
+// component/referral/PaymentSummary.js
 import { useState } from "react";
 
 export default function PaymentSummary({

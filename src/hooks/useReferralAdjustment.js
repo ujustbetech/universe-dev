@@ -1,7 +1,7 @@
 // src/hooks/useReferralAdjustment.js
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   collection,
   doc,
@@ -25,10 +25,17 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
   const [globalRemaining, setGlobalRemaining] = useState(0);
   const [feeType, setFeeType] = useState(null);
 
-  const loadProfileAdjustment = useCallback(async () => {
-    try {
-      if (!orbiterUjbCode) return;
+  // prevent double load under React StrictMode
+  const initLoaded = useRef(false);
 
+  const loadProfileAdjustment = useCallback(async () => {
+    if (!orbiterUjbCode) return;
+
+    // guard StrictMode double run
+    if (initLoaded.current) return;
+    initLoaded.current = true;
+
+    try {
       setLoadingInit(true);
       setError(null);
 
@@ -43,7 +50,6 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
         setProfileDocId(null);
         setGlobalRemaining(0);
         setFeeType(null);
-        setLoadingInit(false);
         return;
       }
 
@@ -52,17 +58,18 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
       const orb = data.payment?.orbiter || {};
 
       setProfileDocId(docSnap.id);
-      setGlobalRemaining(orb.adjustmentRemaining ?? 0);
+      setGlobalRemaining(Number(orb.adjustmentRemaining || 0));
       setFeeType(orb.feeType || null);
-      setLoadingInit(false);
     } catch (err) {
       console.error("loadProfileAdjustment error:", err);
       setError(err?.message || "Failed to load adjustment info");
+    } finally {
       setLoadingInit(false);
     }
   }, [orbiterUjbCode]);
 
   useEffect(() => {
+    initLoaded.current = false;
     loadProfileAdjustment();
   }, [loadProfileAdjustment]);
 
@@ -70,6 +77,7 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
     async ({ requestedAmount, dealValue }) => {
       const safeAmount = Math.max(0, Number(requestedAmount) || 0);
 
+      // If adjustment is not applicable → passthrough
       if (
         !referralId ||
         !orbiterUjbCode ||
@@ -122,7 +130,6 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
         await updateDoc(referralRef, updatePayload);
 
         setGlobalRemaining(newGlobalRemaining);
-        setLoading(false);
 
         return {
           cashToPay: remainingForOrbiterCash,
@@ -133,7 +140,6 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
       } catch (err) {
         console.error("applyAdjustmentBeforePayOrbiter error:", err);
         setError(err?.message || "Failed to apply adjustment");
-        setLoading(false);
 
         return {
           cashToPay: safeAmount,
@@ -141,6 +147,8 @@ export const useReferralAdjustment = (referralId, orbiterUjbCode) => {
           newGlobalRemaining: globalRemaining,
           logEntry: null,
         };
+      } finally {
+        setLoading(false);
       }
     },
     [feeType, globalRemaining, profileDocId, referralId, orbiterUjbCode]

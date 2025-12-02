@@ -1,0 +1,475 @@
+/* ============================================================
+   REFERRAL PAGE (scoped)
+   ============================================================ */
+.ReferralPage {
+  font-family: "Inter", sans-serif;
+  background: #f8f9fb;
+  padding-bottom: 120px;
+  color: #2d2d2d;
+
+  /* ---------------- HEADER ---------------- */
+  .refHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 30px;
+    background: #fff;
+    border-bottom: 1px solid #e2e4e8;
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .bigStatusTag {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 6px;
+      background: #eee;
+      font-size: 13px;
+      font-weight: 600;
+    }
+  }
+
+  /* ---------------- LAYOUT ---------------- */
+  .refLayout {
+    display: flex;
+    gap: 24px;
+    padding: 20px 30px;
+  }
+
+  .leftColumn {
+    width: 68%;
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .rightColumn {
+    width: 32%;
+    position: sticky;
+    top: 20px;
+    height: fit-content;
+  }
+
+  .paymentHistoryContainer{
+    width: 100%;
+  }
+
+  /* ---------------- GLOBAL CARD STYLE ---------------- */
+  .card {
+    background: #fff;
+    padding: 20px 22px;
+    border-radius: 12px;
+    border: 1px solid #e2e4e8;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    transition: 0.25s ease;
+    width: 30% !important;
+
+    &:hover {
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    h3, h2 {
+      margin-bottom: 14px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+  }
+
+  /* ============================================================
+     PROFILE CARDS (Orbiter + CosmoOrbiter)
+     ============================================================ */
+  .profileHeaderRow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+
+    .avatarCircle {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: #0066ff;
+      color: #fff;
+      font-weight: 600;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: uppercase;
+    }
+
+    .headerNameBlock {
+      small {
+        display: block;
+        color: #666;
+        font-size: 13px;
+      }
+
+      strong {
+        font-size: 17px;
+      }
+    }
+  }
+
+  /* ============================================================
+     STATUS CARD
+     ============================================================ */
+  .ReferralStatusCard {
+    .statusBadge {
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #eee;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    select {
+      padding: 8px;
+      width: 100%;
+      margin-top: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      margin-top: 10px;
+      background: #0077ff;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: 0.25s;
+
+      &:hover { background: #005fcc; }
+    }
+  }
+
+  /* ---------------- STATUS TIMELINE ---------------- */
+  .statusHistory {
+    margin-top: 16px;
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 10px;
+
+      .timelineDot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #0077ff;
+        margin-top: 4px;
+      }
+
+      .timelineContent {
+        .statusLabel {
+          font-weight: 600;
+        }
+
+        .statusDate {
+          display: block;
+          font-size: 12px;
+          color: #777;
+        }
+      }
+    }
+  }
+
+  /* ============================================================
+     SERVICE DETAILS + DISTRIBUTION PREVIEW
+     ============================================================ */
+  .serviceDetailsCard {
+    .spList {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .dealBox {
+      margin-top: 18px;
+
+      input[type="number"] {
+        width: 200px;
+        padding: 6px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        margin-top: 6px;
+      }
+
+      .saveDealBtn {
+        margin-top: 12px;
+        background: #00b46e;
+        color: #fff;
+        padding: 8px 14px;
+        border-radius: 6px;
+      }
+    }
+  }
+
+  /* ============================================================
+     PAYMENT SUMMARY BAR (BOTTOM – sticky)
+     ============================================================ */
+  .bottomPaymentBar {
+    position: fixed;
+    bottom: 0;
+    left: 70px;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid #e0e0e0;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 50;
+    width: calc(100% - 70px);
+
+    .openPanelBtn {
+      background: #007bff;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+
+      &:hover { background: #005fcc; }
+    }
+  }
+
+  /* ============================================================
+     PAYMENT SUMMARY CARD
+     ============================================================ */
+  .paymentSummaryCard {
+    width: calc(100% - 150px);
+    display: flex;
+    column-gap: 20px;
+    align-items: center;
+    .summaryGrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .summaryItem {
+      background: #f5f7fa;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+
+      span {
+        display: block;
+        font-size: 13px;
+        color: #666;
+      }
+
+      strong {
+        font-size: 16px;
+        font-weight: 700;
+      }
+    }
+
+    .progressBarContainer {
+    //   margin-top: 10px;
+      position: absolute;
+      left: 0px;
+      top: 0px;
+      width: 100%;
+
+      .progressTrack {
+        background: #e2e4e6;
+        height: 8px;
+        border-radius: 6px;
+
+        .progressFill {
+          background: #00b46e;
+          height: 8px;
+          border-radius: 6px;
+          transition: width 0.4s ease;
+        }
+      }
+    }
+  }
+
+  /* ============================================================
+     PAYMENT HISTORY CARDS
+     ============================================================ */
+  .paymentCard {
+    background: #fff;
+    border: 1px solid #e2e4e8;
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    transition: 0.3s;
+
+    &.paymentCardOverdue { border-left: 4px solid #e60000; }
+    &.paymentCardPartial { border-left: 4px solid #e69800; }
+    &.paymentCardSettled { border-left: 4px solid #00c76a; }
+
+    .paymentCardHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      h4 { margin: 0; font-size: 20px; }
+    }
+
+    .payoutRibbon {
+      font-size: 12px;
+      margin-top: 4px;
+      display: inline-block;
+    }
+  }
+
+  /* ============================================================
+     SLOT PAYOUT ROWS
+     ============================================================ */
+  .slotRow {
+    display: flex;
+    justify-content: space-between;
+    background: #f7f9fb;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 10px;
+
+    .slotInfo {
+      strong { font-size: 15px; }
+      p { margin: 4px 0; font-size: 13px; }
+    }
+
+    .slotAction {
+      display: flex;
+      align-items: center;
+
+      .payBtn {
+        background: #0077ff;
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 6px;
+      }
+
+      .paidBadge {
+        background: #00c76a;
+        color: #fff;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+      }
+    }
+  }
+
+  /* ============================================================
+     PAYMENT DRAWER (SLIDE PANEL)
+     ============================================================ */
+  .DrawerOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 999;
+  }
+
+  .PaymentDrawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 410px;
+    height: 100vh;
+    background: #fff;
+    padding: 24px;
+    overflow-y: auto;
+    border-left: 1px solid #e2e4e8;
+    z-index: 1000;
+    animation: slideIn 0.35s ease;
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); }
+      to   { transform: translateX(0); }
+    }
+  }
+
+  /* ============================================================
+     FOLLOWUP PANEL (Right)
+     ============================================================ */
+  .followupTimeline {
+    list-style: none;
+    padding: 0;
+
+    li {
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+
+      small { color: #666; }
+    }
+  }
+
+  /* ============================================================
+     MODALS (Payout / Add Payment)
+     ============================================================ */
+  .ModalContainer {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+
+  .Modal {
+    background: white;
+    padding: 26px;
+    width: 420px;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+    animation: scalePop 0.3s ease;
+
+    @keyframes scalePop {
+      from { transform: scale(0.85); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: 500;
+
+      input, select {
+        width: 100%;
+        margin-top: 6px;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+      }
+    }
+
+    .modalActions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+
+      button {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+
+        &:first-child {
+          background: #00b46e;
+          color: white;
+        }
+
+        &.cancel {
+          background: #ddd;
+        }
+      }
+    }
+  }
+}

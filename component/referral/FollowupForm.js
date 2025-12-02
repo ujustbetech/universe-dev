@@ -1,4 +1,4 @@
-// components/referral/FollowupForm.js
+// component/referral/FollowupForm.js
 import React from "react";
 
 export default function FollowupForm({

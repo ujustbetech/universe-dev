@@ -1,4 +1,4 @@
-// components/referral/FollowupList.js
+// component/referral/FollowupList.js
 import React, { useState } from "react";
 
 export default function FollowupList({ followups = [], onEdit, onDelete }) {

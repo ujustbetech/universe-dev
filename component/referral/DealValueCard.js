@@ -1,4 +1,4 @@
-// components/referral/DealValueCard.js
+// component/referral/DealValueCard.js
 import React, { useState } from "react";
 import { buildDealDistribution } from "../../src/utils/referralCalculations";
 
