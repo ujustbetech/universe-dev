@@ -52,7 +52,7 @@ const UserAddProspect = () => {
     }
 
     try {
-      const prospectRef = collection(db, "Prospects");
+      const prospectRef = collection(db, COLLECTIONS.prospect);
 
       const prospectData = {
         ...formData,

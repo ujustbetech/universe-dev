@@ -11,7 +11,7 @@ const ExportProspects = () => {
   const fetchProspects = async () => {
     setLoading(true);
     try {
-      const rootCol = collection(db, 'Prospects');
+      const rootCol = collection(db, COLLECTIONS.prospect);
       const prospectSnapshot = await getDocs(rootCol);
       const mergedData = [];
 
@@ -34,7 +34,7 @@ const ExportProspects = () => {
 
         // Fetch engagementform subcollection if it exists
         try {
-          const engagementCol = collection(db, `Prospects/${prospectId}/engagementform`);
+          const engagementCol = collection(db, `COLLECTIONS.prospect/${prospectId}/engagementform`);
           const engagementSnapshot = await getDocs(engagementCol);
           merged.engagement = engagementSnapshot.docs.map(ed => {
             const data = ed.data();
@@ -56,7 +56,7 @@ const ExportProspects = () => {
 
         // Fetch prospectfeedbackform subcollection if it exists
         try {
-          const feedbackCol = collection(db, `Prospects/${prospectId}/prospectfeedbackform`);
+          const feedbackCol = collection(db, `COLLECTIONS.prospect/${prospectId}/prospectfeedbackform`);
           const feedbackSnapshot = await getDocs(feedbackCol);
           merged.feedback = feedbackSnapshot.docs.map(fd => {
             const data = fd.data();

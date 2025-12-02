@@ -23,7 +23,7 @@ const UserProspects = () => {
 
     const fetchProspects = async () => {
       try {
-        const prospectRef = collection(db, "Prospects");
+        const prospectRef = collection(db, COLLECTIONS.prospect);
 
         const q = query(
           prospectRef,

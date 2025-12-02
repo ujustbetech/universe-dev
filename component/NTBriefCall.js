@@ -41,7 +41,7 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
   };
   useEffect(() => {
     const fetchData = async () => {
-      const docRef = doc(db, 'Prospects', id);
+      const docRef = doc(db, COLLECTIONS.prospect, id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -68,7 +68,7 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
     const updatedComments = [newComment, ...comments];
 
     try {
-      const docRef = doc(db, 'Prospects', id);
+      const docRef = doc(db,COLLECTIONS.prospect, id);
       await updateDoc(docRef, { comments: updatedComments });
       setComments(updatedComments);
       setComment('');
@@ -92,7 +92,7 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
     };
   
     try {
-      const docRef = doc(db, 'Prospects', id);
+      const docRef = doc(db,COLLECTIONS.prospect, id);
       await updateDoc(docRef, { event: eventDetails });
       setEventCreated(eventDetails);
   

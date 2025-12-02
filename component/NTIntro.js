@@ -19,7 +19,7 @@ const NTIntro = ({ id, fetchData }) => {
   // 🔹 Load ntIntro data if already sent
   useEffect(() => {
     const fetchNTIntro = async () => {
-      const docRef = doc(db, "Prospects", id);
+      const docRef = doc(db, COLLECTIONS.prospect, id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setNtIntro(docSnap.data().ntIntro || null);
@@ -110,7 +110,7 @@ Brand Vision: You, as a contributor, come to be, connect and grow together to li
   const handleSendNTIntro = async () => {
     setLoading(true);
     try {
-      const docRef = doc(db, "Prospects", id);
+      const docRef = doc(db,COLLECTIONS.prospect, id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {

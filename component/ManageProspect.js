@@ -15,7 +15,7 @@ const ManageEvents = () => {
     useEffect(() => {
     const fetchProspects = async () => {
         try {
-            const prospectCollection = collection(db, 'Prospects');
+            const prospectCollection = collection(db, COLLECTIONS.prospect);
             const snapshot = await getDocs(prospectCollection);
 
             const prospectList = await Promise.all(
@@ -23,7 +23,7 @@ const ManageEvents = () => {
                     const data = docSnap.data();
 
                     // Fetch engagement subcollection
-                    const engagementCol = collection(db, `Prospects/${docSnap.id}/engagementform`);
+                    const engagementCol = collection(db, `COLLECTIONS.prospect/${docSnap.id}/engagementform`);
                     const engagementSnap = await getDocs(engagementCol);
 
                     let lastEngagementDate = null;
@@ -111,7 +111,7 @@ const formatDate = (dateValue) => {
         if (!confirmDelete) return;
 
         try {
-            await deleteDoc(doc(db, "Prospects", id));
+            await deleteDoc(doc(db,COLLECTIONS.prospect, id));
             setProspects(prev => prev.filter(p => p.id !== id));
             alert("Prospect deleted successfully.");
         } catch (error) {

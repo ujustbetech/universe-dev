@@ -20,13 +20,13 @@ const ProspectFormDetails = ({ id }) => {
   useEffect(() => {
     const fetchForms = async () => {
       try {
-        const subcollectionRef = collection(db, "Prospects", id, "prospectform");
+        const subcollectionRef = collection(db, COLLECTIONS.prospect, id, "prospectform");
         const snapshot = await getDocs(subcollectionRef);
 
         const auth = getAuth();
         const user = auth.currentUser;
 
-     const prospectDocRef = doc(db, "Prospects", id);
+     const prospectDocRef = doc(db, COLLECTIONS.prospect, id);
 const prospectSnap = await getDoc(prospectDocRef);
 
 const prospectData = prospectSnap.exists() ? prospectSnap.data() : {};
@@ -92,11 +92,11 @@ const defaultProspect = {
         const formCopy = { ...form };
 
         if (form.id) {
-          const docRef = doc(db, "Prospects", id, "prospectform", form.id);
+          const docRef = doc(db, COLLECTIONS.prospect, id, "prospectform", form.id);
           delete formCopy.id;
           await updateDoc(docRef, formCopy);
         } else {
-          await addDoc(collection(db, "Prospects", id, "prospectform"), formCopy);
+          await addDoc(collection(db,COLLECTIONS.prospect, id, "prospectform"), formCopy);
         }
       }
       alert("Forms saved successfully!");

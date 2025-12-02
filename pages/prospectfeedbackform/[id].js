@@ -60,7 +60,7 @@ const ProspectFeedbackForm = () => {
       if (!id) return;
 
       try {
-        const prospectRef = doc(db, "Prospects", id);
+        const prospectRef = doc(db, COLLECTIONS.prospect, id);
         const prospectSnap = await getDoc(prospectRef);
 
         if (prospectSnap.exists()) {
@@ -104,7 +104,7 @@ const ProspectFeedbackForm = () => {
       return;
     }
     try {
-      const subcollectionRef = collection(db, "Prospects", id, "prospectfeedbackform");
+      const subcollectionRef = collection(db,COLLECTIONS.prospect, id, "prospectfeedbackform");
       await addDoc(subcollectionRef, formData);
       Swal.fire({ icon: "success", title: "Form Submitted!", text: "Thank you for assessing the prospect." });
       setFormData(initialFormState);

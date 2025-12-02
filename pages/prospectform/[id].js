@@ -93,7 +93,7 @@ const ProspectForm = () => {
     const fetchProspectDetails = async () => {
       if (!id) return;
 
-      const prospectRef = doc(db, "Prospects", id);
+      const prospectRef = doc(db,COLLECTIONS.prospect, id);
       const snap = await getDoc(prospectRef);
 
       if (snap.exists()) {
@@ -134,7 +134,7 @@ const ProspectForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const subcollectionRef = collection(db, "Prospects", id, "prospectform");
+    const subcollectionRef = collection(db, COLLECTIONS.prospect, id, "prospectform");
 
     try {
       await addDoc(subcollectionRef, formData);

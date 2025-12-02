@@ -36,13 +36,13 @@ useEffect(() => {
   const fetchForms = async () => {
     try {
       // 1. Fetch feedback forms
-      const subcollectionRef = collection(db, "Prospects", id, "prospectfeedbackform");
+      const subcollectionRef = collection(db, COLLECTIONS.prospect, id, "prospectfeedbackform");
       const snapshot = await getDocs(subcollectionRef);
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setForms(data);
 
       // 2. Fetch prospect details
-      const prospectDocRef = doc(db, "Prospects", id);
+      const prospectDocRef = doc(db, COLLECTIONS.prospect, id);
       const prospectSnap = await getDoc(prospectDocRef);
 
       const autofill = {
@@ -98,7 +98,7 @@ useEffect(() => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const subcollectionRef = collection(db, "Prospects", id, "prospectfeedbackform");
+      const subcollectionRef = collection(db, COLLECTIONS.prospect, id, "prospectfeedbackform");
       await addDoc(subcollectionRef, formData);
       alert("Form submitted successfully");
       setShowForm(false);
