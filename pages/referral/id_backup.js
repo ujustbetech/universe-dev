@@ -2,14 +2,9 @@ import React, { useState } from "react";
 import { useRouter } from "next/router";
 import Layouts from "../../component/Layouts";
 
-// Hooks
-import { useReferralData } from "../../hooks/referral/useReferralData";
-import { useDealCalculation } from "../../hooks/referral/useDealCalculation";
-import { usePaymentFlow } from "../../hooks/referral/usePaymentFlow";
-import { useDistribution } from "../../hooks/referral/useDistribution";
 
-// Components
-import PaymentSummary from "../../components/referral/PaymentSummary";
+
+
 import PaymentSheet from "../../components/referral/PaymentSheet";
 import ReferralHeader from "../../components/referral/ReferralHeader";
 import ReferralStatusCard from "../../components/referral/ReferralStatusCard";
