@@ -38,24 +38,39 @@ export const calculateAgreedFromItem = (dealAmount, item) => {
   }
 
   // MULTIPLE / SLAB MODE
-  if (av.mode === "multiple" && Array.isArray(av.multiple?.slabs)) {
-    const slabs = av.multiple.slabs.map((s) => ({
-      ...s,
-      from: toNumber(s.from),
-      to: toNumber(s.to),
-      value: toNumber(s.value),
-    }));
+// MULTIPLE / SLAB MODE
+if (av.mode === "multiple") {
+  // Prefer slabs; fallback to itemSlabs if slabs are empty or missing
+  const rawSlabs =
+    Array.isArray(av.multiple?.slabs) && av.multiple.slabs.length
+      ? av.multiple.slabs
+      : Array.isArray(av.multiple?.itemSlabs)
+      ? av.multiple.itemSlabs
+      : [];
 
-    const candidates = slabs.filter((s) => deal >= s.from && deal <= s.to);
-    if (!candidates.length) return 0;
+  if (!rawSlabs.length) return 0;
 
-    // best match: highest "from"
-    const best = candidates.reduce((a, b) => (b.from > a.from ? b : a));
+  const slabs = rawSlabs.map((s) => ({
+    ...s,
+    from: toNumber(s.from),
+    to: toNumber(s.to),
+    value: toNumber(s.value),
+  }));
 
-    if (best.type === "percentage") return (deal * best.value) / 100;
-    if (best.type === "amount") return best.value;
-    return 0;
-  }
+  const candidates = slabs.filter(
+    (s) => deal >= s.from && deal <= s.to
+  );
+  if (!candidates.length) return 0;
+
+  const best = candidates.reduce((a, b) =>
+    b.from > a.from ? b : a
+  );
+
+  if (best.type === "percentage") return (deal * best.value) / 100;
+  if (best.type === "amount") return best.value;
+  return 0;
+}
+
 
   return 0;
 };

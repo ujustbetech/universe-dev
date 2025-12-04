@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { useState } from "react";
 
 import "../../src/app/styles/referral-ui.scss";
-
+import "../../src/app/styles/main.scss";
 import useReferralDetails from "../../src/hooks/useReferralDetails";
 import useReferralPayments from "../../src/hooks/useReferralPayments";
 import { useUjbDistribution } from "../../src/hooks/useUjbDistribution";
@@ -114,6 +114,48 @@ export default function ReferralDetailsPage() {
     setPayoutModal((prev) => ({ ...prev, open: false }));
   };
 
+  // --- WhatsApp Sender (embedded here as requested) ---
+  async function sendWhatsAppMessage(phone, parameters = []) {
+    try {
+      const formattedPhone = String(phone || "").replace(/\s+/g, "");
+
+      const payload = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: "template",
+        template: {
+          name: "referral_module",
+          language: { code: "en" },
+          components: [
+            {
+              type: "body",
+              parameters: parameters.map((param) => ({
+                type: "text",
+                text: param,
+              })),
+            },
+          ],
+        },
+      };
+
+      await fetch(
+        "https://graph.facebook.com/v19.0/527476310441806/messages",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+      // intentionally no console logs per preference
+    } catch (error) {
+      // silent fail per preference (no console)
+    }
+  }
+
   // UJB payout with adjustment logic
   const handleConfirmPayout = async () => {
     const {
@@ -169,13 +211,13 @@ export default function ReferralDetailsPage() {
     const extraMeta =
       deducted > 0
         ? {
-          adjustment: {
-            deducted,
-            cashPaid: cashToPay,
-            previousRemaining: newGlobalRemaining + deducted,
-            newRemaining: newGlobalRemaining,
-          },
-        }
+            adjustment: {
+              deducted,
+              cashPaid: cashToPay,
+              previousRemaining: newGlobalRemaining + deducted,
+              newRemaining: newGlobalRemaining,
+            },
+          }
         : {};
 
     const result = await ujb.payFromSlot({
@@ -195,6 +237,38 @@ export default function ReferralDetailsPage() {
     if (result?.error) {
       alert(result.error);
       return;
+    }
+
+    // -----------------------------
+    // WHATSAPP: UJB → Payout Notification (role-based)
+    // -----------------------------
+    try {
+      const payoutAmount = cashToPay;
+      const refId = referralData?.referralId || id;
+
+      let recipientPhone = "";
+      let recipientName = "";
+      let message = "";
+
+      if (recipient === "Orbiter") {
+        recipientPhone = orbiter?.phone || orbiter?.MobileNo;
+        recipientName = orbiter?.name || orbiter?.Name || "Orbiter";
+        message = `You received your Orbiter share ₹${payoutAmount} from UJustBe for Referral #${refId}.`;
+      } else if (recipient === "OrbiterMentor") {
+        recipientPhone = orbiter?.mentorPhone;
+        recipientName = orbiter?.mentorName || orbiter?.MentorName || "Mentor";
+        message = `You received your Mentor share ₹${payoutAmount} from UJustBe for Referral #${refId}.`;
+      } else if (recipient === "CosmoMentor") {
+        recipientPhone = cosmoOrbiter?.mentorPhone;
+        recipientName = cosmoOrbiter?.mentorName || cosmoOrbiter?.MentorName || "Cosmo Mentor";
+        message = `You received your Cosmo Mentor share ₹${payoutAmount} from UJustBe for Referral #${refId}.`;
+      }
+
+      if (recipientPhone) {
+        await sendWhatsAppMessage(recipientPhone, [recipientName, message]);
+      }
+    } catch (err) {
+      // silent
     }
 
     closePayoutModal();
@@ -241,8 +315,8 @@ export default function ReferralDetailsPage() {
         {/* HEADER */}
         <header className="refHeader">
           <div>
-            <h1>Referral #{id}</h1>
-            <p>{referralData?.referralSource || "Referral"}</p>
+            <h1>Referral #{referralData?.referralId}</h1>
+            <p>Source:{referralData?.referralSource || "Referral"}</p>
           </div>
 
           <div className="refHeaderStatus">
@@ -256,12 +330,37 @@ export default function ReferralDetailsPage() {
         <div className="refLayout">
           {/* LEFT COLUMN */}
           <div className="leftColumn">
-            
-
             <StatusCard
               formState={formState}
               setFormState={setFormState}
-              onUpdate={handleStatusUpdate}
+              onUpdate={async () => {
+                await handleStatusUpdate();
+
+                // WHATSAPP: STATUS CHANGE (Orbiter + CosmoOrbiter)
+                try {
+                  const refId = referralData?.referralId || id;
+                  const newStatus = formState.dealStatus;
+
+                  const orbiterPhone = orbiter?.phone || orbiter?.MobileNo;
+                  const cosmoPhone = cosmoOrbiter?.phone || cosmoOrbiter?.MobileNo;
+
+                  if (orbiterPhone) {
+                    await sendWhatsAppMessage(orbiterPhone, [
+                      orbiter?.name || orbiter?.Name || "Orbiter",
+                      `Referral #${refId} status changed to ${newStatus}.`,
+                    ]);
+                  }
+
+                  if (cosmoPhone) {
+                    await sendWhatsAppMessage(cosmoPhone, [
+                      cosmoOrbiter?.name || cosmoOrbiter?.Name || "Cosmo",
+                      `Referral #${refId} assigned to you is now ${newStatus}.`,
+                    ]);
+                  }
+                } catch (err) {
+                  // silent
+                }
+              }}
               statusLogs={referralData.statusLogs || []}
             />
             <ServiceDetailsCard
@@ -271,14 +370,12 @@ export default function ReferralDetailsPage() {
               onSaveDealLog={handleSaveDealLog}
             />
             <ReferralInfoCard referralData={referralData} />
-            
-              <OrbiterDetailsCard orbiter={orbiter} referralData={referralData} />
-              <CosmoOrbiterDetailsCard
-                cosmoOrbiter={cosmoOrbiter}
-                payments={payments}
-              />
 
-            
+            <OrbiterDetailsCard orbiter={orbiter} referralData={referralData} />
+            <CosmoOrbiterDetailsCard
+              cosmoOrbiter={cosmoOrbiter}
+              payments={payments}
+            />
 
             <PaymentHistory
               payments={payments}
@@ -519,7 +616,27 @@ export default function ReferralDetailsPage() {
 
               <div className="modalActions">
                 <button
-                  onClick={payment.handleSavePayment}
+                  onClick={async () => {
+                    // save payment
+                    await payment.handleSavePayment();
+
+                    // WHATSAPP: Notify CosmoOrbiter only (Option C)
+                    try {
+                      const cosmoPhone =
+                        cosmoOrbiter?.phone || cosmoOrbiter?.MobileNo;
+                      const amount = payment.newPayment?.amountReceived;
+                      const refId = referralData?.referralId || id;
+
+                      if (cosmoPhone) {
+                        await sendWhatsAppMessage(cosmoPhone, [
+                          cosmoOrbiter?.name || cosmoOrbiter?.Name || "Business",
+                          `We have received your payment of ₹${amount} for Referral #${refId}.`,
+                        ]);
+                      }
+                    } catch (err) {
+                      // silent
+                    }
+                  }}
                   disabled={payment.isSubmitting}
                 >
                   {payment.isSubmitting ? "Saving..." : "Save"}

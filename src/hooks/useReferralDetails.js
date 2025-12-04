@@ -143,30 +143,60 @@ export default function useReferralDetails(id) {
   /* ------------------------------------------------------
      STATUS UPDATE
   ------------------------------------------------------ */
-  const handleStatusUpdate = async (newStatus) => {
-    if (!id) return;
-    try {
-      await updateDoc(doc(db, COLLECTIONS.referral, id), {
-        dealStatus: newStatus,
-        statusLogs: arrayUnion({
-          status: newStatus,
-          updatedAt: Timestamp.now(),
-        }),
-      });
+const handleStatusUpdate = async (newStatus) => {
+  if (!id) return;
 
-      const eligible = [
-        "Deal Won",
-        "Work in Progress",
-        "Work Completed",
-        "Received Part Payment and Transferred to UJustBe",
-        "Received Full and Final Payment",
-        "Agreed % Transferred to UJustBe",
-      ];
-      if (eligible.includes(newStatus)) setDealEverWon(true);
-    } catch (e) {
-      console.error("Status update failed:", e);
+  try {
+    // Fallback protection
+    const finalStatus =
+      newStatus ??
+      formState?.dealStatus ??
+      "Pending"; // safe fallback
+
+    if (!finalStatus || finalStatus === undefined) {
+      console.error("Invalid status passed to handleStatusUpdate:", newStatus);
+      return;
     }
-  };
+
+    // Create safe payload (remove undefined values)
+    const payload = {
+      dealStatus: finalStatus,
+      statusLogs: arrayUnion({
+        status: finalStatus,
+        updatedAt: Timestamp.now(),
+      }),
+    };
+
+    // Remove anything undefined (Firestore does NOT accept undefined)
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] === undefined) delete payload[k];
+    });
+
+    // Firestore update
+    await updateDoc(doc(db, COLLECTIONS.referral, id), payload);
+
+    // Detect statuses that make dealEverWon = true
+    const eligible = [
+      "Deal Won",
+      "Work in Progress",
+      "Work Completed",
+      "Received Part Payment and Transferred to UJustBe",
+      "Received Full and Final Payment",
+      "Agreed % Transferred to UJustBe",
+    ];
+
+    if (eligible.includes(finalStatus)) setDealEverWon(true);
+
+    // Update local state
+    setFormState((prev) => ({
+      ...prev,
+      dealStatus: finalStatus,
+    }));
+  } catch (e) {
+    console.error("Status update failed:", e);
+  }
+};
+
 
   /* ------------------------------------------------------
      DEAL LOG SAVE

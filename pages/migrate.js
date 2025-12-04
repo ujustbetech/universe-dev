@@ -1,83 +1,160 @@
-"use client";
-
-import React, { useState } from "react";
-import { initializeApp } from "firebase/app";
+import { useState } from "react";
+import { db } from "../firebaseConfig";
 import {
-  getFirestore,
   collection,
   getDocs,
-  updateDoc,
   doc,
+  getDoc,
+  updateDoc,
 } from "firebase/firestore";
 
-const firebaseConfig = {
-  // your firebase config
-   apiKey: "AIzaSyARJI0DZgGwH9j2Hz318ddonBd55IieUBs",
-  authDomain: "monthlymeetingapp.firebaseapp.com",
-  projectId: "monthlymeetingapp",
-  storageBucket: "monthlymeetingapp.appspot.com",
-  messagingSenderId: "139941390700",
-  appId: "1:139941390700:web:ab6aa16fcd8ca71bb52b49",
-  measurementId: "G-26KEDXQKK9"
-};
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+export default function ConvertReferralDev() {
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState([]);
+  const [updatedCount, setUpdatedCount] = useState(0);
 
-export default function RestoreAllPage() {
-  const [status, setStatus] = useState("");
+  const log = (msg) => {
+    setProgress((prev) => [...prev, msg]);
+  };
 
-  const restoreAll = async () => {
+  const cleanPercentage = (value) => {
+    if (!value) return "0";
+    return value.toString().replace("%", "").trim();
+  };
+
+  const convertSingleProduct = (p) => {
+    if (!p) return null;
+
+    return {
+      name: p.name || p.productName || "",
+      keywords: p.keywords || "",
+      description: p.description || "",
+      imageURL: p.imageURL || "",
+      agreedValue: {
+        mode: "single",
+        single: {
+          type: "percentage",
+          value: cleanPercentage(p.percentage),
+        },
+        multiple: {
+          slabs: [],
+          itemSlabs: [],
+        },
+      },
+    };
+  };
+
+  const convertServices = (raw) => {
+    if (!raw) return [];
+
+    const arr = Array.isArray(raw) ? raw : Object.values(raw);
+
+    return arr.map((s) => ({
+      name: s.name || s.serviceName || "",
+      keywords: s.keywords || "",
+      description: s.description || "",
+      imageURL: s.imageURL || "",
+      agreedValue: {
+        mode: "single",
+        single: {
+          type: "percentage",
+          value: cleanPercentage(s.percentage),
+        },
+        multiple: {
+          slabs: [],
+          itemSlabs: [],
+        },
+      },
+    }));
+  };
+
+  const runConversion = async () => {
+    setLoading(true);
+    setProgress([]);
+    setUpdatedCount(0);
+
     try {
-      setStatus("Restoring all users... Please wait.");
+      log("Fetching Referraldev collection...");
+      const referralSnap = await getDocs(collection(db, "Referraldev"));
 
-      const usersSnap = await getDocs(collection(db, "userdetail_dev"));
+      for (const refDoc of referralSnap.docs) {
+        const refId = refDoc.id;
+        log(`Processing ReferralDev doc → ${refId}`);
 
-      for (const user of usersSnap.docs) {
-        const uid = user.id;
-        const userRef = doc(db, "userdetail_dev", uid);
+        const ref = doc(db, "Referraldev", refId);
+        const snap = await getDoc(ref);
 
-        console.log("Restoring user:", uid);
+        if (!snap.exists()) {
+          log(`⚠️ Skipped ${refId} (no document)`);
+          continue;
+        }
 
-        // SUBCOLLECTIONS
-        const productsSnap = await getDocs(collection(userRef, "products"));
-        const servicesSnap = await getDocs(collection(userRef, "services"));
+        const data = snap.data();
 
-        const restoredProducts = productsSnap.docs.map((d) => d.data());
-        const restoredServices = servicesSnap.docs.map((d) => d.data());
+        // Convert product (single map)
+        const newProduct = convertSingleProduct(data.product);
 
-        await updateDoc(userRef, {
-          products: restoredProducts,
-          services: restoredServices,
+        // Convert services (map OR array)
+        const newServices = convertServices(data.services);
+
+        await updateDoc(ref, {
+          product: newProduct,
+          services: newServices,
         });
+
+        setUpdatedCount((prev) => prev + 1);
+        log(`✔ Updated ${refId}`);
       }
 
-      setStatus("✅ All users restored successfully!");
-    } catch (err) {
-      console.error(err);
-      setStatus("❌ Error occurred. Check console.");
+      log("🎉 Conversion Completed!");
+    } catch (e) {
+      console.error(e);
+      log(`❌ ERROR: ${e.message}`);
+      alert("ERROR: " + e.message);
     }
+
+    setLoading(false);
   };
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Restore ALL Users' Products & Services</h1>
+    <div style={{ padding: 50 }}>
+      <h1>Convert ReferralDev (Direct Documents)</h1>
 
       <button
-        onClick={restoreAll}
+        onClick={runConversion}
+        disabled={loading}
         style={{
-          padding: "12px 20px",
+          padding: "14px 24px",
           fontSize: "18px",
-          background: "green",
-          color: "white",
-          borderRadius: "8px",
-          cursor: "pointer",
+          background: "#007bff",
+          color: "#fff",
+          borderRadius: 8,
           border: "none",
         }}
       >
-        Restore All Users
+        {loading ? "Converting…" : "Start Conversion"}
       </button>
 
-      <p style={{ marginTop: 20, fontSize: 18 }}>{status}</p>
+      <div
+        style={{
+          marginTop: 20,
+          padding: 15,
+          maxHeight: 400,
+          overflowY: "auto",
+          background: "#f1f1f1",
+          borderRadius: 8,
+          border: "1px solid #ccc",
+          fontFamily: "monospace",
+        }}
+      >
+        <h3>Progress:</h3>
+        {progress.map((p, i) => (
+          <div key={i}>• {p}</div>
+        ))}
+        <div style={{ marginTop: 10, fontWeight: "bold" }}>
+          Total Updated: {updatedCount}
+        </div>
+      </div>
     </div>
   );
 }

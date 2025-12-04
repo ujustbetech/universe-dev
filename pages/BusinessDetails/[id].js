@@ -37,7 +37,10 @@ const ReferralDetails = () => {
   const [otherPhone, setOtherPhone] = useState("");
   const [otherEmail, setOtherEmail] = useState("");
 
-  const [selectedOption, setSelectedOption] = useState(""); // selected service/product name (serviceName/productName)
+  // removed old selectedOption; using id-based selection now
+  const [selectedOptionId, setSelectedOptionId] = useState("");
+  const [selectedOptionLabel, setSelectedOptionLabel] = useState("");
+
   const [leadDescription, setLeadDescription] = useState(""); // Short description
   const [selectedFor, setSelectedFor] = useState("self"); // For Self / Someone Else
 
@@ -46,8 +49,8 @@ const ReferralDetails = () => {
 
   const [userDetails, setUserDetails] = useState(null); // CosmoOrbiter (business) details
   const [orbiterDetails, setOrbiterDetails] = useState(null); // current orbiter (local user)
-  const [services, setServices] = useState([]); // normalized services { id, serviceName, description, imageURL, ... }
-  const [products, setProducts] = useState([]); // normalized products { id, productName, description, imageURL, ... }
+  const [services, setServices] = useState([]); // normalized services
+  const [products, setProducts] = useState([]); // normalized products
 
   const [activeTab, setActiveTab] = useState("about");
   const [servicesLoaded, setServicesLoaded] = useState(false);
@@ -112,27 +115,40 @@ const ReferralDetails = () => {
         const data = snap.data();
 
         // Convert map → array (handles your DB where products/services are maps)
-        const servicesArr = data.services ? Object.values(data.services) : [];
-        const productsArr = data.products ? Object.values(data.products) : [];
+        const servicesArr = data.services
+          ? Array.isArray(data.services)
+            ? data.services
+            : Object.values(data.services)
+          : [];
+        const productsArr = data.products
+          ? Array.isArray(data.products)
+            ? data.products
+            : Object.values(data.products)
+          : [];
 
-        // Normalize services (keep serviceName field as you requested)
+        // Normalize services/products: keep UI-friendly fields AND the raw object
         const normalizedServices = servicesArr.map((s, index) => ({
-          id: `service_${index}`,
+          id: s.id || `service_${index}`,
+          type: "service",
+          label: s.serviceName || s.name || "",
           serviceName: s.serviceName || s.name || "",
           description: s.description || "",
           imageURL: s.imageURL || "",
           keywords: s.keywords || "",
           percentage: s.percentage || "",
+          raw: s,
         }));
 
-        // Normalize products (keep productName field)
         const normalizedProducts = productsArr.map((p, index) => ({
-          id: `product_${index}`,
+          id: p.id || `product_${index}`,
+          type: "product",
+          label: p.productName || p.name || "",
           productName: p.productName || p.name || "",
           description: p.description || "",
           imageURL: p.imageURL || "",
           keywords: p.keywords || "",
           percentage: p.percentage || "",
+          raw: p,
         }));
 
         setUserDetails({
@@ -149,6 +165,8 @@ const ReferralDetails = () => {
           Locality: data.Locality || "",
           City: data.City || "",
           State: data.State || "",
+          mentorName: data["MentorName"] || data["Mentor Name"] || "",
+          mentorPhone: data["MentorPhone"] || data["Mentor Phone"] || "",
           category: data.Category || "",
           category1: data["Category1"] || "",
           category2: data["Category2"] || "",
@@ -208,7 +226,7 @@ const ReferralDetails = () => {
       return;
     }
 
-    if (!selectedOption) {
+    if (!selectedOptionId) {
       toast.error("Please select a service or product to refer.");
       return;
     }
@@ -228,13 +246,99 @@ const ReferralDetails = () => {
     try {
       const referralId = await generateReferralId();
 
-      // Find by serviceName or productName (Option A)
-      const selectedService = services.find((s) => s.serviceName === selectedOption) || null;
-      const selectedProduct = products.find((p) => p.productName === selectedOption) || null;
+      // 1️⃣ GET SELECTED ITEM FROM LOCAL (service or product)
+      const selectedItem =
+        [...services, ...products].find((it) => it.id === selectedOptionId) ||
+        null;
 
+      if (!selectedItem) {
+        toast.error("Selected item not found.");
+        return;
+      }
+
+      // 2️⃣ FETCH CANONICAL COSMO OBJECT FOR ACCURACY
+      let canonical = null;
+
+      try {
+        const cosmoRef = doc(db, COLLECTIONS.userDetail, userDetails.ujbCode);
+        const cosmoSnap = await getDoc(cosmoRef);
+
+        if (cosmoSnap.exists()) {
+          const cosmoData = cosmoSnap.data();
+
+          const rawServices = cosmoData.services
+            ? Array.isArray(cosmoData.services)
+              ? cosmoData.services
+              : Object.values(cosmoData.services)
+            : [];
+
+          const rawProducts = cosmoData.products
+            ? Array.isArray(cosmoData.products)
+              ? cosmoData.products
+              : Object.values(cosmoData.products)
+            : [];
+
+          const label = selectedItem.label;
+
+          canonical =
+            rawServices.find((s) => (s.serviceName || s.name) === label) ||
+            rawProducts.find((p) => (p.productName || p.name) === label) ||
+            null;
+        }
+      } catch (err) {
+        console.warn("Failed to fetch canonical item:", err);
+      }
+
+      // 3️⃣ NORMALIZE ITEM FOR AGREED VALUE STRUCTURE
+      const normalizeItem = (item) => {
+        if (!item) return null;
+        const it = JSON.parse(JSON.stringify(item));
+
+        // Legacy percentage → agreedValue
+        if (!it.agreedValue && it.percentage != null) {
+          it.agreedValue = {
+            mode: "single",
+            single: { type: "percentage", value: String(it.percentage) },
+            multiple: { slabs: [], itemSlabs: [] },
+          };
+        }
+
+        if (it.agreedValue) {
+          if (it.agreedValue.mode === "multiple") {
+            it.agreedValue.multiple.slabs =
+              it.agreedValue.multiple.slabs || [];
+            it.agreedValue.multiple.itemSlabs =
+              it.agreedValue.multiple.itemSlabs || [];
+          }
+
+          if (it.agreedValue.mode === "single") {
+            it.agreedValue.single = it.agreedValue.single || {
+              type: "percentage",
+              value: "0",
+            };
+            it.agreedValue.multiple = it.agreedValue.multiple || {
+              slabs: [],
+              itemSlabs: [],
+            };
+          }
+        }
+
+        return it;
+      };
+
+      // 4️⃣ SELECT FINAL ITEM TO SAVE
+      // prefer canonical (fresh from DB), otherwise raw, otherwise the normalized object fields
+      const finalSelectedItem = normalizeItem(canonical || selectedItem.raw || {
+        serviceName: selectedItem.serviceName || selectedItem.productName || selectedItem.label,
+        description: selectedItem.description || "",
+        imageURL: selectedItem.imageURL || "",
+        percentage: selectedItem.percentage || "",
+      });
+
+      // 5️⃣ BUILD REFERRAL DATA FOR FIRESTORE
       const data = {
         referralId,
-        referralSource: "R",
+        referralSource: "User",
         referralType: selectedFor === "self" ? "Self" : "Others",
         leadDescription,
         dealStatus: "Pending",
@@ -261,53 +365,50 @@ const ReferralDetails = () => {
           mentorPhone: orbiterDetails.mentorPhone || null,
         },
 
-        referredForName: selectedFor === "someone" || selectedFor === "others" ? otherName : null,
-        referredForPhone: selectedFor === "someone" || selectedFor === "others" ? otherPhone : null,
-        referredForEmail: selectedFor === "someone" || selectedFor === "others" ? otherEmail : null,
+        referredForName:
+          selectedFor === "someone" || selectedFor === "others"
+            ? otherName
+            : null,
+        referredForPhone:
+          selectedFor === "someone" || selectedFor === "others"
+            ? otherPhone
+            : null,
+        referredForEmail:
+          selectedFor === "someone" || selectedFor === "others"
+            ? otherEmail
+            : null,
 
-        product: selectedProduct
-          ? {
-              name: selectedProduct.productName,
-              description: selectedProduct.description,
-              imageURL: selectedProduct.imageURL || "",
-              percentage: selectedProduct.percentage || "0",
-            }
-          : null,
-
-        service: selectedService
-          ? {
-              name: selectedService.serviceName,
-              description: selectedService.description,
-              imageURL: selectedService.imageURL || "",
-              percentage: selectedService.percentage || "0",
-            }
-          : null,
+        // ⭐ ONLY SAVE SELECTED ITEM HERE (full object)
+        service: selectedItem.type === "service" ? finalSelectedItem : null,
+        product: selectedItem.type === "product" ? finalSelectedItem : null,
 
         dealLogs: [],
         followups: [],
         statusLogs: [],
       };
 
+      // 6️⃣ SAVE REFERRAL
       await addDoc(collection(db, COLLECTIONS.referral), data);
 
-      const serviceOrProduct = selectedService?.serviceName || selectedProduct?.productName || "";
+      // 7️⃣ WhatsApp template
+      const itemLabel = selectedItem.label;
 
-      // send WhatsApp messages (your existing function)
       await Promise.all([
         sendWhatsAppMessage(orbiterDetails.phone, [
           orbiterDetails.name,
-          `🚀 You’ve successfully passed a referral for *${serviceOrProduct}* to *${userDetails.name}*.`,
+          `🚀 You’ve successfully passed a referral for *${itemLabel}* to *${userDetails.name}*.`,
         ]),
         sendWhatsAppMessage(userDetails.phone, [
           userDetails.name,
-          `✨ You’ve received a referral from *${orbiterDetails.name}* for *${serviceOrProduct}*.`,
+          `✨ You’ve received a referral from *${orbiterDetails.name}* for *${itemLabel}*.`,
         ]),
       ]);
 
       toast.success("Referral passed successfully!");
 
       // reset
-      setSelectedOption("");
+      setSelectedOptionId("");
+      setSelectedOptionLabel("");
       setDropdownOpen(false);
       setLeadDescription("");
       setOtherName("");
@@ -494,13 +595,13 @@ const ReferralDetails = () => {
                             <div className="productCard">
                               <div className="productImage">
                                 {srv.imageURL ? (
-                                  <img src={srv.imageURL} alt={srv.serviceName} className="offering-image" />
+                                  <img src={srv.imageURL} alt={srv.serviceName || srv.label} className="offering-image" />
                                 ) : (
                                   <CiImageOff className="offering-image" />
                                 )}
                               </div>
 
-                              <h4>{srv.serviceName}</h4>
+                              <h4>{srv.serviceName || srv.label}</h4>
                               <p>{srv.description}</p>
                               {srv.percentage && <p>Agreed Percentage: {srv.percentage}%</p>}
                             </div>
@@ -522,7 +623,7 @@ const ReferralDetails = () => {
                             <div className="productCard">
                               <div className="productImage">
                                 {prd.imageURL ? (
-                                  <img src={prd.imageURL} alt={prd.productName} />
+                                  <img src={prd.imageURL} alt={prd.productName || prd.label} />
                                 ) : (
                                   <div className="nothumbnail">
                                     <CiImageOff />
@@ -530,7 +631,7 @@ const ReferralDetails = () => {
                                 )}
                               </div>
 
-                              <h4>{prd.productName}</h4>
+                              <h4>{prd.productName || prd.label}</h4>
                               <p>{prd.description}</p>
                               {prd.percentage && <p>Agreed Percentage: {prd.percentage}%</p>}
                             </div>
@@ -548,11 +649,12 @@ const ReferralDetails = () => {
               <button
                 className="floating-referral-btn"
                 onClick={() => {
-                  // Option 2 behavior: auto-select first service if available, else first product
-                  const defaultSelection = (services && services.length > 0 && services[0].serviceName)
-                    || (products && products.length > 0 && products[0].productName)
-                    || "";
-                  setSelectedOption(defaultSelection);
+                  // auto-select first service if available, else first product
+                  const first = [...services, ...products][0];
+                  if (first) {
+                    setSelectedOptionId(first.id);
+                    setSelectedOptionLabel(first.label);
+                  }
                   setModalOpen(true);
                 }}
               >
@@ -591,19 +693,20 @@ const ReferralDetails = () => {
 
                 <div className="dropdownMain">
                   <button className="dropdown-btn" onClick={() => setDropdownOpen((s) => !s)}>
-                    {selectedOption || "Product or Service referred*"}
+                    {selectedOptionLabel || "Product or Service referred*"}
                   </button>
 
                   {dropdownOpen && (
                     <div className="dropdown-menu">
-                      {services.concat(products).map((item, i) => {
-                        const label = item.serviceName || item.productName || "";
+                      {[...services, ...products].map((item, i) => {
+                        const label = item.serviceName || item.productName || item.label || "";
                         return (
                           <div
                             key={i}
                             className="dropdown-item"
                             onClick={() => {
-                              setSelectedOption(label);
+                              setSelectedOptionId(item.id);
+                              setSelectedOptionLabel(label);
                               setDropdownOpen(false);
                             }}
                           >
