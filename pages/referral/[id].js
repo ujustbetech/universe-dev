@@ -243,30 +243,22 @@ export default function ReferralDetailsPage() {
     // WHATSAPP: UJB → Payout Notification (role-based)
     // -----------------------------
     try {
-      const payoutAmount = cashToPay;
-      const refId = referralData?.referralId || id;
+    const refId = referralData?.referralId || id;
 
-      let recipientPhone = "";
-      let recipientName = "";
-      let message = "";
+const orbiterMsg = `🎉 Hello ${orbiter?.name}, your referral (ID: ${refId}) is marked Deal Won! Thank you for your contribution.`;
 
-      if (recipient === "Orbiter") {
-        recipientPhone = orbiter?.phone || orbiter?.MobileNo;
-        recipientName = orbiter?.name || orbiter?.Name || "Orbiter";
-        message = `You received your Orbiter share ₹${payoutAmount} from UJustBe for Referral #${refId}.`;
-      } else if (recipient === "OrbiterMentor") {
-        recipientPhone = orbiter?.mentorPhone;
-        recipientName = orbiter?.mentorName || orbiter?.MentorName || "Mentor";
-        message = `You received your Mentor share ₹${payoutAmount} from UJustBe for Referral #${refId}.`;
-      } else if (recipient === "CosmoMentor") {
-        recipientPhone = cosmoOrbiter?.mentorPhone;
-        recipientName = cosmoOrbiter?.mentorName || cosmoOrbiter?.MentorName || "Cosmo Mentor";
-        message = `You received your Cosmo Mentor share ₹${payoutAmount} from UJustBe for Referral #${refId}.`;
-      }
+await sendWhatsAppMessage(orbiter?.phone, [
+  orbiter?.name,
+  orbiterMsg,
+]);
 
-      if (recipientPhone) {
-        await sendWhatsAppMessage(recipientPhone, [recipientName, message]);
-      }
+const cosmoMsg = `🎉 Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is now Deal Won. Great work on closing the opportunity!`;
+
+await sendWhatsAppMessage(cosmoOrbiter?.phone, [
+  cosmoOrbiter?.name,
+  cosmoMsg,
+]);
+
     } catch (err) {
       // silent
     }
@@ -345,17 +337,35 @@ export default function ReferralDetailsPage() {
                   const cosmoPhone = cosmoOrbiter?.phone || cosmoOrbiter?.MobileNo;
 
                   if (orbiterPhone) {
-                    await sendWhatsAppMessage(orbiterPhone, [
-                      orbiter?.name || orbiter?.Name || "Orbiter",
-                      `Referral #${refId} status changed to ${newStatus}.`,
-                    ]);
+                    const statusMsgOrbiter = {
+  "Not Connected": `Hello ${orbiter?.name}, your referral (ID: ${refId}) is still marked Not Connected. Please check in.`,
+  "Called but Not Responded": `Hello ${orbiter?.name}, ${cosmoOrbiter?.name} tried reaching your referral (ID: ${refId}) but couldn't connect. Please help facilitate.`,
+  "Discussion in Progress": `Hello ${orbiter?.name}, discussion has started for your referral (ID: ${refId}) with ${cosmoOrbiter?.name}.`,
+  "Rejected": `Hello ${orbiter?.name}, your referral (ID: ${refId}) was marked as Rejected by ${cosmoOrbiter?.name}.`,
+  "Deal Won": `🎉 Hello ${orbiter?.name}, your referral (ID: ${refId}) has been marked as Deal Won!`
+}[newStatus] || `Referral #${refId} status updated to ${newStatus}.`;
+
+await sendWhatsAppMessage(orbiterPhone, [
+  orbiter?.name || "Orbiter",
+  statusMsgOrbiter,
+]);
+
                   }
 
                   if (cosmoPhone) {
-                    await sendWhatsAppMessage(cosmoPhone, [
-                      cosmoOrbiter?.name || cosmoOrbiter?.Name || "Cosmo",
-                      `Referral #${refId} assigned to you is now ${newStatus}.`,
-                    ]);
+                 const statusMsgCosmo = {
+  "Not Connected": `Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is still Not Connected. Please take action.`,
+  "Called but Not Responded": `Hello ${cosmoOrbiter?.name}, thank you for trying to connect. Status updated to Called but Not Responded.`,
+  "Discussion in Progress": `Hello ${cosmoOrbiter?.name}, thank you for progressing referral (ID: ${refId}). Please continue.`,
+  "Rejected": `Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) marked Rejected. Reason recorded.`,
+  "Deal Won": `🎉 Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is Deal Won. Great job!`
+}[newStatus] || `Referral #${refId} updated to ${newStatus}.`;
+
+await sendWhatsAppMessage(cosmoPhone, [
+  cosmoOrbiter?.name || "CosmoOrbiter",
+  statusMsgCosmo,
+]);
+
                   }
                 } catch (err) {
                   // silent
@@ -628,10 +638,13 @@ export default function ReferralDetailsPage() {
                       const refId = referralData?.referralId || id;
 
                       if (cosmoPhone) {
-                        await sendWhatsAppMessage(cosmoPhone, [
-                          cosmoOrbiter?.name || cosmoOrbiter?.Name || "Business",
-                          `We have received your payment of ₹${amount} for Referral #${refId}.`,
-                        ]);
+                       const paymentMsg = `Hello ${cosmoOrbiter?.name}, we have received your payment of ₹${amount} for referral (ID: ${refId}). Thank you!`;
+
+await sendWhatsAppMessage(cosmoPhone, [
+  cosmoOrbiter?.name,
+  paymentMsg,
+]);
+
                       }
                     } catch (err) {
                       // silent
