@@ -1,5 +1,8 @@
 // components/ReferralLiveDashboard.jsx
-import React, { useEffect, useState } from "react";
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
@@ -11,7 +14,7 @@ import {
 } from "firebase/firestore";
 import "../../src/app/styles/page/ReferralLiveDashboard.css"; // adjust path if needed
 
-// === Firebase init (client) - uses NEXT_PUBLIC env vars ===
+/* ---------- Firebase init (client) ---------- */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -23,7 +26,7 @@ const firebaseConfig = {
 if (!getApps().length) initializeApp(firebaseConfig);
 const db = getFirestore();
 
-// === Helpers ===
+/* ---------- Helpers (unchanged logic) ---------- */
 function tsToDate(ts) {
   if (!ts) return null;
   try {
@@ -33,17 +36,12 @@ function tsToDate(ts) {
   }
 }
 
-// Determine pipeline category (Option B: detailed 5-stage)
 function mapStatusToPipeline(doc) {
-  // prefer cosmoOrbiter.dealStatus if present, fallback to doc.dealStatus, else ''
   const raw =
-    (doc?.cosmoOrbiter?.dealStatus || doc?.dealStatus || "")
-      .toString()
-      .toLowerCase();
+    (doc?.cosmoOrbiter?.dealStatus || doc?.dealStatus || "").toString().toLowerCase();
 
   if (!raw || raw.trim() === "") return "New / No Status";
 
-  // Completed cases: various phrases that indicate full/complete or transferred
   const completedKeywords = [
     "received full",
     "full and final",
@@ -57,7 +55,6 @@ function mapStatusToPipeline(doc) {
   ];
   for (const k of completedKeywords) if (raw.includes(k)) return "Completed";
 
-  // Part payment cases
   const partKeywords = [
     "part payment",
     "received part",
@@ -67,11 +64,9 @@ function mapStatusToPipeline(doc) {
   ];
   for (const k of partKeywords) if (raw.includes(k)) return "Part Payment Received";
 
-  // Lost / Not Connected / Rejected
   const lostKeywords = ["deal lost", "not connected", "rejected", "lost"];
   for (const k of lostKeywords) if (raw.includes(k)) return "Lost / Not Connected";
 
-  // In progress
   const progressKeywords = [
     "pending",
     "follow",
@@ -83,11 +78,9 @@ function mapStatusToPipeline(doc) {
   ];
   for (const k of progressKeywords) if (raw.includes(k)) return "In Progress";
 
-  // Default fallback
   return "In Progress";
 }
 
-// Sum payments from payments[] (amountReceived are strings)
 function sumPayments(doc) {
   const payments = Array.isArray(doc.payments) ? doc.payments : [];
   let total = 0;
@@ -95,39 +88,13 @@ function sumPayments(doc) {
     const v = Number(p?.amountReceived || 0);
     if (!isNaN(v)) total += v;
   });
-  // also consider dealLogs (older structure) which may contain ujustbeShare, agreedAmount etc.
   if (Array.isArray(doc.dealLogs) && doc.dealLogs.length) {
-    // last dealLog likely contains agreedAmount / ujustbeShare
     const last = doc.dealLogs[doc.dealLogs.length - 1];
     if (last?.ujustbeShare) total += Number(last.ujustbeShare || 0);
-    if (last?.ujustbeShare === undefined && last?.agreedAmount)
-      total += Number(last.agreedAmount || 0) * 0; // don't assume
   }
   return total;
 }
 
-// Try to extract agreed total (monetary) if present
-function extractAgreedTotal(doc) {
-  // priority:
-  // 1) doc.agreedTotal (explicit)
-  if (doc?.agreedTotal) return Number(doc.agreedTotal || 0);
-
-  // 2) doc.dealLogs last.agreedAmount
-  if (Array.isArray(doc.dealLogs) && doc.dealLogs.length) {
-    const last = doc.dealLogs[doc.dealLogs.length - 1];
-    if (last?.agreedAmount) return Number(last.agreedAmount || 0);
-    if (last?.dealValue && last?.percentage) {
-      // if dealValue present and percentage present, compute agreed
-      return Number(last.dealValue) * (Number(last.percentage) / 100);
-    }
-  }
-
-  // 3) doc.product.agreedValue -> percentage only (cannot compute absolute without dealValue)
-  // so return 0 to indicate unknown
-  return 0;
-}
-
-// Compute per-document financial breakdown (UJustBe received, Orbiter, Mentors)
 function computePaymentsBreakdown(doc) {
   const payments = Array.isArray(doc.payments) ? doc.payments : [];
   const breakdown = {
@@ -146,17 +113,13 @@ function computePaymentsBreakdown(doc) {
       if (type === "UJustBe") breakdown.UJustBe += val;
       else if (type === "Orbiter") breakdown.Orbiter += val;
       else if (type === "Orbiter Mentor") breakdown["Orbiter Mentor"] += val;
-      else if (type === "CosmoOrbiter Mentor")
-        breakdown["CosmoOrbiter Mentor"] += val;
+      else if (type === "CosmoOrbiter Mentor") breakdown["CosmoOrbiter Mentor"] += val;
       else breakdown.other += val;
     }
   });
-
-  // also include dealLogs ujustbeShare if present (avoid double-counting if payments already captured)
   return breakdown;
 }
 
-// Compute stats for the entire collection
 function computeStats(docs) {
   const now = new Date();
   const todayStart = new Date(now);
@@ -189,17 +152,14 @@ function computeStats(docs) {
     if (createdAt && createdAt >= todayStart && createdAt <= todayEnd)
       totals.todaysReferrals++;
 
-    // pipeline map
     const mapped = mapStatusToPipeline(doc);
     pipelineBuckets[mapped].push(doc);
 
-    // payments
     const pb = computePaymentsBreakdown(doc);
     totals.totalUJustBeReceived += pb.UJustBe || 0;
     totals.totalOrbiterPaid += pb.Orbiter || 0;
     totals.totalCosmoMentorPaid += pb["CosmoOrbiter Mentor"] || 0;
 
-    // monthly trend grouping
     const monthKey = createdAt
       ? `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, "0")}`
       : "unknown";
@@ -210,7 +170,6 @@ function computeStats(docs) {
     if (mapped === "Lost / Not Connected") monthlyTrend[monthKey].lost++;
   });
 
-  // compute conversion % (Completed / total)
   const completedCount = pipelineBuckets["Completed"].length;
   const conversionPercent =
     totals.totalReferrals === 0 ? 0 : Number(((completedCount / totals.totalReferrals) * 100).toFixed(2));
@@ -223,12 +182,93 @@ function computeStats(docs) {
   };
 }
 
-// === Component ===
+/* ---------- Dynamic client-only Charts component (uses recharts) ---------- */
+const ChartArea = dynamic(
+  () =>
+    Promise.resolve(function ChartArea({ monthlyData, pipelineData, financialData }) {
+      const {
+        ResponsiveContainer,
+        LineChart,
+        Line,
+        CartesianGrid,
+        XAxis,
+        YAxis,
+        Tooltip,
+        BarChart,
+        Bar,
+        Cell,
+        Legend,
+      } = require("recharts");
+
+      return (
+        <div style={{ display: "grid", gap: 16 }}>
+          {/* Monthly Trend (full width) */}
+          <div className="panel" style={{ padding: 12 }}>
+            <div className="panel-title">Monthly Referral Trend</div>
+            <div style={{ width: "100%", height: 260 }}>
+              <ResponsiveContainer>
+                <LineChart data={monthlyData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="created" stroke="#1474d2" name="Created" strokeWidth={2} />
+                  <Line type="monotone" dataKey="completed" stroke="#00a3ff" name="Completed" strokeWidth={2} />
+                  <Line type="monotone" dataKey="lost" stroke="#ff6b6b" name="Lost" strokeWidth={2} />
+                  <Legend />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Two charts: Pipeline (left) and Financial (right) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="panel" style={{ padding: 12 }}>
+              <div className="panel-title">Pipeline Counts</div>
+              <div style={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart data={pipelineData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="status" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#1474d2">
+                      {pipelineData.map((entry, idx) => (
+                        <Cell key={`cell-${idx}`} fill={["#1474d2", "#2196F3", "#4FC3F7", "#81D4FA", "#B3E5FC"][idx % 5]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="panel" style={{ padding: 12 }}>
+              <div className="panel-title">Financial Distribution (Received)</div>
+              <div style={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart data={financialData} margin={{ left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#00a3ff" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }),
+  { ssr: false }
+);
+
+/* ---------- Main Component ---------- */
 export default function ReferralLiveDashboard() {
   const [loading, setLoading] = useState(true);
   const [docs, setDocs] = useState([]);
   const [stats, setStats] = useState(null);
-  const COLLECTION = "Referraldev";
+  const COLLECTION = "Referraldev"; // keep as your collection. adjust if needed.
 
   useEffect(() => {
     const colRef = collection(db, COLLECTION);
@@ -252,10 +292,33 @@ export default function ReferralLiveDashboard() {
     return () => unsub && unsub();
   }, []);
 
+  // prepare chart data
+  const monthlyData = useMemo(() => {
+    if (!stats) return [];
+    const mt = stats.monthlyTrend || {};
+    const keys = Object.keys(mt).filter(k => k !== "unknown").sort();
+    return keys.map(k => ({ month: k, created: mt[k].created || 0, completed: mt[k].completed || 0, lost: mt[k].lost || 0 }));
+  }, [stats]);
+
+  const pipelineData = useMemo(() => {
+    if (!stats) return [];
+    return Object.entries(stats.pipelineBuckets).map(([status, arr]) => ({ status, count: arr.length }));
+  }, [stats]);
+
+  const financialData = useMemo(() => {
+    if (!stats) return [];
+    const { totals } = stats;
+    return [
+      { label: "UJustBe", value: totals.totalUJustBeReceived || 0 },
+      { label: "Orbiter", value: totals.totalOrbiterPaid || 0 },
+      { label: "Cosmo Mentor", value: totals.totalCosmoMentorPaid || 0 },
+    ];
+  }, [stats]);
+
   if (loading) return <div className="dashboard-container">Loading...</div>;
   if (!stats) return <div className="dashboard-container">No data.</div>;
 
-  const { pipelineBuckets, totals, conversionPercent, monthlyTrend } = stats;
+  const { pipelineBuckets, totals, conversionPercent } = stats;
 
   return (
     <div className="dashboard-container">
@@ -283,17 +346,33 @@ export default function ReferralLiveDashboard() {
         </div>
       </div>
 
+      {/* Chart area (compact layout: monthly trend + pipeline + financial) */}
+      <div style={{ marginBottom: 18 }}>
+        <ChartArea monthlyData={monthlyData} pipelineData={pipelineData} financialData={financialData} />
+      </div>
+
       <div className="two-grid">
         <div className="panel">
-          <div className="panel-title">Pipeline (Detailed)</div>
-          <ul className="list">
-            {Object.entries(pipelineBuckets).map(([k, arr]) => (
-              <li key={k} className="list-row">
-                <span>{k}</span>
-                <strong>{arr.length}</strong>
-              </li>
-            ))}
-          </ul>
+          <div className="panel-title">Referrals Needing Follow-up / In Progress</div>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Name</th><th>Cosmo</th><th>Orbiter</th><th>Status</th><th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pipelineBuckets["In Progress"].slice(0, 200).map((r) => (
+                <tr key={r.id}>
+                  <td>{r.referralId || r.id}</td>
+                  <td>{r.referredForName || "-"}</td>
+                  <td>{r.cosmoOrbiter?.name || "-"}</td>
+                  <td>{r.orbiter?.name || "-"}</td>
+                  <td>{(r.cosmoOrbiter?.dealStatus || r.dealStatus) || "-"}</td>
+                  <td>{tsToDate(r.timestamp)?.toLocaleString() || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         <div className="panel">
@@ -306,30 +385,7 @@ export default function ReferralLiveDashboard() {
         </div>
       </div>
 
-      <div className="panel">
-        <div className="panel-title">Referrals Needing Follow-up / In Progress</div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>ID</th><th>Name</th><th>Cosmo</th><th>Orbiter</th><th>Status</th><th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pipelineBuckets["In Progress"].slice(0, 200).map((r) => (
-              <tr key={r.id}>
-                <td>{r.referralId || r.id}</td>
-                <td>{r.referredForName || "-"}</td>
-                <td>{r.cosmoOrbiter?.name || "-"}</td>
-                <td>{r.orbiter?.name || "-"}</td>
-                <td>{(r.cosmoOrbiter?.dealStatus || r.dealStatus) || "-"}</td>
-                <td>{tsToDate(r.timestamp)?.toLocaleString() || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="panel">
+      <div className="panel" style={{ marginTop: 16 }}>
         <div className="panel-title">Recent Referrals</div>
         <div className="scroll-box">
           {docs.slice(0, 200).map((r) => (
@@ -344,7 +400,6 @@ export default function ReferralLiveDashboard() {
           ))}
         </div>
       </div>
-
     </div>
   );
 }
