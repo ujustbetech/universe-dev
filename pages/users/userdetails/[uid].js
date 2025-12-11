@@ -11,7 +11,7 @@ import { getFirestore, onSnapshot } from "firebase/firestore";
 import { getStorage, getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import Router from 'next/router';
 import Layout from '../../../component/Layout'
-import "../../src/app/styles/main.scss";
+import "../../../src/app/styles/main.scss";
 const authlog = getAuth();
 const db = getFirestore();
 const storage = getStorage();
