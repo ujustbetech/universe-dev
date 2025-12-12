@@ -22,14 +22,16 @@ const Navbar = (props) => {
       ) : (
         <nav className={props.expand ? 'm-navbar expand' : 'm-navbar unexpand'}>
           <ul>
-
-            {/* Dashboard */}
-            {/* <li>
-              <Link href="/admin/dashboard" className="nav-link">
-                <span className="icons"><AiOutlineHome /></span>
-                <span className="linklabel">Dashboard</span>
-              </Link>
-            </li> */}
+   <li>
+                            <Link href="/admin/event/userlist">
+                                <span className="icons"><FaRegUser /></span>
+                                <span className="linklabel">Orbiters</span>
+                                <span className="submenuIcon"><MdOutlineKeyboardArrowDown /></span>
+                            </Link>
+                            <ul>
+                                <li><Link href="/admin/event/userlist">Orbiters Profiling</Link></li>
+                            </ul>
+                        </li>
 
             {/* Monthly Meet */}
             <li>
