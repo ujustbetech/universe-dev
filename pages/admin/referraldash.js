@@ -1,8 +1,8 @@
-// components/ReferralLiveDashboard.jsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { initializeApp, getApps } from "firebase/app";
 import {
   getFirestore,
@@ -10,11 +10,13 @@ import {
   query,
   orderBy,
   onSnapshot,
-  Timestamp,
+  doc,
+  updateDoc,
+  arrayUnion,
 } from "firebase/firestore";
-import "../../src/app/styles/page/ReferralLiveDashboard.css"; // adjust path if needed
+import "../../src/app/styles/page/ReferralLiveDashboard.css";
 
-/* ---------- Firebase init (client) ---------- */
+/* ================= FIREBASE ================= */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -23,239 +25,192 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
+
 if (!getApps().length) initializeApp(firebaseConfig);
 const db = getFirestore();
 
-/* ---------- Helpers (unchanged logic) ---------- */
-function tsToDate(ts) {
-  if (!ts) return null;
-  try {
-    return new Date(ts.seconds * 1000);
-  } catch {
-    return null;
-  }
-}
+/* ================= CONSTANTS ================= */
+const PIPELINE_STAGES = [
+  "New",
+  "In Progress",
+  "Part Payment",
+  "Completed",
+  "Lost",
+];
 
-function mapStatusToPipeline(doc) {
+/* ================= HELPERS ================= */
+const tsToDate = (ts) => (ts?.seconds ? new Date(ts.seconds * 1000) : null);
+
+const mapStatus = (doc) => {
   const raw =
-    (doc?.cosmoOrbiter?.dealStatus || doc?.dealStatus || "").toString().toLowerCase();
-
-  if (!raw || raw.trim() === "") return "New / No Status";
-
-  const completedKeywords = [
-    "received full",
-    "full and final",
-    "agreed percentage transferred",
-    "transferred to ujustbe",
-    "work completed",
-    "agreedfullypaid",
-    "agreed fully paid",
-    "completed",
-    "deal won",
-  ];
-  for (const k of completedKeywords) if (raw.includes(k)) return "Completed";
-
-  const partKeywords = [
-    "part payment",
-    "received part",
-    "partially",
-    "partial",
-    "part payment &",
-  ];
-  for (const k of partKeywords) if (raw.includes(k)) return "Part Payment Received";
-
-  const lostKeywords = ["deal lost", "not connected", "rejected", "lost"];
-  for (const k of lostKeywords) if (raw.includes(k)) return "Lost / Not Connected";
-
-  const progressKeywords = [
-    "pending",
-    "follow",
-    "connected",
-    "in progress",
-    "work in progress",
-    "follow-up",
-    "awaiting",
-  ];
-  for (const k of progressKeywords) if (raw.includes(k)) return "In Progress";
-
+    (doc?.cosmoOrbiter?.dealStatus || doc?.dealStatus || "").toLowerCase();
+  if (!raw) return "New";
+  if (raw.includes("completed") || raw.includes("fully")) return "Completed";
+  if (raw.includes("lost")) return "Lost";
+  if (raw.includes("part")) return "Part Payment";
   return "In Progress";
-}
+};
 
-function sumPayments(doc) {
-  const payments = Array.isArray(doc.payments) ? doc.payments : [];
-  let total = 0;
-  payments.forEach((p) => {
-    const v = Number(p?.amountReceived || 0);
-    if (!isNaN(v)) total += v;
-  });
-  if (Array.isArray(doc.dealLogs) && doc.dealLogs.length) {
-    const last = doc.dealLogs[doc.dealLogs.length - 1];
-    if (last?.ujustbeShare) total += Number(last.ujustbeShare || 0);
-  }
-  return total;
-}
-
-function computePaymentsBreakdown(doc) {
-  const payments = Array.isArray(doc.payments) ? doc.payments : [];
-  const breakdown = {
-    UJustBe: 0,
-    Orbiter: 0,
-    "Orbiter Mentor": 0,
-    "CosmoOrbiter Mentor": 0,
-    other: 0,
-    totalReceived: 0,
-  };
-  payments.forEach((p) => {
-    const val = Number(p?.amountReceived || 0);
-    const type = p?.ujbShareType || p?.paymentTo || "other";
-    if (!isNaN(val) && val > 0) {
-      breakdown.totalReceived += val;
-      if (type === "UJustBe") breakdown.UJustBe += val;
-      else if (type === "Orbiter") breakdown.Orbiter += val;
-      else if (type === "Orbiter Mentor") breakdown["Orbiter Mentor"] += val;
-      else if (type === "CosmoOrbiter Mentor") breakdown["CosmoOrbiter Mentor"] += val;
-      else breakdown.other += val;
-    }
-  });
-  return breakdown;
-}
-
-function computeStats(docs) {
+/* ================= STATS ================= */
+const computeStats = (docs) => {
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(now);
-  todayEnd.setHours(23, 59, 59, 999);
 
-  const pipelineBuckets = {
-    "New / No Status": [],
+  const pipeline = {
+    New: [],
     "In Progress": [],
-    "Part Payment Received": [],
+    "Part Payment": [],
     Completed: [],
-    "Lost / Not Connected": [],
+    Lost: [],
   };
 
-  let totals = {
-    totalReferrals: 0,
-    todaysReferrals: 0,
-    totalUJustBeReceived: 0,
-    totalOrbiterPaid: 0,
-    totalCosmoMentorPaid: 0,
-  };
-
-  const monthlyTrend = {}; // yyyy-mm -> { created, completed, lost }
+  const trend = {};
+  const ageingBuckets = { "0–3 Days": 0, "4–7 Days": 0, "8+ Days": 0 };
 
   docs.forEach((doc) => {
-    totals.totalReferrals++;
+    const createdAt = tsToDate(doc.timestamp);
+    if (!createdAt) return;
 
-    const createdAt = tsToDate(doc.timestamp) || tsToDate(doc.lastUpdated);
-    if (createdAt && createdAt >= todayStart && createdAt <= todayEnd)
-      totals.todaysReferrals++;
+    const status = mapStatus(doc);
+    pipeline[status].push(doc);
 
-    const mapped = mapStatusToPipeline(doc);
-    pipelineBuckets[mapped].push(doc);
+    const key = createdAt.toISOString().slice(0, 7);
+    if (!trend[key]) trend[key] = { created: 0, completed: 0, lost: 0 };
+    trend[key].created++;
+    if (status === "Completed") trend[key].completed++;
+    if (status === "Lost") trend[key].lost++;
 
-    const pb = computePaymentsBreakdown(doc);
-    totals.totalUJustBeReceived += pb.UJustBe || 0;
-    totals.totalOrbiterPaid += pb.Orbiter || 0;
-    totals.totalCosmoMentorPaid += pb["CosmoOrbiter Mentor"] || 0;
-
-    const monthKey = createdAt
-      ? `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, "0")}`
-      : "unknown";
-    if (!monthlyTrend[monthKey]) monthlyTrend[monthKey] = { created: 0, completed: 0, lost: 0 };
-    monthlyTrend[monthKey].created++;
-
-    if (mapped === "Completed") monthlyTrend[monthKey].completed++;
-    if (mapped === "Lost / Not Connected") monthlyTrend[monthKey].lost++;
+    if (status === "In Progress") {
+      const days = Math.floor((now - createdAt) / 86400000);
+      if (days <= 3) ageingBuckets["0–3 Days"]++;
+      else if (days <= 7) ageingBuckets["4–7 Days"]++;
+      else ageingBuckets["8+ Days"]++;
+    }
   });
 
-  const completedCount = pipelineBuckets["Completed"].length;
-  const conversionPercent =
-    totals.totalReferrals === 0 ? 0 : Number(((completedCount / totals.totalReferrals) * 100).toFixed(2));
+  return { pipeline, trend, ageingBuckets };
+};
 
-  return {
-    pipelineBuckets,
-    totals,
-    conversionPercent,
-    monthlyTrend,
-  };
-}
+/* ================= TODO ================= */
+const computeTodos = (docs) => {
+  const now = Date.now();
+  const todos = [];
 
-/* ---------- Dynamic client-only Charts component (uses recharts) ---------- */
+  docs.forEach((doc) => {
+    const createdAt = tsToDate(doc.timestamp);
+    if (!createdAt) return;
+
+    const days = Math.floor((now - createdAt) / 86400000);
+    const status = mapStatus(doc);
+    const name = doc.referredForName || doc.referralId;
+
+    if (status === "In Progress" && days >= 3 && !doc.snoozedUntil) {
+      todos.push({
+        refId: doc.id,
+        priority: days > 7 ? "high" : "medium",
+        text: `Follow up with ${name} (${days} days)`,
+      });
+    }
+
+    const hasPayment =
+      doc.payments?.some((p) => Number(p.amountReceived) > 0) || false;
+
+    if (!hasPayment && status === "In Progress" && days >= 7) {
+      todos.push({
+        refId: doc.id,
+        priority: "high",
+        text: `Payment pending – ${name}`,
+      });
+    }
+  });
+
+  return todos;
+};
+
+/* ================= CHARTS ================= */
 const ChartArea = dynamic(
   () =>
-    Promise.resolve(function ChartArea({ monthlyData, pipelineData, financialData }) {
+    Promise.resolve(({ trendData, funnelData, statusData, ageingData }) => {
       const {
         ResponsiveContainer,
-        LineChart,
-        Line,
-        CartesianGrid,
+        AreaChart,
+        Area,
+        BarChart,
+        Bar,
+        PieChart,
+        Pie,
+        Cell,
         XAxis,
         YAxis,
         Tooltip,
-        BarChart,
-        Bar,
-        Cell,
+        CartesianGrid,
         Legend,
       } = require("recharts");
 
+      const COLORS = ["#1474d2", "#2ecc71", "#f39c12", "#e74c3c", "#9b59b6"];
+
       return (
-        <div style={{ display: "grid", gap: 16 }}>
-          {/* Monthly Trend (full width) */}
-          <div className="panel" style={{ padding: 12 }}>
-            <div className="panel-title">Monthly Referral Trend</div>
-            <div style={{ width: "100%", height: 260 }}>
-              <ResponsiveContainer>
-                <LineChart data={monthlyData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
+        <div style={{ display: "grid", gap: 20 }}>
+          <div className="panel">
+            <div className="panel-title">Referral Trend</div>
+            <ResponsiveContainer height={260}>
+              <AreaChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Area dataKey="created" fill="#1474d2" />
+                <Area dataKey="completed" fill="#2ecc71" />
+                <Area dataKey="lost" fill="#e74c3c" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="two-grid">
+            <div className="panel">
+              <div className="panel-title">Referral Funnel</div>
+              <ResponsiveContainer height={260}>
+                <BarChart layout="vertical" data={funnelData}>
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="stage" />
                   <Tooltip />
-                  <Line type="monotone" dataKey="created" stroke="#1474d2" name="Created" strokeWidth={2} />
-                  <Line type="monotone" dataKey="completed" stroke="#00a3ff" name="Completed" strokeWidth={2} />
-                  <Line type="monotone" dataKey="lost" stroke="#ff6b6b" name="Lost" strokeWidth={2} />
-                  <Legend />
-                </LineChart>
+                  <Bar dataKey="count" fill="#1474d2" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="panel">
+              <div className="panel-title">Status Distribution</div>
+              <ResponsiveContainer height={260}>
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={90}
+                    label
+                  >
+                    {statusData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Two charts: Pipeline (left) and Financial (right) */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div className="panel" style={{ padding: 12 }}>
-              <div className="panel-title">Pipeline Counts</div>
-              <div style={{ width: "100%", height: 260 }}>
-                <ResponsiveContainer>
-                  <BarChart data={pipelineData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="status" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#1474d2">
-                      {pipelineData.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={["#1474d2", "#2196F3", "#4FC3F7", "#81D4FA", "#B3E5FC"][idx % 5]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="panel" style={{ padding: 12 }}>
-              <div className="panel-title">Financial Distribution (Received)</div>
-              <div style={{ width: "100%", height: 260 }}>
-                <ResponsiveContainer>
-                  <BarChart data={financialData} margin={{ left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="label" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#00a3ff" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+          <div className="panel">
+            <div className="panel-title">Follow-up Ageing</div>
+            <ResponsiveContainer height={220}>
+              <BarChart data={ageingData}>
+                <XAxis dataKey="bucket" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="count" fill="#f39c12" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       );
@@ -263,143 +218,228 @@ const ChartArea = dynamic(
   { ssr: false }
 );
 
-/* ---------- Main Component ---------- */
+/* ================= MAIN ================= */
 export default function ReferralLiveDashboard() {
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
   const [docs, setDocs] = useState([]);
   const [stats, setStats] = useState(null);
-  const COLLECTION = "Referraldev"; // keep as your collection. adjust if needed.
+  const [todos, setTodos] = useState([]);
+  const [activeTab, setActiveTab] = useState("dashboard");
 
+  /* FETCH */
   useEffect(() => {
-    const colRef = collection(db, COLLECTION);
-    const q = query(colRef, orderBy("timestamp", "desc"));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const arr = [];
-        snap.forEach((d) => arr.push({ id: d.id, ...d.data() }));
-        setDocs(arr);
-        const s = computeStats(arr);
-        setStats(s);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("Realtime listener error:", err);
-        setLoading(false);
-      }
+    const q = query(collection(db, "Referraldev"), orderBy("timestamp", "desc"));
+    return onSnapshot(q, (snap) =>
+      setDocs(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
-
-    return () => unsub && unsub();
   }, []);
 
-  // prepare chart data
-  const monthlyData = useMemo(() => {
-    if (!stats) return [];
-    const mt = stats.monthlyTrend || {};
-    const keys = Object.keys(mt).filter(k => k !== "unknown").sort();
-    return keys.map(k => ({ month: k, created: mt[k].created || 0, completed: mt[k].completed || 0, lost: mt[k].lost || 0 }));
-  }, [stats]);
+  useEffect(() => {
+    setStats(computeStats(docs));
+    setTodos(computeTodos(docs));
+  }, [docs]);
 
-  const pipelineData = useMemo(() => {
-    if (!stats) return [];
-    return Object.entries(stats.pipelineBuckets).map(([status, arr]) => ({ status, count: arr.length }));
-  }, [stats]);
+  /* DERIVED (ALL HOOKS HERE) */
+  const trendData = useMemo(
+    () =>
+      stats
+        ? Object.entries(stats.trend).map(([label, v]) => ({
+            label,
+            ...v,
+          }))
+        : [],
+    [stats]
+  );
 
-  const financialData = useMemo(() => {
-    if (!stats) return [];
-    const { totals } = stats;
-    return [
-      { label: "UJustBe", value: totals.totalUJustBeReceived || 0 },
-      { label: "Orbiter", value: totals.totalOrbiterPaid || 0 },
-      { label: "Cosmo Mentor", value: totals.totalCosmoMentorPaid || 0 },
-    ];
-  }, [stats]);
+  const funnelData = useMemo(
+    () =>
+      stats
+        ? Object.entries(stats.pipeline).map(([stage, arr]) => ({
+            stage,
+            count: arr.length,
+          }))
+        : [],
+    [stats]
+  );
 
-  if (loading) return <div className="dashboard-container">Loading...</div>;
-  if (!stats) return <div className="dashboard-container">No data.</div>;
+  const statusData = useMemo(
+    () => funnelData.map((f) => ({ name: f.stage, value: f.count })),
+    [funnelData]
+  );
 
-  const { pipelineBuckets, totals, conversionPercent } = stats;
+  const ageingData = useMemo(
+    () =>
+      stats
+        ? Object.entries(stats.ageingBuckets).map(([bucket, count]) => ({
+            bucket,
+            count,
+          }))
+        : [],
+    [stats]
+  );
+
+  const orbiterStats = useMemo(() => {
+    const map = {};
+    docs.forEach((d) => {
+      const o = d?.orbiter?.name;
+      if (!o) return;
+      if (!map[o]) map[o] = { total: 0, completed: 0, revenue: 0 };
+      map[o].total++;
+      if (mapStatus(d) === "Completed") map[o].completed++;
+      d.payments?.forEach((p) => {
+        if (p.paymentTo === "UJustBe") {
+          map[o].revenue += Number(p.amountReceived || 0);
+        }
+      });
+    });
+    return Object.entries(map).map(([name, v]) => ({
+      name,
+      ...v,
+      conversion:
+        v.total === 0 ? 0 : Math.round((v.completed / v.total) * 100),
+    }));
+  }, [docs]);
+
+  /* ACTIONS */
+  const updateStatus = async (id, status) => {
+    await updateDoc(doc(db, "Referraldev", id), {
+      dealStatus: status,
+      lastUpdated: new Date(),
+    });
+  };
+
+  const handleTodoAction = async (id, type) => {
+    if (type === "done") {
+      await updateDoc(doc(db, "Referraldev", id), {
+        adminActions: arrayUnion({ type: "done", at: new Date() }),
+      });
+    }
+    if (type === "snooze") {
+      await updateDoc(doc(db, "Referraldev", id), {
+        snoozedUntil: new Date(Date.now() + 2 * 86400000),
+      });
+    }
+  };
+
+  if (!stats) return <div>Loading…</div>;
 
   return (
-    <div className="dashboard-container">
-      <h3 className="title">Referral Live Dashboard</h3>
+    <div className="prospect-page">
+      <h1 className="title">Referral Admin Dashboard</h1>
 
-      <div className="stats-grid">
-        <div className="card">
-          <div className="card-title">Total Referrals</div>
-          <div className="card-value">{totals.totalReferrals}</div>
-        </div>
-
-        <div className="card">
-          <div className="card-title">Today's Referrals</div>
-          <div className="card-value">{totals.todaysReferrals}</div>
-        </div>
-
-        <div className="card">
-          <div className="card-title">UJustBe Received</div>
-          <div className="card-value">₹ {totals.totalUJustBeReceived.toLocaleString()}</div>
-        </div>
-
-        <div className="card">
-          <div className="card-title">Conversion % (Completed)</div>
-          <div className="card-value">{conversionPercent} %</div>
-        </div>
+      {/* TABS */}
+      <div className="view-toggle">
+        {["dashboard", "pipeline", "orbiters"].map((t) => (
+          <button
+            key={t}
+            className={activeTab === t ? "active" : ""}
+            onClick={() => setActiveTab(t)}
+          >
+            {t.toUpperCase()}
+          </button>
+        ))}
       </div>
 
-      {/* Chart area (compact layout: monthly trend + pipeline + financial) */}
-      <div style={{ marginBottom: 18 }}>
-        <ChartArea monthlyData={monthlyData} pipelineData={pipelineData} financialData={financialData} />
-      </div>
+      {/* DASHBOARD */}
+      {activeTab === "dashboard" && (
+        <>
+          <div className="stats-grid">
+            <div className="card">
+              <div className="card-title">Active Follow-ups</div>
+              <div className="card-value">
+                {stats.pipeline["In Progress"].length}
+              </div>
+            </div>
+          </div>
 
-      <div className="two-grid">
+          <ChartArea
+            trendData={trendData}
+            funnelData={funnelData}
+            statusData={statusData}
+            ageingData={ageingData}
+          />
+
+          <div className="panel todo-panel">
+            <div className="panel-title">Admin To-Do</div>
+            <ul className="todo-list">
+              {todos.map((t, i) => (
+                <li key={i} className={`todo ${t.priority}`}>
+                  <span>{t.text}</span>
+                  <div className="todo-actions">
+                    <button onClick={() => handleTodoAction(t.refId, "done")}>
+                      ✓
+                    </button>
+                    <button onClick={() => handleTodoAction(t.refId, "snooze")}>
+                      ⏰
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+
+      {/* PIPELINE */}
+      {activeTab === "pipeline" && (
+        <div className="kanban">
+          {PIPELINE_STAGES.map((stage) => (
+            <div
+              key={stage}
+              className="kanban-col"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) =>
+                updateStatus(e.dataTransfer.getData("id"), stage)
+              }
+            >
+              <h3>{stage}</h3>
+              {stats.pipeline[stage].map((r) => (
+                <div
+                  key={r.id}
+                  draggable
+                  className="kanban-card"
+                  onDragStart={(e) =>
+                    e.dataTransfer.setData("id", r.id)
+                  }
+                  onClick={() => router.push(`/referral/${r.id}`)}
+                >
+                  <strong>{r.referredForName || r.referralId}</strong>
+                  <div className="small">{r.product?.name}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ORBITERS */}
+      {activeTab === "orbiters" && (
         <div className="panel">
-          <div className="panel-title">Referrals Needing Follow-up / In Progress</div>
+          <div className="panel-title">Orbiter Performance</div>
           <table className="table">
             <thead>
               <tr>
-                <th>ID</th><th>Name</th><th>Cosmo</th><th>Orbiter</th><th>Status</th><th>Created</th>
+                <th>Orbiter</th>
+                <th>Total</th>
+                <th>Completed</th>
+                <th>Conversion</th>
+                <th>Revenue</th>
               </tr>
             </thead>
             <tbody>
-              {pipelineBuckets["In Progress"].slice(0, 200).map((r) => (
-                <tr key={r.id}>
-                  <td>{r.referralId || r.id}</td>
-                  <td>{r.referredForName || "-"}</td>
-                  <td>{r.cosmoOrbiter?.name || "-"}</td>
-                  <td>{r.orbiter?.name || "-"}</td>
-                  <td>{(r.cosmoOrbiter?.dealStatus || r.dealStatus) || "-"}</td>
-                  <td>{tsToDate(r.timestamp)?.toLocaleString() || "-"}</td>
+              {orbiterStats.map((o) => (
+                <tr key={o.name}>
+                  <td>{o.name}</td>
+                  <td>{o.total}</td>
+                  <td>{o.completed}</td>
+                  <td>{o.conversion}%</td>
+                  <td>₹{o.revenue}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-
-        <div className="panel">
-          <div className="panel-title">Financial Snapshot</div>
-          <div className="rec-section">
-            <div className="rec-row"><span>UJustBe Received</span><strong>₹ {totals.totalUJustBeReceived.toLocaleString()}</strong></div>
-            <div className="rec-row"><span>Orbiter Paid</span><strong>₹ {totals.totalOrbiterPaid.toLocaleString()}</strong></div>
-            <div className="rec-row"><span>Cosmo Mentor Paid</span><strong>₹ {totals.totalCosmoMentorPaid.toLocaleString()}</strong></div>
-          </div>
-        </div>
-      </div>
-
-      <div className="panel" style={{ marginTop: 16 }}>
-        <div className="panel-title">Recent Referrals</div>
-        <div className="scroll-box">
-          {docs.slice(0, 200).map((r) => (
-            <div className="recent-item" key={r.id}>
-              <div className="recent-left">
-                <div className="recent-title">{r.referredForName || r.referralId || "Unknown"}</div>
-                <div className="recent-sub">{r.product?.name || r.service?.name || ""}</div>
-                <div className="recent-status">{r.cosmoOrbiter?.dealStatus || r.dealStatus || "No Status"}</div>
-              </div>
-              <div className="recent-time">{tsToDate(r.timestamp)?.toLocaleString() || ""}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

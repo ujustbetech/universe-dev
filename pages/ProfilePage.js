@@ -1,10 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  addDoc,
+  Timestamp
+} from 'firebase/firestore';
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'firebase/storage';
+
 import { app } from '../firebaseConfig';
-import { TbBlocks } from "react-icons/tb";
 import { TbSettingsStar } from "react-icons/tb";
 import '../src/app/styles/user.scss';
-import { FiBell, FiGlobe, FiUser, FiHeart, FiBriefcase, FiBox, FiLayers, FiChevronRight, FiUsers } from "react-icons/fi";
+import {
+  FiGlobe,
+  FiUser,
+  FiHeart,
+  FiBriefcase,
+  FiBox,
+  FiLayers,
+  FiChevronRight,
+  FiUsers
+} from "react-icons/fi";
 import { useRouter } from 'next/router';
 import HeaderNav from '../component/HeaderNav';
 import { FaCalendarAlt } from 'react-icons/fa';
@@ -13,6 +36,7 @@ import { CiImageOff } from "react-icons/ci";
 import Headertop from '../component/Header';
 
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 const Profile = () => {
   const [userDetails, setUserDetails] = useState({});
@@ -20,7 +44,21 @@ const Profile = () => {
   const [showContentOnly, setShowContentOnly] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // ✅ NEW STATES (ADDED – nothing removed)
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [photoFile, setPhotoFile] = useState(null);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
+const [draftAdditional, setDraftAdditional] = useState({});
+const [draftHealth, setDraftHealth] = useState({});
+const [draftProfessional, setDraftProfessional] = useState({});
+const [draftBusiness, setDraftBusiness] = useState({});
+const [draftServices, setDraftServices] = useState([]);
+const [draftProducts, setDraftProducts] = useState([]);
+
   const router = useRouter();
+
+  /* ---------------- SKELETON ---------------- */
 
   const Skeleton = ({ width, height, radius = "6px" }) => (
     <div className="skeleton" style={{ width, height, borderRadius: radius }}></div>
@@ -41,55 +79,176 @@ const Profile = () => {
     </div>
   );
 
+  
+const submitTabForApproval = async (type, oldData, newData) => {
+  await addDoc(collection(db, "profileChangeRequests"), {
+    ujbCode: userDetails.ujbCode,
+    type,
+    oldData,
+    newData,
+    status: "PENDING",
+    createdAt: Timestamp.now(),
+  });
+  setIsEditMode(false);
+};
+
   useEffect(() => {
     const storedUjb = localStorage.getItem('mmUJBCode');
-
-    if (storedUjb) {
-      fetchUserDetails(storedUjb);
-    }
+    if (storedUjb) fetchUserDetails(storedUjb);
   }, []);
 
-  const fetchUserDetails = async (ujbCode) => {
-    try {
-      const docSnap = await getDoc(doc(db, "usersdetail", ujbCode));
+const fetchUserDetails = async (ujbCode) => {
+  try {
+    const docSnap = await getDoc(doc(db, "usersdetail", ujbCode));
+    if (!docSnap.exists()) return;
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+    const data = docSnap.data();
 
-        setUserDetails({
-          ...data,
-          name: data.Name || data.orbiterName || '',
-          email: data.Email || data.BusinessEmailID || '',
-          dob: data.DOB || '',
-          gender: data.Gender || '',
-          mobile: data.MobileNo || data.mobileNumber || '',
-          category: data.Category || '',
-          ujbCode,
+    const normalized = {
+      ...data,
+      name: data.Name || data.orbiterName || '',
+      email: data.Email || data.BusinessEmailID || '',
+      dob: data.DOB || '',
+      gender: data.Gender || '',
+      mobile: data.MobileNo || data.mobileNumber || '',
+      category: data.Category || '',
+      ujbCode,
 
-          // field corrections
-          AreaOfServices: data.AreaOfServices || data.AreaofServices || '',
-          ContributionAreaInUJustBe:
-            data.ContributionAreaInUJustBe || data.ContributionAreainUJustBe || [],
+      AreaOfServices: data.AreaOfServices || data.AreaofServices || '',
+      ContributionAreaInUJustBe:
+        data.ContributionAreaInUJustBe || data.ContributionAreainUJustBe || [],
 
-          BusinessLogo: data.BusinessLogo || '',
+      BusinessLogo: data.BusinessLogo || '',
+      services: data.services ? Object.values(data.services) : [],
+      products: data.products ? Object.values(data.products) : [],
+      connects: data.connects || [],
+    };
 
-          services: data.services ? Object.values(data.services) : [],
-          products: data.products ? Object.values(data.products) : [],
+    // MAIN
+    setUserDetails(normalized);
+    setFormData({
+      name: normalized.name,
+      email: normalized.email,
+      gender: normalized.gender,
+      dob: normalized.dob,
+    });
 
-          connects: data.connects ? data.connects : [],
-        });
-      }
-    } catch (err) {
-      console.error("❌ Error fetching user details:", err);
-    }
+    // ADDITIONAL
+    setDraftAdditional({
+      IDType: normalized.IDType || '',
+      IDNumber: normalized.IDNumber || '',
+      Address: normalized.Address || '',
+      MaritalStatus: normalized.MaritalStatus || '',
+      LanguagesKnown: normalized.LanguagesKnown || '',
+      Hobbies: normalized.Hobbies || '',
+      InterestArea: normalized.InterestArea || '',
+      Skills: normalized.Skills || '',
+      ExclusiveKnowledge: normalized.ExclusiveKnowledge || '',
+      Aspirations: normalized.Aspirations || '',
+    });
 
-    setLoading(false);
+    // HEALTH
+    setDraftHealth({
+      HealthParameters: normalized.HealthParameters || '',
+      CurrentHealthCondition: normalized.CurrentHealthCondition || '',
+      FamilyHistorySummary: normalized.FamilyHistorySummary || '',
+    });
+
+    // PROFESSIONAL
+    setDraftProfessional({
+      ProfessionalHistory: normalized.ProfessionalHistory || '',
+      CurrentProfession: normalized.CurrentProfession || '',
+      EducationalBackground: normalized.EducationalBackground || '',
+      ContributionAreaInUJustBe: normalized.ContributionAreaInUJustBe || '',
+      ImmediateDesire: normalized.ImmediateDesire || '',
+      Mastery: normalized.Mastery || '',
+      SpecialSocialContribution: normalized.SpecialSocialContribution || '',
+    });
+
+    // BUSINESS
+    setDraftBusiness({
+      BusinessName: normalized.BusinessName || '',
+      BusinessDetails: normalized.BusinessDetails || '',
+      BusinessHistory: normalized.BusinessHistory || '',
+      USP: normalized.USP || '',
+      Website: normalized.Website || '',
+      TagLine: normalized.TagLine || '',
+    });
+
+    // SERVICES / PRODUCTS
+    setDraftServices(normalized.services || []);
+    setDraftProducts(normalized.products || []);
+
+  } catch (err) {
+    console.error("❌ Error fetching user details:", err);
+  }
+
+  setLoading(false);
+};
+
+
+
+  /* ---------------- PHOTO HANDLER ---------------- */
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPreviewPhoto(URL.createObjectURL(file));
   };
+
+  const submitProfilePhoto = async () => {
+    if (!photoFile) return;
+
+    const photoRef = ref(storage, `profilePhotos/${userDetails.ujbCode}`);
+    await uploadBytes(photoRef, photoFile);
+    const url = await getDownloadURL(photoRef);
+
+    await addDoc(collection(db, "profileChangeRequests"), {
+      ujbCode: userDetails.ujbCode,
+      type: "PROFILE_PHOTO",
+      oldData: userDetails.ProfilePhotoURL || "",
+      newData: url,
+      status: "PENDING",
+      createdAt: Timestamp.now(),
+    });
+
+    setPhotoFile(null);
+    setPreviewPhoto(null);
+  };
+
+  /* ---------------- BASIC INFO SUBMIT ---------------- */
+
+  const submitBasicInfo = async () => {
+    await addDoc(collection(db, "profileChangeRequests"), {
+      ujbCode: userDetails.ujbCode,
+      type: "BASIC_INFO",
+      oldData: {
+        name: userDetails.name,
+        email: userDetails.email,
+        gender: userDetails.gender,
+        dob: userDetails.dob,
+      },
+      newData: {
+        name: formData.name,
+        email: formData.email,
+        gender: formData.gender,
+        dob: formData.dob,
+      },
+      status: "PENDING",
+      createdAt: Timestamp.now(),
+    });
+
+    if (photoFile) await submitProfilePhoto();
+    setIsEditMode(false);
+  };
+
+  /* ---------------- RENDER HELPERS ---------------- */
 
   const renderField = (label, value) => (
     <div className="input-group" key={label}>
       <label>{label}</label>
-      <input type="text" value={value} readOnly />
+      <input type="text" value={value || ''} readOnly />
     </div>
   );
 
@@ -99,6 +258,8 @@ const Profile = () => {
       <ul>{values.map((v, i) => <li key={i}>{v}</li>)}</ul>
     </div>
   );
+
+  /* ---------------- FIELD GROUPS (UNCHANGED) ---------------- */
 
   const orbiterFields = [
     'IDType', 'IDNumber', 'Address', 'MaritalStatus', 'LanguagesKnown', 'Hobbies',
@@ -118,21 +279,55 @@ const Profile = () => {
     'BusinessEmailID', 'TagLine'
   ];
 
-  const basicFields = [
-    renderField('Fullname', userDetails.name),
-    renderField('Phone Number', userDetails.mobile),
-    renderField('Email Address', userDetails.email),
-    renderField('Gender', userDetails.gender),
-    renderField('Category', userDetails.category),
-    renderField('UJB Code', userDetails.ujbCode),
-    <div className="input-group" key="dob">
-      <label>Date of Birth</label>
-      <div className="date-input">
-        <input type="text" value={userDetails.dob} readOnly />
-        <span className="calendar-icon"><FaCalendarAlt /></span>
+  /* ---------------- BASIC FIELDS (EDITABLE) ---------------- */
+
+  const basicFields = (
+    <>
+      {!isEditMode ? (
+        <button className="edit-btn" onClick={() => setIsEditMode(true)}>Edit</button>
+      ) : (
+        <button className="submit-btn" onClick={submitBasicInfo}>Submit for Approval</button>
+      )}
+
+      <div className="input-group">
+        <label>Fullname</label>
+        <input
+          value={isEditMode ? formData.name : userDetails.name}
+          readOnly={!isEditMode}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        />
       </div>
-    </div>
-  ];
+
+      <div className="input-group">
+        <label>Email Address</label>
+        <input
+          value={isEditMode ? formData.email : userDetails.email}
+          readOnly={!isEditMode}
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+        />
+      </div>
+
+      {renderField('Phone Number', userDetails.mobile)}
+      {renderField('Gender', userDetails.gender)}
+      {renderField('Category', userDetails.category)}
+      {renderField('UJB Code', userDetails.ujbCode)}
+
+      <div className="input-group">
+        <label>Date of Birth</label>
+        <div className="date-input">
+          <input
+            type="text"
+            value={isEditMode ? formData.dob : userDetails.dob}
+            readOnly={!isEditMode}
+            onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+          />
+          <span className="calendar-icon"><FaCalendarAlt /></span>
+        </div>
+      </div>
+    </>
+  );
+
+  /* ---------------- UI ---------------- */
 
   return (
     <main className="pageContainer">
@@ -140,23 +335,28 @@ const Profile = () => {
 
       <section className="dashBoardMain profileMainPage">
 
-        {/* 🔵 LOADING SKELETON */}
         {loading ? (
           <>
             <ProfileSkeleton />
-            {[...Array(8)].map((_, i) => (
-              <FieldSkeleton key={i} />
-            ))}
+            {[...Array(8)].map((_, i) => <FieldSkeleton key={i} />)}
           </>
         ) : (
           <>
+            {/* PROFILE HEADER */}
             <div className="input-group profile-photo-group">
               <div className="profile-photo-wrapper">
                 <img
-                  src={userDetails.ProfilePhotoURL || ""}
+                  src={previewPhoto || userDetails.ProfilePhotoURL || ""}
                   alt="Profile"
                   className="profile-round-image"
                 />
+
+                {isEditMode && (
+                  <label className="photo-edit-btn">
+                    ✎
+                    <input type="file" hidden accept="image/*" onChange={handlePhotoSelect} />
+                  </label>
+                )}
               </div>
 
               <div className="profile-details">
@@ -165,6 +365,7 @@ const Profile = () => {
               </div>
             </div>
 
+         
             <div className="tab-contents">
               <div className="new-profile-container">
                 <div className="profile-tab-wrapper">
@@ -249,107 +450,263 @@ const Profile = () => {
                         </span>
                       </div>
 
-                      <div className="profile-inputs">
-                        {activeTab === 'basic' && basicFields}
+                     <div className="profile-inputs">
 
-                        {activeTab === 'additional' &&
-                          orbiterFields.map(field =>
-                            Array.isArray(userDetails[field])
-                              ? renderArrayField(field, userDetails[field])
-                              : renderField(field, userDetails[field] || '')
-                          )
-                        }
+  {/* ================= BASIC ================= */}
+  {activeTab === 'basic' && basicFields}
 
-                        {activeTab === 'health' &&
-                          healthFields.map(field =>
-                            renderField(field, userDetails[field] || '')
-                          )
-                        }
+  {/* ================= ADDITIONAL ================= */}
+  {activeTab === 'additional' && (
+    <>
+      <button
+        className="edit-btn"
+        onClick={() =>
+          isEditMode
+            ? submitTabForApproval(
+                "ADDITIONAL_INFO",
+                orbiterFields.reduce((o, f) => ({ ...o, [f]: userDetails[f] }), {}),
+                draftAdditional
+              )
+            : setIsEditMode(true)
+        }
+      >
+        {isEditMode ? "Submit for Approval" : "Edit"}
+      </button>
 
-                        {activeTab === 'professional' &&
-                          professionalFields.map(field =>
-                            Array.isArray(userDetails[field])
-                              ? renderArrayField(field, userDetails[field])
-                              : renderField(field, userDetails[field] || '')
-                          )
-                        }
+      {orbiterFields.map(field => (
+        <div className="input-group" key={field}>
+          <label>{field}</label>
+          <input
+            type="text"
+            value={isEditMode ? draftAdditional[field] || '' : userDetails[field] || ''}
+            readOnly={!isEditMode}
+            onChange={(e) =>
+              setDraftAdditional({ ...draftAdditional, [field]: e.target.value })
+            }
+          />
+        </div>
+      ))}
+    </>
+  )}
 
-                        {activeTab === 'business' && (
-                          <>
-                            {userDetails.BusinessLogo && (
-                              <div className="businessLogo">
-                                <img
-                                  src={userDetails.BusinessLogo}
-                                  alt="Business Logo"
-                                  className="profile-photo-img"
-                                />
-                              </div>
-                            )}
+  {/* ================= HEALTH ================= */}
+  {activeTab === 'health' && (
+    <>
+      <button
+        className="edit-btn"
+        onClick={() =>
+          isEditMode
+            ? submitTabForApproval(
+                "HEALTH_INFO",
+                healthFields.reduce((o, f) => ({ ...o, [f]: userDetails[f] }), {}),
+                draftHealth
+              )
+            : setIsEditMode(true)
+        }
+      >
+        {isEditMode ? "Submit for Approval" : "Edit"}
+      </button>
 
-                            {cosmorbiterExtraFields.map(field =>
-                              renderField(field, userDetails[field] || '')
-                            )}
-                          </>
-                        )}
+      {healthFields.map(field => (
+        <div className="input-group" key={field}>
+          <label>{field}</label>
+          <input
+            type="text"
+            value={isEditMode ? draftHealth[field] || '' : userDetails[field] || ''}
+            readOnly={!isEditMode}
+            onChange={(e) =>
+              setDraftHealth({ ...draftHealth, [field]: e.target.value })
+            }
+          />
+        </div>
+      ))}
+    </>
+  )}
 
-                        {activeTab === 'services' && (
-                          <div className="offering-list">
-                            {userDetails.services.map((srv, i) => (
-                              <div key={i} className="offering-card">
-                                <div className='offerImage'>
-                                  {srv.imageURL ? (
-                                    <img src={srv.imageURL} alt={srv.name} />
-                                  ) : (
-                                    <div className="nothumbnail"><CiImageOff /></div>
-                                  )}
-                                </div>
-                                <div className='offerDesc'>
-                                  <h4>{srv.name}</h4>
-                                  <p>{srv.description}</p>
-                                  {srv.percentage && <p>Agreed Percentage: {srv.percentage}%</p>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+  {/* ================= PROFESSIONAL ================= */}
+  {activeTab === 'professional' && (
+    <>
+      <button
+        className="edit-btn"
+        onClick={() =>
+          isEditMode
+            ? submitTabForApproval(
+                "PROFESSIONAL_INFO",
+                professionalFields.reduce((o, f) => ({ ...o, [f]: userDetails[f] }), {}),
+                draftProfessional
+              )
+            : setIsEditMode(true)
+        }
+      >
+        {isEditMode ? "Submit for Approval" : "Edit"}
+      </button>
 
-                        {activeTab === 'products' && (
-                          <div className="offering-list">
-                            {userDetails.products.map((srv, i) => (
-                              <div key={i} className="offering-card">
-                                <div className='offerImage'>
-                                  {srv.imageURL ? (
-                                    <img src={srv.imageURL} alt={srv.name} />
-                                  ) : (
-                                    <div className="nothumbnail"><CiImageOff /></div>
-                                  )}
-                                </div>
-                                <div className='offerDesc'>
-                                  <h4>{srv.name}</h4>
-                                  <p>{srv.description}</p>
-                                  {srv.percentage && <p>Agreed Percentage: {srv.percentage}%</p>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+      {professionalFields.map(field => (
+        <div className="input-group" key={field}>
+          <label>{field}</label>
+          <input
+            type="text"
+            value={isEditMode ? draftProfessional[field] || '' : userDetails[field] || ''}
+            readOnly={!isEditMode}
+            onChange={(e) =>
+              setDraftProfessional({ ...draftProfessional, [field]: e.target.value })
+            }
+          />
+        </div>
+      ))}
+    </>
+  )}
 
-                        {activeTab === 'connects' && (
-                          <div className="connects-list">
-                            {userDetails.connects.map((con, i) => (
-                              <div key={i} className="connect-card">
-                                <div className="connect-info">
-                                  <h4>{con.name}</h4>
-                                  <p><strong>Phone:</strong> {con.phone}</p>
-                                  <p><strong>Email:</strong> {con.email}</p>
-                                  <p><strong>UJB Code:</strong> {con.ujbCode}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+  {/* ================= BUSINESS ================= */}
+  {activeTab === 'business' && (
+    <>
+      <button
+        className="edit-btn"
+        onClick={() =>
+          isEditMode
+            ? submitTabForApproval(
+                "BUSINESS_INFO",
+                cosmorbiterExtraFields.reduce((o, f) => ({ ...o, [f]: userDetails[f] }), {}),
+                draftBusiness
+              )
+            : setIsEditMode(true)
+        }
+      >
+        {isEditMode ? "Submit for Approval" : "Edit"}
+      </button>
 
-                      </div>
+      {userDetails.BusinessLogo && (
+        <div className="businessLogo">
+          <img
+            src={userDetails.BusinessLogo}
+            alt="Business Logo"
+            className="profile-photo-img"
+          />
+        </div>
+      )}
+
+      {cosmorbiterExtraFields.map(field => (
+        <div className="input-group" key={field}>
+          <label>{field}</label>
+          <input
+            type="text"
+            value={isEditMode ? draftBusiness[field] || '' : userDetails[field] || ''}
+            readOnly={!isEditMode}
+            onChange={(e) =>
+              setDraftBusiness({ ...draftBusiness, [field]: e.target.value })
+            }
+          />
+        </div>
+      ))}
+    </>
+  )}
+
+  {/* ================= SERVICES ================= */}
+  {activeTab === 'services' && (
+    <>
+      <button
+        className="edit-btn"
+        onClick={() =>
+          isEditMode
+            ? submitTabForApproval("SERVICES", userDetails.services, draftServices)
+            : setIsEditMode(true)
+        }
+      >
+        {isEditMode ? "Submit for Approval" : "Edit"}
+      </button>
+
+      <div className="offering-list">
+        {draftServices.map((srv, i) => (
+          <div key={i} className="offering-card">
+            <div className="offerDesc">
+              <input
+                type="text"
+                value={srv.name}
+                readOnly={!isEditMode}
+                onChange={(e) => {
+                  const u = [...draftServices];
+                  u[i].name = e.target.value;
+                  setDraftServices(u);
+                }}
+              />
+              <textarea
+                value={srv.description}
+                readOnly={!isEditMode}
+                onChange={(e) => {
+                  const u = [...draftServices];
+                  u[i].description = e.target.value;
+                  setDraftServices(u);
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )}
+
+  {/* ================= PRODUCTS ================= */}
+  {activeTab === 'products' && (
+    <>
+      <button
+        className="edit-btn"
+        onClick={() =>
+          isEditMode
+            ? submitTabForApproval("PRODUCTS", userDetails.products, draftProducts)
+            : setIsEditMode(true)
+        }
+      >
+        {isEditMode ? "Submit for Approval" : "Edit"}
+      </button>
+
+      <div className="offering-list">
+        {draftProducts.map((srv, i) => (
+          <div key={i} className="offering-card">
+            <div className="offerDesc">
+              <input
+                type="text"
+                value={srv.name}
+                readOnly={!isEditMode}
+                onChange={(e) => {
+                  const u = [...draftProducts];
+                  u[i].name = e.target.value;
+                  setDraftProducts(u);
+                }}
+              />
+              <textarea
+                value={srv.description}
+                readOnly={!isEditMode}
+                onChange={(e) => {
+                  const u = [...draftProducts];
+                  u[i].description = e.target.value;
+                  setDraftProducts(u);
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )}
+
+  {/* ================= CONNECTS (READ ONLY) ================= */}
+  {activeTab === 'connects' && (
+    <div className="connects-list">
+      {userDetails.connects.map((con, i) => (
+        <div key={i} className="connect-card">
+          <div className="connect-info">
+            <h4>{con.name}</h4>
+            <p><strong>Phone:</strong> {con.phone}</p>
+            <p><strong>Email:</strong> {con.email}</p>
+            <p><strong>UJB Code:</strong> {con.ujbCode}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+</div>
+
 
                     </div>
                   )}
@@ -359,7 +716,7 @@ const Profile = () => {
             </div>
           </>
         )}
-
+       
         <HeaderNav />
       </section>
     </main>

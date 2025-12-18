@@ -267,3 +267,517 @@
 .filter-row { display:flex; gap:8px; align-items:center; }
 .filter-input { padding:8px 10px; border-radius:8px; border:1px solid #dfe6f1; }
 .btn { background:#005bbb; color:white; padding:8px 12px; border-radius:8px; cursor:pointer; border:none; }
+.view-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.view-toggle button {
+  padding: 6px 14px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.view-toggle button.active {
+  background: #1474d2;
+  color: white;
+  border-color: #1474d2;
+}
+/* ================= DASHBOARD LAYOUT ================= */
+.dashboard-container {
+  padding: 16px 20px 40px;
+  background: #f6f8fb;
+  min-height: 100vh;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #1f2937;
+}
+
+/* ================= VIEW TOGGLE ================= */
+.view-toggle {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.view-toggle button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.view-toggle button:hover {
+  background: #eef2ff;
+}
+
+.view-toggle button.active {
+  background: #1474d2;
+  color: #fff;
+  border-color: #1474d2;
+}
+
+/* ================= KPI CARDS ================= */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+.card-title {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.card-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* ================= PANELS ================= */
+.panel {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #1f2937;
+}
+
+.two-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .two-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================= FILTER BAR ================= */
+.table-filter.advanced {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+  align-items: center;
+}
+
+.table-filter input,
+.table-filter select {
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 13px;
+  background: #fff;
+  min-width: 160px;
+}
+
+.table-filter select[multiple] {
+  min-height: 90px;
+}
+
+.table-filter input:focus,
+.table-filter select:focus {
+  outline: none;
+  border-color: #1474d2;
+  box-shadow: 0 0 0 1px rgba(20, 116, 210, 0.2);
+}
+
+/* ================= TABLE ================= */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.table thead th {
+  background: #f3f4f6;
+  text-align: left;
+  padding: 10px;
+  color: #374151;
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #111827;
+}
+
+.table tbody tr {
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* ================= PRIORITY COLORS ================= */
+.priority-high {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.priority-medium {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.priority-low {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+/* ================= CHART POLISH ================= */
+.recharts-tooltip-wrapper {
+  font-size: 12px;
+}
+
+.recharts-default-tooltip {
+  border-radius: 6px !important;
+  border: none !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+}
+
+.recharts-legend-item-text {
+  font-size: 12px;
+}
+
+/* ================= SCROLL POLISH ================= */
+.panel table {
+  max-height: 360px;
+  overflow-y: auto;
+  display: block;
+}
+
+.panel table thead,
+.panel table tbody tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* ================= MOBILE ================= */
+@media (max-width: 600px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .table-filter input,
+  .table-filter select {
+    min-width: 100%;
+  }
+}
+/* ================= KANBAN PIPELINE ================= */
+
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+/* Column */
+.kanban-col {
+  background: #f6f8fb;
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 300px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Column title */
+.kanban-col h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e4e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #1f2a44;
+}
+
+/* Cards */
+.kanban-card {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 4px solid #c7d2fe;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+/* Prospect name */
+.kanban-card strong {
+  font-size: 14px;
+  display: block;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+/* Orbiter name */
+.kanban-card .small {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ================= STAGE COLORS ================= */
+
+/* New */
+.kanban-col:nth-child(1) .kanban-card {
+  border-left-color: #38bdf8;
+}
+
+/* Connected */
+.kanban-col:nth-child(2) .kanban-card {
+  border-left-color: #22c55e;
+}
+
+/* Enrollment Pending */
+.kanban-col:nth-child(3) .kanban-card {
+  border-left-color: #f59e0b;
+}
+
+/* Enrolled */
+.kanban-col:nth-child(4) .kanban-card {
+  border-left-color: #6366f1;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 768px) {
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+}
+/* ================= ROOT ================= */
+.dashboard-container {
+  padding: 20px 26px;
+  background: #f5f7fb;
+  min-height: 100vh;
+  font-family: "Inter", sans-serif;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #1f2937;
+}
+
+/* ================= KPI ================= */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+.card-title {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.card-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* ================= PANELS ================= */
+.panel {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  margin-bottom: 22px;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+/* ================= GRID ================= */
+.two-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+/* ================= TODO ================= */
+.todo-panel {
+  margin-top: 20px;
+}
+
+.todo-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.todo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.todo.high {
+  background: #fdecea;
+  border-left: 4px solid #e74c3c;
+}
+
+.todo.medium {
+  background: #fff6e5;
+  border-left: 4px solid #f39c12;
+}
+
+.todo.low {
+  background: #ecfdf5;
+  border-left: 4px solid #2ecc71;
+}
+
+.todo-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  margin-left: 8px;
+}
+
+/* ================= KANBAN ================= */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 30px;
+}
+
+.kanban-column {
+  background: #eef2ff;
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 320px;
+}
+
+.kanban-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #1f2937;
+}
+
+.kanban-card {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.kanban-card small {
+  display: block;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+/* ================= TABLE ================= */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  background: #f3f4f6;
+  text-align: left;
+  padding: 10px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.table td {
+  padding: 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table tr:hover {
+  background: #f9fafb;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 1024px) {
+  .kanban {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .two-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
