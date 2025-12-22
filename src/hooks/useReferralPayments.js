@@ -22,10 +22,15 @@ export default function useReferralPayments({
 
   const agreedAmount = Number(referralData?.agreedTotal || 0);
 
-  // Total Cosmo → UJB paid so far (local view)
-  const cosmoPaid = (payments || [])
-    .filter((p) => p.paymentFrom === "CosmoOrbiter")
-    .reduce((sum, p) => sum + Number(p.amountReceived || 0), 0);
+  // ✅ FIX 1: Normalize payments safely (array OR object)
+  const safePayments = Array.isArray(payments)
+    ? payments
+    : Object.values(payments || {}).flat();
+
+  // Total Cosmo → UJB paid so far
+  const cosmoPaid = safePayments
+    .filter((p) => p?.paymentFrom === "CosmoOrbiter")
+    .reduce((sum, p) => sum + Number(p?.amountReceived || 0), 0);
 
   const agreedRemaining = Math.max(agreedAmount - cosmoPaid, 0);
 
@@ -109,12 +114,16 @@ export default function useReferralPayments({
         remainingAfter: agreedRemaining - amount,
         meta: {
           isCosmoToUjb: true,
-          belongsToPaymentId: null,
           isPartial: amount < agreedRemaining,
           partialRemainingBefore: agreedRemaining,
           partialRemainingAfter: agreedRemaining - amount,
         },
       };
+
+      // 🔒 Remove undefined (Firestore safe)
+      Object.keys(entry).forEach((k) => {
+        if (entry[k] === undefined) delete entry[k];
+      });
 
       await updateDoc(doc(db, COLLECTIONS.referral, id), {
         payments: arrayUnion(entry),
@@ -123,14 +132,19 @@ export default function useReferralPayments({
         ujbBalance: increment(amount),
       });
 
-      setPayments([...(payments || []), entry]);
+      /**
+       * ✅ FIX 2: DO NOT manually reshape payments
+       * Firestore snapshot will update payments correctly
+       */
+      setPayments((prev) => prev);
+
       closePaymentModal();
     } catch (err) {
       console.error("Payment save failed:", err);
       alert("Error saving payment.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   return {

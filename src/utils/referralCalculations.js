@@ -1,207 +1,173 @@
 // src/utils/referralCalculations.js
 
-// ---------- helpers ----------
 const toNumber = (v, fallback = 0) => {
   const n = Number(v);
   return Number.isNaN(n) ? fallback : n;
 };
 
-// ---------------- AGREED VALUE FROM SERVICE/PRODUCT ----------------
-/**
- * item.agreedValue:
- *   {
- *     mode: "single" | "multiple",
- *     single?: { type: "percentage" | "amount", value: number },
- *     multiple?: { slabs: [{ from, to, type, value }] }
- *   }
- *
- * Fallback (legacy): item.percentage (e.g. "2")
- */
+/* -------------------------------------------------
+   AGREED VALUE CALCULATION
+------------------------------------------------- */
 export const calculateAgreedFromItem = (dealAmount, item) => {
   if (!item) return 0;
 
   const deal = toNumber(dealAmount);
   const av = item.agreedValue;
 
-  // 🔙 Legacy: simple percentage
   if (!av) {
     const pct = toNumber(item.percentage, 0);
     return (deal * pct) / 100;
   }
 
-  // SINGLE MODE
-  if (av.mode === "single" && av.single) {
-    const v = toNumber(av.single.value, 0);
-    if (av.single.type === "percentage") return (deal * v) / 100;
-    if (av.single.type === "amount") return v;
-    return 0;
+  if (av.mode === "single") {
+    const s = av.single || item.single;
+    if (!s) return 0;
+
+    const v = toNumber(s.value, 0);
+    return s.type === "percentage" ? (deal * v) / 100 : v;
   }
 
-  // MULTIPLE / SLAB MODE
-// MULTIPLE / SLAB MODE
-if (av.mode === "multiple") {
-  // Prefer slabs; fallback to itemSlabs if slabs are empty or missing
-  const rawSlabs =
-    Array.isArray(av.multiple?.slabs) && av.multiple.slabs.length
-      ? av.multiple.slabs
-      : Array.isArray(av.multiple?.itemSlabs)
-      ? av.multiple.itemSlabs
-      : [];
+  if (av.mode === "multiple") {
+    const rawSlabs =
+      av.multiple?.slabs?.length
+        ? av.multiple.slabs
+        : av.multiple?.itemSlabs || [];
 
-  if (!rawSlabs.length) return 0;
+    if (!rawSlabs.length) return 0;
 
-  const slabs = rawSlabs.map((s) => ({
-    ...s,
-    from: toNumber(s.from),
-    to: toNumber(s.to),
-    value: toNumber(s.value),
-  }));
+    const slabs = rawSlabs.map((s) => ({
+      ...s,
+      from: toNumber(s.from),
+      to: s.to === "" || s.to == null ? Infinity : toNumber(s.to),
+      value: toNumber(s.value),
+    }));
 
-  const candidates = slabs.filter(
-    (s) => deal >= s.from && deal <= s.to
-  );
-  if (!candidates.length) return 0;
+    const match = slabs
+      .filter((s) => deal >= s.from && deal <= s.to)
+      .sort((a, b) => b.from - a.from)[0];
 
-  const best = candidates.reduce((a, b) =>
-    b.from > a.from ? b : a
-  );
+    if (!match) return 0;
 
-  if (best.type === "percentage") return (deal * best.value) / 100;
-  if (best.type === "amount") return best.value;
-  return 0;
-}
-
+    return match.type === "percentage"
+      ? (deal * match.value) / 100
+      : match.value;
+  }
 
   return 0;
 };
 
-// ---------------- SPLIT AGREED AMOUNT (50/15/15/20) ----------------
-export const splitAgreedAmount = (agreedAmount) => {
-  const a = toNumber(agreedAmount);
-  const r2 = (n) => Math.round(n * 100) / 100;
-
-  return {
-    orbiterShare: r2(a * 0.5),
-    orbiterMentorShare: r2(a * 0.15),
-    cosmoMentorShare: r2(a * 0.15),
-    ujustbeShare: r2(a * 0.2),
-  };
-};
-
-// ---------------- BUILD DISTRIBUTION FOR A DEAL ----------------
-/**
- * referralData should contain either .service or .product
- */
+/* -------------------------------------------------
+   DEAL DISTRIBUTION  ✅ THIS WAS MISSING
+------------------------------------------------- */
 export const buildDealDistribution = (dealValue, referralData) => {
   const deal = toNumber(dealValue);
-  const item = referralData?.service || referralData?.product;
+
+  const item =
+    referralData?.service ||
+    referralData?.product ||
+    referralData?.services?.[0] ||
+    referralData?.products?.[0] ||
+    null;
 
   const agreedAmount = calculateAgreedFromItem(deal, item);
-  const shares = splitAgreedAmount(agreedAmount);
 
-  // keep legacy % for reference if single % is used
-  const percentage =
+  const r2 = (n) => Math.round(n * 100) / 100;
+
+  const orbiterShare = r2(agreedAmount * 0.5);
+  const orbiterMentorShare = r2(agreedAmount * 0.15);
+  const cosmoMentorShare = r2(agreedAmount * 0.15);
+
+  let ujustbeShare = r2(agreedAmount * 0.2);
+
+  const total =
+    orbiterShare +
+    orbiterMentorShare +
+    cosmoMentorShare +
+    ujustbeShare;
+
+  const diff = r2(agreedAmount - total);
+  if (diff !== 0) ujustbeShare = r2(ujustbeShare + diff);
+
+  let percentage = 0;
+  if (
     item?.agreedValue?.mode === "single" &&
     item.agreedValue.single?.type === "percentage"
-      ? toNumber(item.agreedValue.single.value)
-      : toNumber(item?.percentage || 0);
+  ) {
+    percentage = toNumber(item.agreedValue.single.value);
+  } else {
+    percentage = toNumber(item?.percentage);
+  }
 
   return {
     dealValue: deal,
     percentage,
     agreedAmount,
-    ...shares,
+    orbiterShare,
+    orbiterMentorShare,
+    cosmoMentorShare,
+    ujustbeShare,
     timestamp: new Date().toISOString(),
   };
 };
 
-// ---------------- AGREED AMOUNT FOR REFERRAL ----------------
-export const getAgreedAmountFromReferral = (referralData, dealLogs) => {
-  if (referralData?.agreedTotal) return toNumber(referralData.agreedTotal);
-
-  if (Array.isArray(dealLogs) && dealLogs.length) {
-    const last = dealLogs[dealLogs.length - 1];
-    if (last?.agreedAmount) return toNumber(last.agreedAmount);
-  }
-
-  const deal = referralData?.dealValue;
-  return buildDealDistribution(deal, referralData).agreedAmount;
-};
-
-// ---------------- COSMO → UJB PAID SO FAR ----------------
-export const getCosmoPaidSoFar = (payments = []) =>
-  payments.reduce((sum, p) => {
-    if (p.paymentFrom === "CosmoOrbiter" && p.paymentTo === "UJustBe") {
-      return sum + toNumber(p.amountReceived);
-    }
-    return sum;
-  }, 0);
-
-// ---------------- EARNED SHARES FROM COSMO PAID ----------------
-export const computeEarnedShares = (cosmoPaid) => {
-  return splitAgreedAmount(cosmoPaid);
-};
-
-// ===================================================================
-//  🔥 GLOBAL ORBITER ADJUSTMENT (PROFILE LEVEL) + REFERRAL LOGGING
-// ===================================================================
-/**
- * PURE calculation. It does NOT talk to Firestore.
- *
- * Inputs:
- *  - requestedAmountForOrbiter: How much this referral wants to pay to Orbiter (₹)
- *  - globalAdjustmentRemaining: From usersdetail.payment.orbiter.adjustmentRemaining
- *  - referral: { id, referralId? }  (metadata, only used inside log entry)
- *  - dealValue: deal amount for this referral (for log context only)
- *
- * Output:
- *  {
- *    deducted: number,               // how much got adjusted this time
- *    remainingForOrbiterCash: number,// how much cash we actually pay Orbiter now
- *    newGlobalRemaining: number,     // new profile-level remaining balance
- *    logEntry: { ... } | null        // single log object for referral.adjustmentLogs
- *  }
- */
-export const applyOrbiterAdjustmentCalc = ({
-  requestedAmountForOrbiter,
-  globalAdjustmentRemaining,
-  referral,
+/* -------------------------------------------------
+   ADJUSTMENT CALC (ALREADY FIXED)
+------------------------------------------------- */
+export const applyAdjustmentBeforePayRoleCalc = ({
+  requestedAmount,
+  userDetailData,
   dealValue,
+  role,
+  ujbCode,
+  referral,
 }) => {
-  const req = toNumber(requestedAmountForOrbiter, 0);
-  const globalRem = toNumber(globalAdjustmentRemaining, 0);
+  const req = Number(requestedAmount || 0);
+  const prev = Math.max(
+    Number(userDetailData?.adjustmentRemaining || 0),
+    0
+  );
 
-  // Nothing to adjust
-  if (req <= 0 || globalRem <= 0) {
+  // STOP conditions
+  if (req <= 0 || prev <= 0) {
     return {
       deducted: 0,
-      remainingForOrbiterCash: req,
-      newGlobalRemaining: globalRem,
+      remainingForCash: req,
+      newGlobalRemaining: prev,
       logEntry: null,
     };
   }
 
-  // Amount that can be adjusted from this payment
-  const deducted = Math.min(req, globalRem);
-  const remainingForOrbiterCash = req - deducted;
-  const newGlobalRemaining = globalRem - deducted;
+  // ✅ CORE LOGIC (AS YOU SAID)
+  const deducted = Math.min(req, prev);     // 900
+  const newRemaining = prev - deducted;     // 100
+  const remainingForCash = req - deducted;  // 0
 
   const logEntry = {
-    type: "OrbiterFeeAdjustment",
-    deducted,
+    type: "RoleFeeAdjustment",
+    role: role || null,
+    ujbCode: ujbCode || null,
+
     requestedAmount: req,
-    remainingForOrbiterCash,
-    globalRemainingAfter: newGlobalRemaining,
-    dealValue: dealValue != null ? toNumber(dealValue, 0) : null,
-    referralId: referral?.referralId || referral?.id || null,
-    deductedFrom: "orbiterShare",
+    deducted,
+    remainingForCash,
+
+    previousRemaining: prev,
+    newRemaining,
+
+    dealValue: dealValue ?? null,
+    referralId: referral?.id ?? null,
+
+    deductedFrom: "orbiter",
+    feeType: "adjustment",
     createdAt: new Date().toISOString(),
+    _v: 1,
   };
 
   return {
     deducted,
-    remainingForOrbiterCash,
-    newGlobalRemaining,
+    remainingForCash,
+    newGlobalRemaining: newRemaining,
     logEntry,
   };
 };
+

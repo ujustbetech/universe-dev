@@ -1,10 +1,14 @@
 // pages/referral/[id].js
-
 import { useRouter } from "next/router";
 import { useState } from "react";
 
+import { doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { db } from "../../firebaseConfig";
+import { COLLECTIONS } from "../../utility_collection";
+
 import "../../src/app/styles/referral-ui.scss";
 import "../../src/app/styles/main.scss";
+
 import useReferralDetails from "../../src/hooks/useReferralDetails";
 import useReferralPayments from "../../src/hooks/useReferralPayments";
 import { useUjbDistribution } from "../../src/hooks/useUjbDistribution";
@@ -49,6 +53,7 @@ export default function ReferralDetailsPage() {
     addFollowup,
     editFollowup,
     deleteFollowup,
+    uploadLeadDoc,
   } = useReferralDetails(id);
 
   const payment = useReferralPayments({
@@ -68,53 +73,332 @@ export default function ReferralDetailsPage() {
     cosmoOrbiter,
   });
 
-  const adjustment = useReferralAdjustment(
-    id,
-    orbiter?.ujbCode || orbiter?.UJBCode
-  );
+  // Use the primary orbiter UJB code for the preload hook (but for mentors we will pass exact UJB codes)
+  const primaryOrbiterUjb =
+    referralData?.orbiterUJBCode ||
+    orbiter?.ujbCode ||
+    orbiter?.UJBCode ||
+    null;
 
+  const adjustment = useReferralAdjustment(id, primaryOrbiterUjb);
+
+  // Followup form state
   const defaultFollowupForm = {
     priority: "Medium",
     date: "",
     description: "",
     status: "Pending",
   };
-
   const [followupForm, setFollowupForm] = useState(defaultFollowupForm);
   const [isEditingFollowup, setIsEditingFollowup] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
 
+  // Payment Drawer
   const [showPaymentDrawer, setShowPaymentDrawer] = useState(false);
 
+  // Payout modal state (manual per-slot payout)
   const [payoutModal, setPayoutModal] = useState({
     open: false,
-    recipient: "",
-    slotKey: null,
-    amount: 0,
-    fromPaymentId: null,
+    cosmoPaymentId: null,
+    slot: "", // "Orbiter" | "OrbiterMentor" | "CosmoMentor"
+    logicalAmount: 0, // how much this slot logically represents
+    recipientUjb: null,
+    recipientName: "",
+    preview: null,
     modeOfPayment: "",
     transactionRef: "",
     paymentDate: new Date().toISOString().split("T")[0],
+    processing: false,
   });
 
-  const openPayoutModal = ({ recipient, slotKey, amount, fromPaymentId }) => {
+  // Helper: sanitize number
+  const n = (v) => Math.max(0, Number(v || 0));
+
+  // Map slot -> recipient info (we will use referral-level flat fields as authoritative)
+  const getRecipientInfo = (slot) => {
+    if (!referralData) return { ujb: null, name: "" };
+
+    switch (slot) {
+      case "Orbiter":
+        return {
+          ujb: referralData.orbiterUJBCode || orbiter?.ujbCode || orbiter?.UJBCode || null,
+          name: orbiter?.name || orbiter?.Name || "Orbiter",
+        };
+      case "OrbiterMentor":
+        return {
+          ujb:
+            referralData.orbiterMentorUJBCode ||
+            orbiter?.mentorUjbCode ||
+            orbiter?.mentorUJBCode ||
+            orbiter?.MentorUJBCode ||
+            null,
+          name: orbiter?.mentorName || orbiter?.MentorName || "Orbiter Mentor",
+        };
+      case "CosmoMentor":
+        return {
+          ujb:
+            referralData?.cosmoMentorUJBCode ||
+            cosmoOrbiter?.mentorUjbCode ||
+            cosmoOrbiter?.mentorUJBCode ||
+            cosmoOrbiter?.MentorUJBCode ||
+            cosmoOrbiter?.ujbCode ||          // 🔒 fallback
+            cosmoOrbiter?.UJBCode ||          // 🔒 fallback
+            null,
+          name:
+            cosmoOrbiter?.mentorName ||
+            cosmoOrbiter?.MentorName ||
+            cosmoOrbiter?.name ||             // 🔒 fallback
+            "Cosmo Mentor",
+        };
+      default:
+        return { ujb: null, name: "" };
+    }
+  };
+
+  // Open payout modal for a slot (manual)
+  const openPayoutModal = ({ cosmoPaymentId, slot, amount }) => {
+    const logical = n(amount);
+    const info = getRecipientInfo(slot);
+
     setPayoutModal({
       open: true,
-      recipient: recipient || "",
-      slotKey: slotKey || null,
-      amount: Number(amount || 0),
-      fromPaymentId: fromPaymentId || null,
+      cosmoPaymentId: cosmoPaymentId || null,
+      slot,
+      logicalAmount: logical,
+      recipientUjb: info.ujb,
+      recipientName: info.name,
+      preview: null,
       modeOfPayment: "",
       transactionRef: "",
       paymentDate: new Date().toISOString().split("T")[0],
+      processing: false,
     });
+
+    // fetch preview (non-blocking)
+    (async () => {
+      try {
+        const lastDeal = dealLogs?.[dealLogs.length - 1];
+        const dealValue = lastDeal?.dealValue || null;
+
+        const preview = await adjustment.applyAdjustmentForRole({
+          role: slot,
+          requestedAmount: logical,
+          dealValue,
+          ujbCode: info.ujb,
+          previewOnly: true,
+          referral: { id },
+        });
+
+        setPayoutModal((p) => ({ ...p, preview }));
+      } catch (err) {
+        setPayoutModal((p) => ({ ...p, preview: { error: "Preview failed" } }));
+      }
+    })();
   };
 
   const closePayoutModal = () => {
-    setPayoutModal((prev) => ({ ...prev, open: false }));
+    setPayoutModal((p) => ({ ...p, open: false, preview: null }));
   };
 
-  // --- WhatsApp Sender (embedded here as requested) ---
+  // Confirm payout => commit adjustment and create UJB payout
+  const confirmPayout = async () => {
+    const {
+      cosmoPaymentId,
+      slot,
+      logicalAmount,
+      recipientUjb,
+      modeOfPayment,
+      transactionRef,
+      paymentDate,
+    } = payoutModal;
+
+    if (!slot || logicalAmount <= 0) {
+      alert("Invalid payout slot or amount");
+      return;
+    }
+
+    if (!modeOfPayment) {
+      alert("Please select mode of payment");
+      return;
+    }
+
+    if (!transactionRef) {
+      alert("Transaction / reference required");
+      return;
+    }
+
+    // Slot cap check: ensure not paying more than slot remaining for that cosmo payment
+    // compute remaining for this cosmo payment & slot from payments array
+    const cosmoPayment =
+      (payments || []).find(
+        (p) =>
+          p.paymentId === payoutModal.cosmoPaymentId ||
+          p.meta?.belongsToPaymentId === payoutModal.cosmoPaymentId
+      ) || null;
+
+
+    // We'll rely on server-side check via remaining computed earlier in UI, but still prevent obvious overshoot:
+    // For simplicity here we compute paid so far for this cosmo payment & slot:
+    const paidForThisPaymentAndSlot = (payments || [])
+      .filter(
+        (p) =>
+          p.meta?.isUjbPayout === true &&
+          p.meta?.belongsToPaymentId === payoutModal.cosmoPaymentId &&
+          p.meta?.slot === slot
+      )
+      .reduce((s, p) => s + n(p.amountReceived), 0);
+
+    // Find the cosmo distribution for this cosmo payment so we know slot total
+    const cosmoEntry = (payments || []).find(
+      (p) => p.paymentId === payoutModal.cosmoPaymentId || p.meta?.paymentId === payoutModal.cosmoPaymentId
+    );
+
+    // If cosmoEntry available compute slotTotal
+    let slotTotal = null;
+    if (cosmoEntry && cosmoEntry.distribution) {
+      slotTotal = n(cosmoEntry.distribution[slot === "Orbiter" ? "orbiter" : slot === "OrbiterMentor" ? "orbiterMentor" : "cosmoMentor"]);
+    }
+
+    // If slotTotal known, ensure not overpaying logicalAmount beyond remaining
+    if (slotTotal != null) {
+      const remaining = Math.max(slotTotal - paidForThisPaymentAndSlot, 0);
+      if (logicalAmount > remaining) {
+        if (!confirm(`Requested amount ₹${logicalAmount} exceeds remaining for this slot (₹${remaining}). Do you want to proceed and pay only remaining ₹${remaining}?`)) {
+          return;
+        }
+      }
+    }
+
+    setPayoutModal((p) => ({ ...p, processing: true }));
+
+    try {
+      const lastDeal = dealLogs?.[dealLogs.length - 1];
+      const dealValue = lastDeal?.dealValue || null;
+
+      // 1) Apply adjustment (commit)
+      const adjResult = await adjustment.applyAdjustmentForRole({
+        role: slot,
+        requestedAmount: logicalAmount,
+        dealValue,
+        ujbCode: recipientUjb,
+        referral: { id },
+      });
+
+      const { deducted = 0, cashToPay = logicalAmount, newGlobalRemaining } = adjResult || {};
+
+      // ✅ EARLY UJB BALANCE CHECK (CRITICAL FIX)
+      const availableBalance = Number(referralData?.ujbBalance || 0);
+
+      if (cashToPay > 0 && cashToPay > availableBalance) {
+        alert(
+          `Insufficient UJB balance.\n\n` +
+          `Cash required: ₹${cashToPay}\n` +
+          `Available balance: ₹${availableBalance}\n\n` +
+          `Please wait for Cosmo payment before proceeding.`
+        );
+
+        setPayoutModal((p) => ({ ...p, processing: false }));
+        return;
+      }
+
+      // ✅ CASE: FULLY ADJUSTED — LOG ONLY (NO CASH PAYOUT)
+      if (Number(cashToPay) <= 0 && deducted > 0) {
+        const adjustmentOnlyEntry = {
+          paymentId: `ADJ-${Date.now()}`,
+          paymentFrom: "UJustBe",
+          paymentTo: slot,
+          paymentToName: payoutModal.recipientName,
+          amountReceived: 0,
+          paymentDate,
+          createdAt: new Date(),
+          comment: "Fully adjusted against pending fees",
+          meta: {
+            isUjbPayout: true,
+            isAdjustmentOnly: true,
+            slot,
+            belongsToPaymentId: payoutModal.cosmoPaymentId || null,
+            adjustment: {
+              deducted,
+              cashPaid: 0,
+              previousRemaining: newGlobalRemaining + deducted,
+              newRemaining: newGlobalRemaining,
+            },
+          },
+        };
+
+        // 🔐 LOG ONLY — NO BALANCE CHANGE
+        await updateDoc(doc(db, COLLECTIONS.referral, id), {
+          payments: arrayUnion(adjustmentOnlyEntry),
+        });
+
+        // Update UI immediately
+        setPayments((prev = []) => [...prev, adjustmentOnlyEntry]);
+
+        closePayoutModal();
+        return;
+      }
+
+
+      // 2) Perform UJB payout (actual cash = cashToPay; logical increment = logicalAmount)
+      const payRes = await ujb.payFromSlot({
+        recipient: slot,
+        amount: Number(cashToPay || 0),
+        fromPaymentId: payoutModal.cosmoPaymentId || null,
+        modeOfPayment,
+        transactionRef,
+        paymentDate,
+        adjustmentMeta:
+          deducted > 0
+            ? {
+              deducted,
+              cashPaid: Number(cashToPay || 0),
+              previousRemaining: newGlobalRemaining + deducted,
+              newRemaining: newGlobalRemaining,
+            }
+            : undefined,
+      });
+
+
+      if (payRes?.error) {
+        alert(payRes.error || "Payout failed");
+        setPayoutModal((p) => ({ ...p, processing: false }));
+        return;
+      }
+
+      // optional: send WhatsApp notifications (preserve earlier behavior)
+      try {
+        const refId = referralData?.referralId || id;
+        // notify recipient (if phone exists)
+        const recipientPhone =
+          slot === "Orbiter" ? orbiter?.phone : slot === "OrbiterMentor" ? orbiter?.mentorPhone : cosmoOrbiter?.mentorPhone;
+        if (recipientPhone) {
+          const msg = `Hello ${slot === "Orbiter" ? orbiter?.name : slot === "OrbiterMentor" ? orbiter?.mentorName : cosmoOrbiter?.mentorName}, a payout of ₹${logicalAmount} (cash: ₹${cashToPay}) for referral ${refId} has been processed.`;
+          await sendWhatsAppMessage(recipientPhone, [
+            slot === "Orbiter" ? orbiter?.name : slot === "OrbiterMentor" ? orbiter?.mentorName : cosmoOrbiter?.mentorName,
+            msg,
+          ]);
+        }
+      } catch (err) {
+        // silent per preference
+      }
+
+      // update local payments (use onPaymentsUpdate in hook already pushing entry; but ensure UI updates)
+      // setPayments handled by useUjbDistribution via onPaymentsUpdate
+
+      closePayoutModal();
+    } catch (err) {
+      console.error("confirmPayout error:", err);
+      alert("Payout failed");
+      setPayoutModal((p) => ({ ...p, processing: false }));
+    }
+  };
+
+  // small helper to normalize payment id when different shapes
+  const cosmoPaymentIdFrom = (pid) => pid;
+
+
+
+  // WhatsApp sender (kept from your earlier file)
   async function sendWhatsAppMessage(phone, parameters = []) {
     try {
       const formattedPhone = String(phone || "").replace(/\s+/g, "");
@@ -150,121 +434,11 @@ export default function ReferralDetailsPage() {
           body: JSON.stringify(payload),
         }
       );
-      // intentionally no console logs per preference
+      // intentionally silent
     } catch (error) {
-      // silent fail per preference (no console)
+      // silent fail per preference
     }
   }
-
-  // UJB payout with adjustment logic
-  const handleConfirmPayout = async () => {
-    const {
-      recipient,
-      slotKey,
-      amount,
-      fromPaymentId,
-      modeOfPayment,
-      transactionRef,
-      paymentDate,
-    } = payoutModal;
-
-    const numericAmount = Number(amount || 0);
-
-    // validation (updated)
-    if (!recipient || numericAmount <= 0) {
-      alert("Invalid payout");
-      return;
-    }
-
-    if (!modeOfPayment) {
-      alert("Mode of payment required");
-      return;
-    }
-
-    if (!transactionRef) {
-      alert("Transaction / Reference ID is required");
-      return;
-    }
-
-    if (!paymentDate || isNaN(Date.parse(paymentDate))) {
-      alert("Please select a valid payment date");
-      return;
-    }
-
-    const lastDeal = dealLogs?.[dealLogs.length - 1];
-    const dealValue = lastDeal?.dealValue || null;
-
-    // Apply onboarding adjustment ALWAYS for any payout
-    const adj = await adjustment.applyAdjustmentBeforePayOrbiter({
-      requestedAmount: numericAmount,
-      dealValue,
-    });
-
-    const { cashToPay, deducted, newGlobalRemaining } = adj;
-
-    // balance check based on actual cash being paid
-    if (cashToPay > Number(ujb.ujbBalance || 0)) {
-      alert("Insufficient UJB balance for this payout");
-      return;
-    }
-
-    const extraMeta =
-      deducted > 0
-        ? {
-            adjustment: {
-              deducted,
-              cashPaid: cashToPay,
-              previousRemaining: newGlobalRemaining + deducted,
-              newRemaining: newGlobalRemaining,
-            },
-          }
-        : {};
-
-    const result = await ujb.payFromSlot({
-      recipient,
-      amount: cashToPay,
-      logicalAmount: numericAmount,
-      fromPaymentId,
-      modeOfPayment,
-      transactionRef,
-      paymentDate,
-      extraMeta: {
-        ...extraMeta,
-        fromSlot: slotKey || null,
-      },
-    });
-
-    if (result?.error) {
-      alert(result.error);
-      return;
-    }
-
-    // -----------------------------
-    // WHATSAPP: UJB → Payout Notification (role-based)
-    // -----------------------------
-    try {
-    const refId = referralData?.referralId || id;
-
-const orbiterMsg = `🎉 Hello ${orbiter?.name}, your referral (ID: ${refId}) is marked Deal Won! Thank you for your contribution.`;
-
-await sendWhatsAppMessage(orbiter?.phone, [
-  orbiter?.name,
-  orbiterMsg,
-]);
-
-const cosmoMsg = `🎉 Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is now Deal Won. Great work on closing the opportunity!`;
-
-await sendWhatsAppMessage(cosmoOrbiter?.phone, [
-  cosmoOrbiter?.name,
-  cosmoMsg,
-]);
-
-    } catch (err) {
-      // silent
-    }
-
-    closePayoutModal();
-  };
 
   if (!router.isReady || loading || !referralData) {
     return <p style={{ padding: 20 }}>Loading referral...</p>;
@@ -279,11 +453,7 @@ await sendWhatsAppMessage(cosmoOrbiter?.phone, [
       case "CosmoOrbiter":
         return cosmoOrbiter?.name || cosmoOrbiter?.Name || "Cosmo Orbiter";
       case "CosmoMentor":
-        return (
-          cosmoOrbiter?.mentorName ||
-          cosmoOrbiter?.MentorName ||
-          "Cosmo Mentor"
-        );
+        return cosmoOrbiter?.mentorName || cosmoOrbiter?.MentorName || "Cosmo Mentor";
       case "UJustBe":
         return "UJustBe";
       default:
@@ -308,7 +478,7 @@ await sendWhatsAppMessage(cosmoOrbiter?.phone, [
         <header className="refHeader">
           <div>
             <h1>Referral #{referralData?.referralId}</h1>
-            <p>Source:{referralData?.referralSource || "Referral"}</p>
+            <p>Source: {referralData?.referralSource || "Referral"}</p>
           </div>
 
           <div className="refHeaderStatus">
@@ -326,7 +496,7 @@ await sendWhatsAppMessage(cosmoOrbiter?.phone, [
               formState={formState}
               setFormState={setFormState}
               onUpdate={async () => {
-                await handleStatusUpdate();
+                await handleStatusUpdate(formState.dealStatus)
 
                 // WHATSAPP: STATUS CHANGE (Orbiter + CosmoOrbiter)
                 try {
@@ -337,35 +507,29 @@ await sendWhatsAppMessage(cosmoOrbiter?.phone, [
                   const cosmoPhone = cosmoOrbiter?.phone || cosmoOrbiter?.MobileNo;
 
                   if (orbiterPhone) {
-                    const statusMsgOrbiter = {
-  "Not Connected": `Hello ${orbiter?.name}, your referral (ID: ${refId}) is still marked Not Connected. Please check in.`,
-  "Called but Not Responded": `Hello ${orbiter?.name}, ${cosmoOrbiter?.name} tried reaching your referral (ID: ${refId}) but couldn't connect. Please help facilitate.`,
-  "Discussion in Progress": `Hello ${orbiter?.name}, discussion has started for your referral (ID: ${refId}) with ${cosmoOrbiter?.name}.`,
-  "Rejected": `Hello ${orbiter?.name}, your referral (ID: ${refId}) was marked as Rejected by ${cosmoOrbiter?.name}.`,
-  "Deal Won": `🎉 Hello ${orbiter?.name}, your referral (ID: ${refId}) has been marked as Deal Won!`
-}[newStatus] || `Referral #${refId} status updated to ${newStatus}.`;
+                    const statusMsgOrbiter =
+                      {
+                        "Not Connected": `Hello ${orbiter?.name}, your referral (ID: ${refId}) is still marked Not Connected. Please check in.`,
+                        "Called but Not Responded": `Hello ${orbiter?.name}, ${cosmoOrbiter?.name} tried reaching your referral (ID: ${refId}) but couldn't connect. Please help facilitate.`,
+                        "Discussion in Progress": `Hello ${orbiter?.name}, discussion has started for your referral (ID: ${refId}) with ${cosmoOrbiter?.name}.`,
+                        Rejected: `Hello ${orbiter?.name}, your referral (ID: ${refId}) was marked as Rejected by ${cosmoOrbiter?.name}.`,
+                        "Deal Won": `🎉 Hello ${orbiter?.name}, your referral (ID: ${refId}) has been marked as Deal Won!`,
+                      }[newStatus] || `Referral #${refId} status updated to ${newStatus}.`;
 
-await sendWhatsAppMessage(orbiterPhone, [
-  orbiter?.name || "Orbiter",
-  statusMsgOrbiter,
-]);
-
+                    await sendWhatsAppMessage(orbiterPhone, [orbiter?.name || "Orbiter", statusMsgOrbiter]);
                   }
 
                   if (cosmoPhone) {
-                 const statusMsgCosmo = {
-  "Not Connected": `Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is still Not Connected. Please take action.`,
-  "Called but Not Responded": `Hello ${cosmoOrbiter?.name}, thank you for trying to connect. Status updated to Called but Not Responded.`,
-  "Discussion in Progress": `Hello ${cosmoOrbiter?.name}, thank you for progressing referral (ID: ${refId}). Please continue.`,
-  "Rejected": `Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) marked Rejected. Reason recorded.`,
-  "Deal Won": `🎉 Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is Deal Won. Great job!`
-}[newStatus] || `Referral #${refId} updated to ${newStatus}.`;
+                    const statusMsgCosmo =
+                      {
+                        "Not Connected": `Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is still Not Connected. Please take action.`,
+                        "Called but Not Responded": `Hello ${cosmoOrbiter?.name}, thank you for trying to connect. Status updated to Called but Not Responded.`,
+                        "Discussion in Progress": `Hello ${cosmoOrbiter?.name}, thank you for progressing referral (ID: ${refId}). Please continue.`,
+                        Rejected: `Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) marked Rejected. Reason recorded.`,
+                        "Deal Won": `🎉 Hello ${cosmoOrbiter?.name}, referral (ID: ${refId}) is Deal Won. Great job!`,
+                      }[newStatus] || `Referral #${refId} updated to ${newStatus}.`;
 
-await sendWhatsAppMessage(cosmoPhone, [
-  cosmoOrbiter?.name || "CosmoOrbiter",
-  statusMsgCosmo,
-]);
-
+                    await sendWhatsAppMessage(cosmoPhone, [cosmoOrbiter?.name || "CosmoOrbiter", statusMsgCosmo]);
                   }
                 } catch (err) {
                   // silent
@@ -373,19 +537,18 @@ await sendWhatsAppMessage(cosmoPhone, [
               }}
               statusLogs={referralData.statusLogs || []}
             />
+
             <ServiceDetailsCard
               referralData={referralData}
               dealLogs={dealLogs}
               dealAlreadyCalculated={dealAlreadyCalculated}
               onSaveDealLog={handleSaveDealLog}
             />
-            <ReferralInfoCard referralData={referralData} />
+
+            <ReferralInfoCard referralData={referralData} onUploadLeadDoc={uploadLeadDoc} />
 
             <OrbiterDetailsCard orbiter={orbiter} referralData={referralData} />
-            <CosmoOrbiterDetailsCard
-              cosmoOrbiter={cosmoOrbiter}
-              payments={payments}
-            />
+            <CosmoOrbiterDetailsCard cosmoOrbiter={cosmoOrbiter} referralData={referralData} />
 
             <PaymentHistory
               payments={payments}
@@ -393,7 +556,9 @@ await sendWhatsAppMessage(cosmoPhone, [
               paidToOrbiter={paidToOrbiter}
               paidToOrbiterMentor={paidToOrbiterMentor}
               paidToCosmoMentor={paidToCosmoMentor}
-              onRequestPayout={openPayoutModal}
+              onRequestPayout={({ cosmoPaymentId, slot, amount }) =>
+                openPayoutModal({ cosmoPaymentId, slot, amount })
+              }
             />
           </div>
 
@@ -450,10 +615,7 @@ await sendWhatsAppMessage(cosmoPhone, [
               onAddPayment={payment.openPaymentModal}
             />
 
-            <button
-              className="openPanelBtn"
-              onClick={() => setShowPaymentDrawer(true)}
-            >
+            <button className="openPanelBtn" onClick={() => setShowPaymentDrawer(true)}>
               Open Payment Panel
             </button>
           </div>
@@ -475,33 +637,50 @@ await sendWhatsAppMessage(cosmoPhone, [
           mapName={mapName}
           dealEverWon={dealEverWon}
           totalEarned={totalEarned}
-          onRequestPayout={openPayoutModal}
+          onRequestPayout={({ recipient, slotKey, amount, fromPaymentId }) =>
+            openPayoutModal({ cosmoPaymentId: fromPaymentId || null, slot: slotKey || recipient, amount })
+          }
         />
 
-        {/* UJB → SLOT PAYOUT MODAL */}
+        {/* MANUAL SLOT PAYOUT MODAL */}
         {payoutModal.open && (
           <div className="ModalContainer">
             <div className="Modal">
-              <h3>Payout to {mapName(payoutModal.recipient)}</h3>
+              <h3>
+                Payout — {payoutModal.slot} ({payoutModal.recipientName})
+              </h3>
 
-              <p className="modalHint">
-                UJB Balance: ₹{ujb.ujbBalance.toLocaleString("en-IN")}
+              <p>
+                <strong>Slot logical (due):</strong> ₹{Number(payoutModal.logicalAmount || 0).toLocaleString("en-IN")}
               </p>
-              <p className="modalHint">
-                Slot Payout (logical): ₹
-                {Number(payoutModal.amount || 0).toLocaleString("en-IN")}
+
+              <p>
+                <strong>Recipient UJB:</strong> {payoutModal.recipientUjb || "—"}
               </p>
+
+              {/* Preview (from adjustment.applyAdjustmentForRole previewOnly) */}
+              {payoutModal.preview ? (
+                payoutModal.preview.previewOnly ? (
+                  <div className="previewBox">
+                    <p>
+                      <strong>Adjustment (preview)</strong>
+                    </p>
+                    <p>Deducted: ₹{Number(payoutModal.preview.deducted || 0).toLocaleString("en-IN")}</p>
+                    <p>Cash to pay: ₹{Number(payoutModal.preview.cashToPay || 0).toLocaleString("en-IN")}</p>
+                    <p>New remaining: ₹{Number(payoutModal.preview.newGlobalRemaining || 0).toLocaleString("en-IN")}</p>
+                  </div>
+                ) : payoutModal.preview.error ? (
+                  <p className="errorText">Preview error</p>
+                ) : null
+              ) : (
+                <p className="smallHint">Loading adjustment preview...</p>
+              )}
 
               <label>
                 Mode of Payment
                 <select
                   value={payoutModal.modeOfPayment}
-                  onChange={(e) =>
-                    setPayoutModal((p) => ({
-                      ...p,
-                      modeOfPayment: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setPayoutModal((p) => p.open ? { ...p, modeOfPayment: e.target.value } : p)}
                 >
                   <option value="">--Select--</option>
                   <option>Bank Transfer</option>
@@ -515,12 +694,7 @@ await sendWhatsAppMessage(cosmoPhone, [
                 Transaction / Ref ID
                 <input
                   value={payoutModal.transactionRef}
-                  onChange={(e) =>
-                    setPayoutModal((p) => ({
-                      ...p,
-                      transactionRef: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setPayoutModal((p) => ({ ...p, transactionRef: e.target.value }))}
                 />
               </label>
 
@@ -529,50 +703,36 @@ await sendWhatsAppMessage(cosmoPhone, [
                 <input
                   type="date"
                   value={payoutModal.paymentDate}
-                  onChange={(e) =>
-                    setPayoutModal((p) => ({
-                      ...p,
-                      paymentDate: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setPayoutModal((p) => ({ ...p, paymentDate: e.target.value }))}
                 />
               </label>
 
               <div className="modalActions">
                 <button
-                  onClick={handleConfirmPayout}
-                  disabled={ujb.isSubmitting || adjustment.loading}
+                  onClick={confirmPayout}
+                  disabled={payoutModal.processing || ujb.isSubmitting || adjustment.loading}
                 >
-                  {ujb.isSubmitting || adjustment.loading
-                    ? "Processing..."
-                    : "Confirm Payout"}
+                  {payoutModal.processing || ujb.isSubmitting || adjustment.loading ? "Processing..." : "Confirm Payout"}
                 </button>
                 <button className="cancel" onClick={closePayoutModal}>
                   Cancel
                 </button>
               </div>
 
-              {adjustment.error && (
-                <p className="errorText">
-                  Adjustment error: {adjustment.error}
-                </p>
-              )}
-              {ujb.error && (
-                <p className="errorText">Payout error: {ujb.error}</p>
-              )}
+              {adjustment.error && <p className="errorText">Adjustment error: {adjustment.error}</p>}
+              {ujb.error && <p className="errorText">Payout error: {ujb.error}</p>}
             </div>
           </div>
         )}
 
-        {/* COSMO → UJB PAYMENT MODAL */}
+        {/* COSMO → UJB PAYMENT MODAL (unchanged) */}
         {payment.showAddPaymentForm && (
           <div className="ModalContainer">
             <div className="Modal">
               <h3>Add Payment (Cosmo → UJB)</h3>
 
               <p className="modalHint">
-                Remaining Agreed: ₹
-                {payment.agreedRemaining.toLocaleString("en-IN")}
+                Remaining Agreed: ₹{payment.agreedRemaining.toLocaleString("en-IN")}
               </p>
 
               <label>
@@ -581,9 +741,7 @@ await sendWhatsAppMessage(cosmoPhone, [
                   type="number"
                   min="0"
                   value={payment.newPayment.amountReceived}
-                  onChange={(e) =>
-                    payment.updateNewPayment("amountReceived", e.target.value)
-                  }
+                  onChange={(e) => payment.updateNewPayment("amountReceived", e.target.value)}
                 />
               </label>
 
@@ -591,9 +749,7 @@ await sendWhatsAppMessage(cosmoPhone, [
                 Mode of Payment
                 <select
                   value={payment.newPayment.modeOfPayment}
-                  onChange={(e) =>
-                    payment.updateNewPayment("modeOfPayment", e.target.value)
-                  }
+                  onChange={(e) => payment.updateNewPayment("modeOfPayment", e.target.value)}
                 >
                   <option value="">--Select--</option>
                   <option>Bank Transfer</option>
@@ -607,9 +763,7 @@ await sendWhatsAppMessage(cosmoPhone, [
                 Transaction Ref
                 <input
                   value={payment.newPayment.transactionRef}
-                  onChange={(e) =>
-                    payment.updateNewPayment("transactionRef", e.target.value)
-                  }
+                  onChange={(e) => payment.updateNewPayment("transactionRef", e.target.value)}
                 />
               </label>
 
@@ -618,9 +772,7 @@ await sendWhatsAppMessage(cosmoPhone, [
                 <input
                   type="date"
                   value={payment.newPayment.paymentDate}
-                  onChange={(e) =>
-                    payment.updateNewPayment("paymentDate", e.target.value)
-                  }
+                  onChange={(e) => payment.updateNewPayment("paymentDate", e.target.value)}
                 />
               </label>
 
@@ -630,21 +782,14 @@ await sendWhatsAppMessage(cosmoPhone, [
                     // save payment
                     await payment.handleSavePayment();
 
-                    // WHATSAPP: Notify CosmoOrbiter only (Option C)
+                    // WHATSAPP: Notify CosmoOrbiter only
                     try {
-                      const cosmoPhone =
-                        cosmoOrbiter?.phone || cosmoOrbiter?.MobileNo;
+                      const cosmoPhone = cosmoOrbiter?.phone || cosmoOrbiter?.MobileNo;
                       const amount = payment.newPayment?.amountReceived;
                       const refId = referralData?.referralId || id;
-
                       if (cosmoPhone) {
-                       const paymentMsg = `Hello ${cosmoOrbiter?.name}, we have received your payment of ₹${amount} for referral (ID: ${refId}). Thank you!`;
-
-await sendWhatsAppMessage(cosmoPhone, [
-  cosmoOrbiter?.name,
-  paymentMsg,
-]);
-
+                        const paymentMsg = `Hello ${cosmoOrbiter?.name}, we have received your payment of ₹${amount} for referral (ID: ${refId}). Thank you!`;
+                        await sendWhatsAppMessage(cosmoPhone, [cosmoOrbiter?.name, paymentMsg]);
                       }
                     } catch (err) {
                       // silent
@@ -654,11 +799,7 @@ await sendWhatsAppMessage(cosmoPhone, [
                 >
                   {payment.isSubmitting ? "Saving..." : "Save"}
                 </button>
-                <button
-                  className="cancel"
-                  onClick={payment.closePaymentModal}
-                  disabled={payment.isSubmitting}
-                >
+                <button className="cancel" onClick={payment.closePaymentModal} disabled={payment.isSubmitting}>
                   Cancel
                 </button>
               </div>
