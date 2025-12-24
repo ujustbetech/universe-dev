@@ -45,6 +45,47 @@ const Navbar = (props) => {
                 <li><Link href="/admin/event/manageEvent">Manage Meet</Link></li>
               </ul>
             </li>
+
+      {/* Referrals */}
+            <li>
+              <span className="nav-link">
+                <span className="icons"><FaPeopleArrows /></span>
+                <span className="linklabel">Referrals</span>
+                <MdOutlineKeyboardArrowDown className="submenuIcon" />
+              </span>
+              <ul>
+                <li><Link href="/admin/AddReferral">Add Referrals</Link></li>
+                <li><Link href="/admin/ManageReferrals">Manage Referrals</Link></li>
+              </ul>
+            </li>
+
+        
+            {/* Conclave */}
+            <li>
+              <span className="nav-link">
+                <span className="icons"><GrGroup /></span>
+                <span className="linklabel">Conclave</span>
+                <MdOutlineKeyboardArrowDown className="submenuIcon" />
+              </span>
+              <ul>
+                <li><Link href="/admin/event/createconclave">Add Conclave</Link></li>
+                <li><Link href="/admin/event/manageconclave">Manage Conclave</Link></li>
+              </ul>
+            </li>
+
+      
+            {/* Prospects */}
+            <li>
+              <span className="nav-link">
+                <span className="icons"><GiCosmicEgg /></span>
+                <span className="linklabel">Prospects</span>
+                <MdOutlineKeyboardArrowDown className="submenuIcon" />
+              </span>
+              <ul>
+                <li><Link href="/prospectadmin/event/create-prospect">Add Prospects</Link></li>
+                <li><Link href="/prospectadmin/event/manageProspect">Manage Prospects</Link></li>
+              </ul>
+            </li>
 {/* Event */}
 <li>
   <span className="nav-link">
@@ -62,8 +103,7 @@ const Navbar = (props) => {
     </li>
   </ul>
 </li>
-
-            {/* Content */}
+              {/* Content */}
             <li>
               <span className="nav-link">
                 <span className="icons"><MdOutlineContentPaste /></span>
@@ -90,59 +130,7 @@ const Navbar = (props) => {
               </ul>
             </li>
 
-            {/* Birthdays */}
-            <li>
-              <span className="nav-link">
-                <span className="icons"><BsCake2 /></span>
-                <span className="linklabel">Birthdays</span>
-                <MdOutlineKeyboardArrowDown className="submenuIcon" />
-              </span>
-              <ul>
-                <li><Link href="/SendBirthday">Send Wishes</Link></li>
-                <li><Link href="/AddBirthday">Add Wishes</Link></li>
-              </ul>
-            </li>
-
-            {/* Conclave */}
-            <li>
-              <span className="nav-link">
-                <span className="icons"><GrGroup /></span>
-                <span className="linklabel">Conclave</span>
-                <MdOutlineKeyboardArrowDown className="submenuIcon" />
-              </span>
-              <ul>
-                <li><Link href="/admin/event/createconclave">Add Conclave</Link></li>
-                <li><Link href="/admin/event/manageconclave">Manage Conclave</Link></li>
-              </ul>
-            </li>
-
-            {/* Referrals */}
-            <li>
-              <span className="nav-link">
-                <span className="icons"><FaPeopleArrows /></span>
-                <span className="linklabel">Referrals</span>
-                <MdOutlineKeyboardArrowDown className="submenuIcon" />
-              </span>
-              <ul>
-                <li><Link href="/admin/AddReferral">Add Referrals</Link></li>
-                <li><Link href="/admin/ManageReferrals">Manage Referrals</Link></li>
-              </ul>
-            </li>
-
-            {/* Prospects */}
-            <li>
-              <span className="nav-link">
-                <span className="icons"><GiCosmicEgg /></span>
-                <span className="linklabel">Prospects</span>
-                <MdOutlineKeyboardArrowDown className="submenuIcon" />
-              </span>
-              <ul>
-                <li><Link href="/prospectadmin/event/create-prospect">Add Prospects</Link></li>
-                <li><Link href="/prospectadmin/event/manageProspect">Manage Prospects</Link></li>
-              </ul>
-            </li>
-
-            {/* CP */}
+         {/* CP */}
             <li>
               <span className="nav-link">
                 <span className="icons"><BsCashCoin /></span>
