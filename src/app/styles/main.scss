@@ -553,8 +553,7 @@ $italianfont: "Italianno";
     background-color: #343a40;
   }
 }
-
-// navbar
+// ================= NAVBAR =================
 .m-navbar {
   background-color: #fff;
   padding-top: 85px;
@@ -568,6 +567,7 @@ $italianfont: "Italianno";
   z-index: 500;
   overflow: visible;
 
+  /* ================= COLLAPSED MODE ================= */
   &.unexpand {
     > ul {
       > li {
@@ -576,15 +576,20 @@ $italianfont: "Italianno";
         &:hover {
           z-index: 10000;
 
+          /* BLUE ACTIVE STRIP */
           &::before {
-            width: 70px;
-            height: 53px;
             content: "";
             position: absolute;
             top: 0;
             left: 0;
+            width: 70px;
+            height: 56px;
             background-color: $bluecolor;
             z-index: 0;
+          }
+
+          .icons {
+            color: #fff;
           }
 
           .linklabel {
@@ -593,113 +598,139 @@ $italianfont: "Italianno";
             color: #fff;
           }
 
-          .icons {
-            color: #fff;
-          }
-
+          /* SHOW SUBMENU */
           > ul {
             display: block;
-            position: absolute;
-            top: 53px;
-            left: 70px;
-            width: 230px;
-            background-color: #fff;
-            z-index: 99999;
-            @extend .boxshadowdark;
+          }
+        }
+
+        /* ================= SUBMENU ================= */
+        > ul {
+          display: none;
+          position: absolute;
+
+          /* 🔑 KEY FIX — aligns submenu with hovered item */
+          top: 50%;
+          transform: translateY(-50%);
+
+          left: 70px;
+          width: 230px;
+          background-color: #fff;
+          z-index: 99999;
+          padding: 8px 0;
+          @extend .boxshadowdark;
+
+          li {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            cursor: pointer;
+
+            &:hover {
+              background-color: #f3f6fb;
+            }
+
+            a {
+              display: flex;
+              align-items: center;
+              width: 100%;
+              color: #1f2937;
+              text-decoration: none;
+              font-size: 15px;
+            }
           }
         }
       }
     }
   }
 
+  /* ================= BASE LIST ================= */
   > ul {
     padding: 0;
     margin: 0;
     list-style: none;
 
     > li {
-      position: relative;
-      list-style: none;
-      height: 56px; // ✅ FIX: row height
+      height: 56px;
       display: flex;
       align-items: center;
+      position: relative;
 
       & + li {
         margin-top: 8px;
       }
-
-      > ul {
-        display: none;
-        box-sizing: border-box;
-        padding-left: 0;
-        margin: 0;
-
-        li {
-          padding: 8px 15px;
-        }
-      }
     }
   }
 
+  /* ================= LINKS ================= */
   a,
   .nav-link {
     padding: 15px 20px;
-    height: 100%; // ✅ stretch full row
+    height: 100%;
     width: 100%;
     display: flex;
     align-items: center;
     position: relative;
     z-index: 2;
-    color: black;
+    color: #1f2937;
     text-decoration: none;
+    cursor: pointer;
   }
 
-  .submenuIcon {
-    color: $iconscolor;
-    font-size: 20px;
-    position: absolute;
-    right: 20px;
-    display: none;
-  }
-
-  // ✅ FINAL ICON NORMALIZATION FIX
+  /* ================= ICONS ================= */
   .icons {
-    color: $iconscolor;
     width: 28px;
     min-width: 28px;
     height: 28px;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
+    color: $iconscolor;
     font-size: 20px;
-    line-height: 1; // ✅ reset SVG baseline
-    transform: translateY(1px); // ✅ optical alignment
+    line-height: 1;
+    transform: translateY(1px);
   }
 
-  .linklabel {
+  .submenuIcon {
+    position: absolute;
+    right: 20px;
+    font-size: 18px;
     color: $iconscolor;
-    font-family: "Work Sans", sans-serif;
-    font-size: 16px;
-    padding-left: 20px;
     display: none;
   }
 
+  .linklabel {
+    margin-left: 20px;
+    font-family: "Work Sans", sans-serif;
+    font-size: 16px;
+    color: $iconscolor;
+    display: none;
+    white-space: nowrap;
+  }
+
+  /* ================= EXPANDED MODE ================= */
   &.expand {
     width: 300px;
-
-    li {
-      .submenuIcon {
-        display: block;
-      }
-    }
 
     .linklabel {
       display: block;
     }
+
+    .submenuIcon {
+      display: block;
+    }
+
+    /* Expanded mode = stacked submenu */
+    > ul > li > ul {
+      position: static;
+      transform: none;
+      width: 100%;
+      box-shadow: none;
+      padding-left: 20px;
+    }
   }
 }
+
 
 .form-row {
   .h2 {
