@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, getDoc ,setDoc,getDocs,collection} from 'firebase/firestore';
+import {  doc,
+  updateDoc,
+  getDoc,
+  setDoc,
+  getDocs,
+  collection,
+  query,
+  where,
+  addDoc,
+  serverTimestamp,} from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { COLLECTIONS } from "/utility_collection";
 import emailjs from '@emailjs/browser';
@@ -20,6 +29,45 @@ const EnrollmentStage = ({ id, fetchData }) => {
   const [loading, setLoading] = useState(false);
 
   const options = Object.keys(dropdownOptions); // <-- this line is important
+const addCpForEnrollmentFeeUpfront = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  // 🚫 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "013"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "013",
+      activityName: "One-time Enrollment Fees (Upfront)",
+      points: 150,
+      purpose:
+        "Incentivizes financial commitment and direct contribution to the ecosystem.",
+      prospectName,
+      prospectPhone,
+      source: "EnrollmentFeesUpfront",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
   useEffect(() => {
     const loadData = async () => {
@@ -123,70 +171,270 @@ const generateNextUJBCode = async () => {
 
   return `UJB${String(maxNumber + 1).padStart(4, "0")}`;
 }
+// ================= CP HELPERS =================
+const addCpForEnrollmentInitiation = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  // 🚫 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "011"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "011",
+      activityName: "Initiating Enrollment (Tool)",
+      points: 100,
+      purpose:
+        "Marks transition from prospecting to formal enrollment; key conversion milestone.",
+      prospectName,
+      prospectPhone,
+      source: "EnrollmentInitiation",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
+
+const ensureCpBoardUser = async (db, orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "MentOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const addCpForEnrollmentCompletion = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "015"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "015",
+      activityName: "Enrollment Completion",
+      points: 50,
+      purpose:
+        "Marks completion of a key process milestone ensuring the new Orbiter joins the Universe.",
+      prospectName,
+      prospectPhone,
+      source: "EnrollmentCompletion",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
 const handleSave = async () => {
   try {
     setLoading(true);
-    const docRef = doc(db, 'Prospects', id);
-    await updateDoc(docRef, {
-      enrollmentStages: rows,
-    });
-    // 🚀 AUTO-CREATE USER ON COMPLETION
-const completionStage = rows.find(r => r.label === "Enrollments Completion Status");
 
-if (completionStage?.status === "Completed") {
-  
-  // 1️⃣ Load prospect data
+    const docRef = doc(db, "Prospects", id);
+    await updateDoc(docRef, { enrollmentStages: rows });
+    /* ⭐ ADD CP FOR ENROLLMENT INITIATION – 011 */
+/* ⭐ ADD CP FOR ENROLLMENT INITIATION – 011 */
+const initiationStage = rows.find(
+  (r) =>
+    r.label === "Enrollment Initiation" ||
+    r.label === "Initiating Enrollment" ||
+    r.label === "Initiating Enrollment (Tool)"
+);
+
+console.log("Enrollment Initiation Stage:", initiationStage);
+
+if (initiationStage?.status === "Completed") {
   const prospectSnap = await getDoc(doc(db, "Prospects", id));
   const p = prospectSnap.data();
 
-  const prospectName = p.prospectName;
-  const prospectPhone = p.prospectPhone;
-  const email = p.email;
+  const qMentor = query(
+    collection(db, COLLECTIONS.userDetail),
+    where("MobileNo", "==", p.orbiterContact)
+  );
 
-  const orbiterName = p.orbiterName;
-  const orbiterPhone = p.orbiterContact;
-  const orbiterEmail = p.orbiterEmail;
+  const mentorSnap = await getDocs(qMentor);
 
-  // 2️⃣ Generate UJB Code
-  const newUjb = await generateNextUJBCode();
+  if (!mentorSnap.empty) {
+    const d = mentorSnap.docs[0].data();
 
-  // 3️⃣ Find mentor in usersdetail
-  const mentorSnap = await getDocs(collection(db, COLLECTIONS.userDetail));
-  const allMentors = mentorSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (d.UJBCode) {
+      const orbiter = {
+        ujbcode: d.UJBCode,
+        name: d.Name,
+        phone: d.MobileNo,
+        category: d.Category,
+      };
 
-  const mentor = allMentors.find(m =>
-       m.MobileNo === orbiterPhone ||
-       m.Email === orbiterEmail ||
-       m.Name?.toLowerCase() === orbiterName?.toLowerCase()
-   );
-
-  const mentorName = mentor?.Name || orbiterName;
-  const mentorPhone = mentor?.MobileNo || orbiterPhone;
-  const mentorUjbCode = mentor?.UJBCode || mentor?.id || "";
-
-  // 4️⃣ Save User in usersdetail
-  await setDoc(doc(db, COLLECTIONS.userDetail, newUjb), {
-      Name: prospectName,
-      MobileNo: prospectPhone,
-      Category: "Orbiter",
-      DOB: "--",
-      Email: email,
-      Gender: "--",
-      UJBCode: newUjb,
-      MentorName: mentorName,
-      MentorPhone: mentorPhone,
-      MentorUJBCode: mentorUjbCode,
-      ProfileStatus: "incomplete"
-  });
-
-  console.log("🎉 User created:", newUjb);
+      await addCpForEnrollmentInitiation(
+        db,
+        orbiter,
+        p.prospectPhone,
+        p.prospectName
+      );
+    }
+  }
 }
 
-    Swal.fire('Saved!', 'Changes have been saved.', 'success');
+
+if (initiationStage?.status === "Completed") {
+  const prospectSnap = await getDoc(doc(db, "Prospects", id));
+  const p = prospectSnap.data();
+
+  const qMentor = query(
+    collection(db, COLLECTIONS.userDetail),
+    where("MobileNo", "==", p.orbiterContact)
+  );
+
+  const mentorSnap = await getDocs(qMentor);
+
+  if (!mentorSnap.empty) {
+    const d = mentorSnap.docs[0].data();
+
+    if (d.UJBCode) {
+      const orbiter = {
+        ujbcode: d.UJBCode,
+        name: d.Name,
+        phone: d.MobileNo,
+        category: d.Category,
+      };
+
+      await addCpForEnrollmentInitiation(
+        db,
+        orbiter,
+        p.prospectPhone,
+        p.prospectName
+      );
+    }
+  }
+}
+
+/* ⭐ ADD CP FOR ENROLLMENT FEES – UPFRONT (013) */
+const feeStage = rows.find(
+  (r) => r.label === "Enrollment fees Option Opted for"
+);
+
+if (feeStage?.status === "Upfront") {
+  const prospectSnap = await getDoc(doc(db, "Prospects", id));
+  const p = prospectSnap.data();
+
+  const qMentor = query(
+    collection(db, COLLECTIONS.userDetail),
+    where("MobileNo", "==", p.orbiterContact)
+  );
+
+  const mentorSnap = await getDocs(qMentor);
+
+  if (!mentorSnap.empty) {
+    const d = mentorSnap.docs[0].data();
+
+    if (d.UJBCode) {
+      const orbiter = {
+        ujbcode: d.UJBCode,
+        name: d.Name,
+        phone: d.MobileNo,
+        category: d.Category,
+      };
+
+      await addCpForEnrollmentFeeUpfront(
+        db,
+        orbiter,
+        p.prospectPhone,
+        p.prospectName
+      );
+    }
+  }
+}
+
+    // ✅ FIND COMPLETION STAGE
+    const completionStage = rows.find(
+      (r) => r.label === "Enrollments Completion Status"
+    );
+
+    if (completionStage?.status === "Completed") {
+
+      const prospectSnap = await getDoc(doc(db, "Prospects", id));
+      const p = prospectSnap.data();
+
+      const prospectName = p.prospectName;
+      const prospectPhone = p.prospectPhone;
+      const orbiterPhone = p.orbiterContact;
+
+      // 🔍 FIND MENTOR ORBITER
+      const q = query(
+        collection(db, COLLECTIONS.userDetail),
+        where("MobileNo", "==", orbiterPhone)
+      );
+
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const d = snap.docs[0].data();
+
+        if (d.UJBCode) {
+          const orbiter = {
+            ujbcode: d.UJBCode,
+            name: d.Name,
+            phone: d.MobileNo,
+            category: d.Category,
+          };
+
+          // ⭐ ADD CP 015
+          await addCpForEnrollmentCompletion(
+            db,
+            orbiter,
+            prospectPhone,
+            prospectName
+          );
+        }
+      }
+    }
+
+    Swal.fire("Saved!", "Changes have been saved.", "success");
   } catch (err) {
-    console.error('Error saving data:', err);
-    Swal.fire('Error', 'Failed to save changes.', 'error');
+    console.error("❌ Error saving:", err);
+    Swal.fire("Error", "Failed to save changes.", "error");
   } finally {
     setLoading(false);
   }

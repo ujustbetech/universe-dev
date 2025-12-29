@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs ,  addDoc,
+  query,
+  where,setDoc,
+  serverTimestamp,} from 'firebase/firestore';
 import axios from 'axios';
 import { COLLECTIONS } from "/utility_collection";
 import emailjs from '@emailjs/browser';
@@ -45,6 +48,108 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
   const WHATSAPP_API_URL = 'https://graph.facebook.com/v22.0/527476310441806/messages';
   // NOTE: token present as in your original code. Consider moving to backend for security.
   const WHATSAPP_API_TOKEN = 'Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD';
+
+
+// ================= CP HELPERS =================
+const addCpForMeetingDone = async (orbiter, prospect, mode) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  const activityNo = mode === "online" ? "004" : "005";
+  const activityName =
+    mode === "online"
+      ? "Ensuring Attendance for Doorstep (Online)"
+      : "Ensuring Attendance for Doorstep (Offline)";
+
+  // 🚫 Prevent duplicate CP for same prospect + activity
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", activityNo),
+    where("prospectPhone", "==", prospect.prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo,
+      activityName,
+      points: 25,
+      purpose:
+        mode === "online"
+          ? "Acknowledges consistent follow-up and engagement to ensure participation."
+          : "Recognizes offline engagement and commitment to onboarding experience.",
+      prospectName: prospect.prospectName,
+      prospectPhone: prospect.prospectPhone,
+      source: "MeetingDone",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
+
+const ensureCpBoardUser = async (db, orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "MentOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const addCpForMeetingScheduled = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  // 🚫 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "003"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "003",
+      activityName: "Prospect Invitation to Doorstep",
+      points: 25,
+      purpose:
+        "Rewards outreach effort and relationship-building intent by extending a formal invite.",
+      prospectName,
+      prospectPhone,
+      source: "MeetingScheduled",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
   const formatReadableDate = (inputDate) => {
     if (!inputDate) return '';
@@ -170,131 +275,170 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
   };
   // === END NEW ===
 
-  const handleCreateOrReschedule = async () => {
-    if (!eventDate.trim()) return alert('Please select a date');
-    const formattedEventDate = formatReadableDate(eventDate);
+ const handleCreateOrReschedule = async () => {
+  if (!eventDate.trim()) return alert('Please select a date');
 
-    const eventDetails = {
+  const formattedEventDate = formatReadableDate(eventDate);
+
+  const eventDetails = {
+    date: formattedEventDate,
+    mode: eventMode,
+    zoomLink: eventMode === 'online' ? zoomLink : '',
+    venue: eventMode === 'offline' ? venue : '',
+    reason: rescheduleMode ? rescheduleReason : '',
+  };
+
+  try {
+    const docRef = doc(db, COLLECTIONS.prospect, id);
+
+    const newEventObj = {
+      id: eventsList.length,
       date: formattedEventDate,
+      dateISO: localToISO(eventDate) || new Date(eventDate).toISOString(),
       mode: eventMode,
       zoomLink: eventMode === 'online' ? zoomLink : '',
       venue: eventMode === 'offline' ? venue : '',
       reason: rescheduleMode ? rescheduleReason : '',
+      completed: false,
+      createdAt: Date.now(),
+      rescheduleHistory: [],
     };
 
-    try {
-      const docRef = doc(db, COLLECTIONS.prospect, id);
-      // === NEW: create object to store in events[] with more metadata ===
-      const newEventObj = {
-        id: eventsList.length, // index-based id
-        date: formattedEventDate,
-        dateISO: localToISO(eventDate) || new Date(eventDate).toISOString(),
-        mode: eventMode,
-        zoomLink: eventMode === 'online' ? zoomLink : '',
-        venue: eventMode === 'offline' ? venue : '',
-        reason: rescheduleMode ? rescheduleReason : '',
-        completed: false,
-        createdAt: Date.now(),
-        rescheduleHistory: []
-      };
-      // If rescheduleMode is true, we are rescheduling the latest event (old UI). Update eventsList last item (if exists)
-      if (rescheduleMode) {
-        // update the `event` field as before
-        await updateDoc(docRef, { event: eventDetails });
-        setEventCreated(eventDetails);
+    /* ================= RESCHEDULE FLOW ================= */
+    if (rescheduleMode) {
+      await updateDoc(docRef, { event: eventDetails });
+      setEventCreated(eventDetails);
 
-        // update eventsList: if has items, update last item else push new
-        let updatedEvents = [];
-        if (eventsList && eventsList.length > 0) {
-          const lastIndex = eventsList.length - 1;
-          const prev = eventsList[lastIndex];
-          const rescheduleEntry = {
-            previousDateISO: prev.dateISO || (prev.date ? new Date(prev.date).toISOString() : ''),
-            newDateISO: newEventObj.dateISO,
-            previousMode: prev.mode || '',
-            newMode: newEventObj.mode,
-            reason: rescheduleReason || '',
-            rescheduledAt: Date.now()
-          };
-          const updatedLast = {
+      let updatedEvents = [];
+
+      if (eventsList.length > 0) {
+        const lastIndex = eventsList.length - 1;
+        const prev = eventsList[lastIndex];
+
+        const rescheduleEntry = {
+          previousDateISO: prev.dateISO,
+          newDateISO: newEventObj.dateISO,
+          previousMode: prev.mode,
+          newMode: newEventObj.mode,
+          reason: rescheduleReason || '',
+          rescheduledAt: Date.now(),
+        };
+
+        updatedEvents = [
+          ...eventsList.slice(0, lastIndex),
+          {
             ...prev,
             date: newEventObj.date,
             dateISO: newEventObj.dateISO,
             mode: newEventObj.mode,
             zoomLink: newEventObj.zoomLink,
             venue: newEventObj.venue,
-            reason: newEventObj.reason,
-            rescheduleHistory: [...(prev.rescheduleHistory || []), rescheduleEntry]
-          };
-          updatedEvents = [...eventsList.slice(0, lastIndex), updatedLast];
-        } else {
-          // no events list yet, push as new
-          updatedEvents = [...(eventsList || []), newEventObj];
-        }
-        // persist both event and events
-        await persistEventsArray(updatedEvents, true, updatedEvents[updatedEvents.length - 1]);
+            rescheduleHistory: [
+              ...(prev.rescheduleHistory || []),
+              rescheduleEntry,
+            ],
+          },
+        ];
       } else {
-        // Create new meeting: update both `event` and append to `events` array
-        // Update `event` (backwards compatibility)
-        await updateDoc(docRef, { event: eventDetails });
-        setEventCreated(eventDetails);
-
-        // Append to events array on server by reading current events and writing back with new item
-        const updatedEvents = [...(eventsList || []), newEventObj];
-        await persistEventsArray(updatedEvents, true, newEventObj);
+        updatedEvents = [...eventsList, newEventObj];
       }
 
-      alert(rescheduleMode ? 'Event rescheduled successfully!' : 'Event created successfully!');
-      setCreateMode(false);
-      setRescheduleMode(false);
-      setRescheduleReason('');
-      // clear form fields if needed
-      setEventDate('');
-      setEventMode('online');
-      setZoomLink('');
-      setVenue('');
-
-      // WhatsApp messages (unchanged)
-      const messages = [
-        {
-          name: data.prospectName,
-          phone: data.prospectPhone,
-          date: formattedEventDate,
-          zoomLink: eventMode === 'online' ? zoomLink : '',
-          venue: eventMode === 'offline' ? venue : ''
-        },
-        {
-          name: data.orbiterName,
-          phone: data.orbiterContact,
-          date: formattedEventDate,
-          zoomLink: eventMode === 'online' ? zoomLink : '',
-          venue: eventMode === 'offline' ? venue : ''
-        }
-      ];
-
-      for (const msg of messages) {
-        await sendWhatsAppMessage({
-          ...msg,
-          isReschedule: rescheduleMode,
-          reason: rescheduleReason,
-          venue: eventMode === 'offline' ? venue : ''
-        });
-      }
-
-      // Send email to prospect
-      await sendEmailToProspect(
-        data.prospectName,
-        data.email,
-        formattedEventDate,
-        eventMode === 'online' ? zoomLink : '',
-        rescheduleMode,
-        rescheduleReason,
-        eventMode === 'offline' ? venue : ''
-      );
-    } catch (error) {
-      console.error('Error saving event or sending messages:', error);
+      await persistEventsArray(updatedEvents, true, updatedEvents.at(-1));
     }
-  };
+
+    /* ================= FIRST TIME SCHEDULE ================= */
+    else {
+      await updateDoc(docRef, { event: eventDetails });
+      setEventCreated(eventDetails);
+
+      const updatedEvents = [...(eventsList || []), newEventObj];
+      await persistEventsArray(updatedEvents, true, newEventObj);
+
+      /* ⭐ ADD CP POINTS (Activity 003) */
+      const prospectSnap = await getDoc(doc(db, COLLECTIONS.prospect, id));
+      const p = prospectSnap.data();
+
+      if (p?.orbiterContact) {
+        const qMentor = query(
+          collection(db, COLLECTIONS.userDetail),
+          where("MobileNo", "==", p.orbiterContact)
+        );
+
+        const mentorSnap = await getDocs(qMentor);
+
+        if (!mentorSnap.empty) {
+          const d = mentorSnap.docs[0].data();
+
+          if (d.UJBCode) {
+            const orbiter = {
+              ujbcode: d.UJBCode,
+              name: d["Name"],
+              phone: d["MobileNo"],
+              category: d.Category,
+            };
+
+            await addCpForMeetingScheduled(
+              db,
+              orbiter,
+              p.prospectPhone,
+              p.prospectName
+            );
+          }
+        }
+      }
+    }
+
+    /* ================= UI RESET ================= */
+    alert(rescheduleMode ? 'Event rescheduled successfully!' : 'Event created successfully!');
+    setCreateMode(false);
+    setRescheduleMode(false);
+    setRescheduleReason('');
+    setEventDate('');
+    setEventMode('online');
+    setZoomLink('');
+    setVenue('');
+
+    /* ================= NOTIFICATIONS ================= */
+    const messages = [
+      {
+        name: data.prospectName,
+        phone: data.prospectPhone,
+        date: formattedEventDate,
+        zoomLink: eventMode === 'online' ? zoomLink : '',
+        venue: eventMode === 'offline' ? venue : '',
+      },
+      {
+        name: data.orbiterName,
+        phone: data.orbiterContact,
+        date: formattedEventDate,
+        zoomLink: eventMode === 'online' ? zoomLink : '',
+        venue: eventMode === 'offline' ? venue : '',
+      },
+    ];
+
+    for (const msg of messages) {
+      await sendWhatsAppMessage({
+        ...msg,
+        isReschedule: rescheduleMode,
+        reason: rescheduleReason,
+      });
+    }
+
+    await sendEmailToProspect(
+      data.prospectName,
+      data.email,
+      formattedEventDate,
+      eventMode === 'online' ? zoomLink : '',
+      rescheduleMode,
+      rescheduleReason,
+      eventMode === 'offline' ? venue : ''
+    );
+
+  } catch (error) {
+    console.error('Error saving event or sending messages:', error);
+  }
+};
+
 
   const sendEmailToProspect = async (prospectName, email, date, zoomLink, isReschedule = false, reason = '', venue = '') => {
     const scheduleDetails = zoomLink
@@ -489,36 +633,73 @@ Regardless of your choice, we are grateful for the opportunity to connect with y
   };
 
   // Button handler
-  const handleMeetingDone = async () => {
-    try {
-      if (!data) return alert("Prospect data not available");
+ const handleMeetingDone = async () => {
+  try {
+    if (!data) return alert("Prospect data not available");
 
-      const messagesToSend = [
-        {
-          name: data.prospectName,
-          phone: data.prospectPhone,
-          email: data.email, // <-- assuming prospect's email is here
-        },
-        {
-          name: data.orbiterName,
-          phone: data.orbiterContact,
-          email: data.orbiterEmail, // <-- optional if available
-        },
-      ];
+    /* ====== SEND THANK YOU ====== */
+    const messagesToSend = [
+      {
+        name: data.prospectName,
+        phone: data.prospectPhone,
+        email: data.email,
+      },
+      {
+        name: data.orbiterName,
+        phone: data.orbiterContact,
+        email: data.orbiterEmail,
+      },
+    ];
 
-      for (const msg of messagesToSend) {
-        await sendThankYouMessage(msg.name, msg.phone);
-        if (msg.email) {
-          await sendThankYouEmail(msg.name, msg.email);
+    for (const msg of messagesToSend) {
+      await sendThankYouMessage(msg.name, msg.phone);
+      if (msg.email) {
+        await sendThankYouEmail(msg.name, msg.email);
+      }
+    }
+
+    /* ====== ADD CP POINTS HERE ====== */
+    const prospectSnap = await getDoc(doc(db, COLLECTIONS.prospect, id));
+    const p = prospectSnap.data();
+
+    if (p?.orbiterContact && eventCreated?.mode) {
+      const qMentor = query(
+        collection(db, COLLECTIONS.userDetail),
+        where("MobileNo", "==", p.orbiterContact)
+      );
+
+      const mentorSnap = await getDocs(qMentor);
+
+      if (!mentorSnap.empty) {
+        const d = mentorSnap.docs[0].data();
+
+        if (d.UJBCode) {
+          const orbiter = {
+            ujbcode: d.UJBCode,
+            name: d["Name"],
+            phone: d["MobileNo"],
+            category: d.Category,
+          };
+
+          await addCpForMeetingDone(
+            orbiter,
+            {
+              prospectName: p.prospectName,
+              prospectPhone: p.prospectPhone,
+            },
+            eventCreated.mode // 🔥 online / offline decides 004 or 005
+          );
         }
       }
-
-      alert("Thank you messages sent successfully!");
-    } catch (error) {
-      console.error('Meeting Done Error:', error);
-      alert("Something went wrong while sending messages.");
     }
-  };
+
+    alert("Meeting marked as done & CP added successfully!");
+  } catch (error) {
+    console.error("Meeting Done Error:", error);
+    alert("Something went wrong while completing meeting.");
+  }
+};
+
 
   // === NEW: Accordion reschedule handlers & UI helpers ===
   const toggleOpen = (idx) => setOpenIndex(openIndex === idx ? null : idx);

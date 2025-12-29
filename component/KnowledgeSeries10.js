@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc,collection,
+  query,
+  where,
+  getDocs,
+  setDoc,
+  addDoc,
+  serverTimestamp, } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import emailjs from "@emailjs/browser";
 import axios from "axios";
@@ -12,6 +18,64 @@ const KnowledgeSeries10 = ({ id, fetchData }) => {
   const [activeTab, setActiveTab] = useState("morning");
   const [morningData, setMorningData] = useState(null);
   const [eveningData, setEveningData] = useState(null);
+/* ================= CP HELPERS ================= */
+
+const ensureCpBoardUser = async (db, orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "MentOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const addCpForKnowledgeSeries10 = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  // 🚫 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "017"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "017",
+      activityName: "Completion of OTC Journey till Day 10",
+      points: 75,
+      purpose:
+        "Sustains engagement and reinforces learning consistency.",
+      prospectName,
+      prospectPhone,
+      source: "KnowledgeSeries10",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
   const WHATSAPP_API_URL =
     "https://graph.facebook.com/v22.0/527476310441806/messages";
@@ -112,50 +176,103 @@ const KnowledgeSeries10 = ({ id, fetchData }) => {
   };
 
   // 🔹 Handle Send
-  const handleSend = async (tab) => {
-    setLoading(true);
-    try {
-      const docRef = doc(db, "Prospects", id);
-      const docSnap = await getDoc(docRef);
+ const handleSend = async (tab) => {
+  setLoading(true);
+  try {
+    const docRef = doc(db, "Prospects", id);
+    const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const { email: prospectEmail, prospectPhone, prospectName, orbiterName } = data;
+    if (!docSnap.exists()) return;
 
-        const emailSent = await sendEmail(prospectName, prospectEmail, orbiterName, tab);
-        const wpSent = await sendWhatsApp(orbiterName, prospectName, prospectPhone, tab);
+    const {
+      email: prospectEmail,
+      prospectPhone,
+      prospectName,
+      orbiterName,
+      orbiterContact
+    } = docSnap.data();
 
-        if (emailSent || wpSent) {
-          const timestamp = new Date().toLocaleString("en-IN", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+    const emailSent = await sendEmail(
+      prospectName,
+      prospectEmail,
+      orbiterName,
+      tab
+    );
 
-          const updateField =
-            tab === "morning" ? "knowledgeSeries10_morning" : "knowledgeSeries10_evening";
+    const wpSent = await sendWhatsApp(
+      orbiterName,
+      prospectName,
+      prospectPhone,
+      tab
+    );
 
-          const seriesData = { sent: true, sentAt: timestamp };
+    if (emailSent || wpSent) {
+      const timestamp = new Date().toLocaleString("en-IN", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
-          await updateDoc(docRef, { [updateField]: seriesData });
+      const updateField =
+        tab === "morning"
+          ? "knowledgeSeries4_morning"
+          : "knowledgeSeries4_evening";
 
-          if (tab === "morning") setMorningData(seriesData);
-          else setEveningData(seriesData);
+      const seriesData = { sent: true, sentAt: timestamp };
 
-          Swal.fire("✅ Sent!", `Knowledge Series 10 (${tab}) sent successfully.`, "success");
-          fetchData?.();
-        } else {
-          Swal.fire("❌ Error", `Failed to send Knowledge Series 10 (${tab}).`, "error");
+      await updateDoc(docRef, { [updateField]: seriesData });
+
+      if (tab === "morning") {
+        setMorningData(seriesData);
+
+        // ⭐ ADD CP 016 – ONLY MORNING
+        const qMentor = query(
+          collection(db, COLLECTIONS.userDetail),
+          where("MobileNo", "==", orbiterContact)
+        );
+
+        const mentorSnap = await getDocs(qMentor);
+
+        if (!mentorSnap.empty) {
+          const d = mentorSnap.docs[0].data();
+
+          if (d.UJBCode) {
+            const orbiter = {
+              ujbcode: d.UJBCode,
+              name: d.Name,
+              phone: d.MobileNo,
+              category: d.Category,
+            };
+
+            await addCpForKnowledgeSeriesMorning(
+              db,
+              orbiter,
+              prospectPhone,
+              prospectName
+            );
+          }
         }
+      } else {
+        setEveningData(seriesData);
       }
-    } catch (error) {
-      console.error("❌ Error sending Knowledge Series 10:", error);
-      Swal.fire("❌ Error", "Something went wrong.", "error");
+
+      Swal.fire(
+        "✅ Sent!",
+        `Knowledge Series 4 (${tab}) sent successfully.`,
+        "success"
+      );
+
+      fetchData?.();
     }
-    setLoading(false);
-  };
+  } catch (error) {
+    console.error("❌ Error sending Knowledge Series 4:", error);
+    Swal.fire("❌ Error", "Something went wrong.", "error");
+  }
+  setLoading(false);
+};
+
 
   return (
     <div>

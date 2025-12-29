@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc,collection,
+  query,
+  where,
+  getDocs,
+  setDoc,
+  addDoc,
+  serverTimestamp, } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import emailjs from "@emailjs/browser";
 import { COLLECTIONS } from "/utility_collection";
@@ -44,6 +50,64 @@ const KnowledgeSeries4 = ({ id, fetchData }) => {
       body: `Aarav: Orbiters are Contributing individuals who actively participate in UJustBe Universe. They share knowledge, give referrals, and take part in events like monthly meetings, WhatsApp and other events.\n\nSoumya: Oh, so they’re like the backbone of the community?\n\nAarav: Exactly! They contribute by exploring possibilities and sharing verified referrals within the UJustBe Universe.`,
     };
   };
+/* ================= CP HELPERS ================= */
+
+const ensureCpBoardUser = async (db, orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "MentOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const addCpForKnowledgeSeriesMorning = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  // 🚫 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "016"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "016",
+      activityName: "Completion of OTC Journey till Day 5",
+      points: 75,
+      purpose:
+        "Encourages timely completion of orientation journey and early engagement.",
+      prospectName,
+      prospectPhone,
+      source: "KnowledgeSeries4Morning",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
   // 🔹 Send Email
   const sendEmail = async (prospectName, prospectEmail, orbiterName, tab) => {
@@ -125,27 +189,66 @@ const KnowledgeSeries4 = ({ id, fetchData }) => {
         const emailSent = await sendEmail(prospectName, prospectEmail, orbiterName, tab);
         const wpSent = await sendWhatsApp(orbiterName, prospectName, prospectPhone, tab);
 
-        if (emailSent || wpSent) {
-          const timestamp = new Date().toLocaleString("en-IN", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+     if (emailSent || wpSent) {
+  const timestamp = new Date().toLocaleString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
-          const updateField =
-            tab === "morning" ? "knowledgeSeries4_morning" : "knowledgeSeries4_evening";
+  const updateField =
+    tab === "morning"
+      ? "knowledgeSeries4_morning"
+      : "knowledgeSeries4_evening";
 
-          const seriesData = { sent: true, sentAt: timestamp };
+  const seriesData = { sent: true, sentAt: timestamp };
 
-          await updateDoc(docRef, { [updateField]: seriesData });
+  await updateDoc(docRef, { [updateField]: seriesData });
 
-          if (tab === "morning") setMorningData(seriesData);
-          else setEveningData(seriesData);
+  if (tab === "morning") {
+    setMorningData(seriesData);
 
-          Swal.fire("✅ Sent!", `Knowledge Series 4 (${tab}) sent successfully.`, "success");
-          fetchData?.();
+    /* ⭐ ADD CP 016 – ONLY FOR MORNING */
+    const qMentor = query(
+      collection(db, COLLECTIONS.userDetail),
+      where("MobileNo", "==", data.orbiterContact)
+    );
+
+    const mentorSnap = await getDocs(qMentor);
+
+    if (!mentorSnap.empty) {
+      const d = mentorSnap.docs[0].data();
+
+      if (d.UJBCode) {
+        const orbiter = {
+          ujbcode: d.UJBCode,
+          name: d.Name,
+          phone: d.MobileNo,
+          category: d.Category,
+        };
+
+        await addCpForKnowledgeSeriesMorning(
+          db,
+          orbiter,
+          data.prospectPhone,
+          data.prospectName
+        );
+      }
+    }
+  } else {
+    setEveningData(seriesData);
+  }
+
+  Swal.fire(
+    "✅ Sent!",
+    `Knowledge Series 4 (${tab}) sent successfully.`,
+    "success"
+  );
+
+  fetchData?.();
+
         } else {
           Swal.fire("❌ Error", `Failed to send Knowledge Series 4 (${tab}).`, "error");
         }

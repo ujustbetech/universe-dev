@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc,query,collection,setDoc,where,getDocs,addDoc,serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import emailjs from '@emailjs/browser';
 import "../src/app/styles/main.scss";
@@ -40,6 +40,52 @@ const WHATSAPP_API_TOKEN = 'Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT
 
     fetchStatus();
   }, [id]);
+const addCpForEnrollment = async (orbiter, prospect) => {
+  if (!orbiter?.ujbcode) return;
+
+  // ensure CPBoard user exists
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "MentOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  // 🚫 prevent duplicate CP for same prospect
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "011"),
+    where("prospectPhone", "==", prospect.prospectPhone)
+  );
+
+  const dupSnap = await getDocs(q);
+  if (!dupSnap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "011",
+      activityName: "Initiating Enrollment (Tool)",
+      points: 100,
+      purpose:
+        "Marks transition from prospecting to formal enrollment; key conversion milestone.",
+      prospectName: prospect.prospectName,
+      prospectPhone: prospect.prospectPhone,
+      source: "Assessment",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
   const sendAssessmentEmail = async (prospectName, prospectEmail, orbiterName, selectedstatus, formattedDate) => {
     if (!prospectEmail) {
@@ -231,6 +277,36 @@ const handleSaveStatus = async (selectedstatus, reason = '') => {
       }
       
       await updateDoc(docRef, updateData);
+/* ⭐ ADD CP WHEN ENROLLMENT IS CHOSEN */
+if (selectedstatus === "Choose to enroll") {
+  const qMentor = query(
+    collection(db, COLLECTIONS.userDetail),
+    where("MobileNo", "==", data.orbiterContact)
+  );
+
+  const mentorSnap = await getDocs(qMentor);
+
+  if (!mentorSnap.empty) {
+    const d = mentorSnap.docs[0].data();
+
+    if (d.UJBCode) {
+      const orbiter = {
+        ujbcode: d.UJBCode,
+        name: d["Name"],
+        phone: d["MobileNo"],
+        category: d.Category,
+      };
+
+      await addCpForEnrollment(
+        orbiter,
+        {
+          prospectName,
+          prospectPhone,
+        }
+      );
+    }
+  }
+}
 
      
       // Build body text for WhatsApp with formatMessage function
