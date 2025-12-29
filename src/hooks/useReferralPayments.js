@@ -33,16 +33,7 @@ export default function useReferralPayments({
 
   const agreedAmount = Number(referralData?.agreedTotal || 0);
 
-<<<<<<< Updated upstream
-  // ✅ FIX 1: Normalize payments safely (array OR object)
-  const safePayments = Array.isArray(payments)
-    ? payments
-    : Object.values(payments || {}).flat();
-
-  // Total Cosmo → UJB paid so far
-=======
   // Total Cosmo → UJB paid so far (SAFE)
->>>>>>> Stashed changes
   const cosmoPaid = safePayments
     .filter((p) => p?.paymentFrom === "CosmoOrbiter")
     .reduce((sum, p) => sum + Number(p?.amountReceived || 0), 0);
@@ -155,17 +146,12 @@ export default function useReferralPayments({
         ujbBalance: increment(amount),
       });
 
-<<<<<<< Updated upstream
       /**
        * ✅ FIX 2: DO NOT manually reshape payments
        * Firestore snapshot will update payments correctly
        */
       setPayments((prev) => prev);
 
-=======
-      // ✅ SAFE local update
-      setPayments([...safePayments, entry]);
->>>>>>> Stashed changes
       closePaymentModal();
     } catch (err) {
       console.error("Payment save failed:", err);
