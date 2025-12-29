@@ -4,7 +4,7 @@ import {
   collection,
   getDocs,
   doc,
-  getDoc,
+  getDoc,addDoc,setDoc,
   updateDoc,
   arrayUnion,
   query,
@@ -44,6 +44,12 @@ const RegisteredUsers = ({ eventId }) => {
 
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
+const CP_ACTIVITY_FOR_MM = {
+  activityNo: "071",
+  activityName: "MonthlyMeeting Participation",
+  points: 100,
+  purpose: "Attending and participating in MM",
+};
 
   const [registeredNumberFilter, setRegisteredNumberFilter] = useState('');
   const [userNameFilter, setUserNameFilter] = useState('');
@@ -123,6 +129,63 @@ const RegisteredUsers = ({ eventId }) => {
 
     return () => unsubscribe();
   }, [router.isReady, eventId]);
+const hasCpAlreadyAdded = async (ujbCode, eventId) => {
+  const q = query(
+    collection(db, "CPBoard", ujbCode, "activities"),
+    where("sourceEventId", "==", eventId),
+    where("activityNo", "==", CP_ACTIVITY_FOR_MM.activityNo)
+  );
+
+  const snap = await getDocs(q);
+  return !snap.empty;
+};
+const addCpPointsForAttendance = async (user) => {
+  const ujbCode = user.ujbcode;
+  if (!ujbCode) return;
+
+  // ✅ ENSURE CPBOARD USER EXISTS FIRST
+  await ensureCpBoardUser(user);
+
+  // 🔐 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", ujbCode, "activities"),
+    where("sourceEventId", "==", eventId),
+    where("activityNo", "==", "071")
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  // ✅ ADD ACTIVITY UNDER SAME USER
+  await addDoc(collection(db, "CPBoard", ujbCode, "activities"), {
+    activityNo: "071",
+    activityName: "Participation in Large Group Events",
+    points: 100,
+    purpose: "Acknowledges consistent presence in monthly community engagements.",
+    sourceEventId: eventId,
+    source: "MonthlyMeeting",
+    month: new Date().toLocaleString("default", {
+      month: "short",
+      year: "numeric",
+    }),
+    addedAt: serverTimestamp(),
+  });
+};
+const ensureCpBoardUser = async (user) => {
+  const ref = doc(db, "CPBoard", user.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: user.ujbcode,
+      name: user.name,
+      phoneNumber: user.id, // phone number
+      role: user.category || "CosmOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
 
   // Filters
   useEffect(() => {
@@ -188,20 +251,25 @@ const RegisteredUsers = ({ eventId }) => {
   };
 
   // Attendance
-  const markAttendance = async (phone) => {
-    const ref = doc(
-      db,
-      `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`,
-      phone
-    );
+const markAttendance = async (phone) => {
+  const ref = doc(
+    db,
+    `${COLLECTIONS.monthlyMeeting}/${eventId}/registeredUsers`,
+    phone
+  );
 
-    await updateDoc(ref, {
-      attendanceStatus: true,
-      timestamp: serverTimestamp(),
-    });
+  await updateDoc(ref, {
+    attendanceStatus: true,
+    timestamp: serverTimestamp(),
+  });
 
-    setMarkedAttendance((prev) => ({ ...prev, [phone]: true }));
-  };
+  setMarkedAttendance((prev) => ({ ...prev, [phone]: true }));
+
+  const user = registeredUsers.find((u) => u.id === phone);
+  if (user) {
+    await addCpPointsForAttendance(user);
+  }
+};
 
   useEffect(() => {
     if (!eventId) return;

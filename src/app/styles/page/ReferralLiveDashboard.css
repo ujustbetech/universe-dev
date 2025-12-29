@@ -781,3 +781,178 @@
     grid-template-columns: 1fr;
   }
 }
+
+body {
+  background: #0b1020;
+  color: #e5e7eb;
+  font-family: Inter, sans-serif;
+}
+
+.dash {
+  padding: 24px;
+}
+
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.range button {
+  margin-left: 8px;
+  padding: 6px 12px;
+  background: #1e293b;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.range .active {
+  background: #2563eb;
+}
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.kpi {
+  background: #111827;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.panel {
+  background: #111827;
+  padding: 16px;
+  border-radius: 10px;
+  margin-top: 16px;
+}
+
+.followups li {
+  padding: 10px;
+  border-bottom: 1px solid #1f2933;
+  cursor: pointer;
+}
+
+.followups li:hover {
+  background: #1e293b;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #1f2933;
+}
+body {
+  background: #0b1020;
+  color: #e5e7eb;
+  font-family: Inter, sans-serif;
+}
+
+.dash { padding: 20px; }
+
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.range button {
+  margin-left: 6px;
+  padding: 6px 12px;
+  background: #1e293b;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+}
+
+.range .active { background: #2563eb; }
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.kpi {
+  background: #111827;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.pipeline-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pipeline-card {
+  background: #111827;
+  padding: 12px;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pipeline-card.active {
+  background: #1e293b;
+  border: 1px solid #2563eb;
+}
+
+.panel {
+  background: #111827;
+  padding: 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #1f2933;
+}
+
+tr:hover { background: #1e293b; cursor: pointer; }
+
+/* DRAWER */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+}
+
+.drawer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 360px;
+  height: 100%;
+  background: #020617;
+  padding: 16px;
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+}
+

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import Layout from "../../component/Layout";
-import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/main.scss";
 
 export default function CPPointsSummary() {
@@ -10,44 +9,43 @@ export default function CPPointsSummary() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchMembersWithPoints = async () => {
+    const fetchCPBoard = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "Orbiters"));
-        const membersData = [];
+        const snap = await getDocs(collection(db, "CPBoard"));
+        const rows = [];
 
-        for (const docSnap of querySnapshot.docs) {
-          const data = docSnap.data();
-          const member = {
-            id: docSnap.id,
-            name: data.name || "—",
-            phoneNumber: data.phoneNumber || "—",
-            totalPoints: 0,
-          };
-
-          // Fetch activities subcollection for each member
-          const activitiesSnapshot = await getDocs(
-            collection(db, "Orbiters", docSnap.id, "activities")
-          );
+        for (const d of snap.docs) {
+          const data = d.data();
 
           let totalPoints = 0;
-          activitiesSnapshot.forEach((activityDoc) => {
-            const activity = activityDoc.data();
-            totalPoints += parseInt(activity.points) || 0;
+
+          // 🔹 Fetch activities
+          const activitiesSnap = await getDocs(
+            collection(db, "CPBoard", d.id, "activities")
+          );
+
+          activitiesSnap.forEach((a) => {
+            totalPoints += Number(a.data().points || 0);
           });
 
-          member.totalPoints = totalPoints;
-          membersData.push(member);
+          rows.push({
+            id: d.id,
+            name: data.name || "—",
+            phoneNumber: data.phoneNumber || "—",
+            role: data.role || "—",
+            totalPoints,
+          });
         }
 
-        setMembers(membersData);
-      } catch (error) {
-        console.error("Error fetching members:", error);
+        setMembers(rows);
+      } catch (err) {
+        console.error("❌ Error loading CP Board:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMembersWithPoints();
+    fetchCPBoard();
   }, []);
 
   if (loading)
@@ -61,23 +59,27 @@ export default function CPPointsSummary() {
     <Layout>
       <section className="c-userslist box">
         <h2>CP Board</h2>
+
         {members.length === 0 ? (
-          <p>No members found.</p>
+          <p>No CP data found.</p>
         ) : (
           <table className="table-class">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Phone Number</th>
+                <th>Role</th>
                 <th>Total CP Points</th>
               </tr>
             </thead>
+
             <tbody>
-              {members.map((member) => (
-                <tr key={member.id}>
-                  <td>{member.name}</td>
-                  <td>{member.phoneNumber}</td>
-                  <td>{member.totalPoints}</td>
+              {members.map((m) => (
+                <tr key={m.id}>
+                  <td>{m.name}</td>
+                  <td>{m.phoneNumber}</td>
+                  <td>{m.role}</td>
+                  <td>{m.totalPoints}</td>
                 </tr>
               ))}
             </tbody>

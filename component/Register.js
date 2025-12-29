@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, doc, addDoc } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  doc,
+  addDoc,
+  query,
+  where,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
 import { useRouter } from 'next/router';
 import "../src/app/styles/main.scss";
 import axios from 'axios';
@@ -65,21 +76,7 @@ const Register = (props) => {
     
   
   
-    // useEffect(() => {
-    //     const fetchUsers = async () => {
-    //         try {
-    //             const response = await fetch('/userdetail.json');
-    //             const data = await response.json();
-    //             console.log("Fetched data:", data); 
-    //             setUserList(data);
-    //         } catch (error) {
-    //             console.error('Error fetching users:', error);
-    //         }
-    //     };
-        
-
-    //     fetchUsers();
-    // }, []);
+    
 
     const handleSearchUser = (e) => {
         const value = e.target.value.toLowerCase();
@@ -194,7 +191,56 @@ const sendAssesmentMessage = async (orbiterName, prospectName, phone,formLink) =
   };
          
 
-   
+   const ensureCpBoardUser = async (orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "CosmOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+const addCpForProspectIntroduction = async (orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(orbiter);
+
+  // 🔐 Prevent duplicate CP for same prospect
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "001"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "001",
+      activityName: "	Prospect to Enrollment – Prospect Identification",
+      points: 50,
+      purpose: "Recognizes initiative in identifying potential new Orbiters aligned with UJustBe values and vision.",
+      prospectName,
+      prospectPhone,
+      source: "ProspectRegistration",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -246,6 +292,33 @@ const sendAssesmentMessage = async (orbiterName, prospectName, phone,formLink) =
   
       // Save to Firestore
       const docRef = await addDoc(prospectRef, data);
+ // ✅ ADD CP POINTS ONLY IF REAL MENTOR ORBITER EXISTS
+if (userType === "prospect" && phone) {
+  const q = query(
+    collection(db, "userdetails"),
+    where("Mobile no", "==", phone)
+  );
+
+  const snap = await getDocs(q);
+
+  if (!snap.empty) {
+    const d = snap.docs[0].data();
+
+    if (!d["UJB Code"]) return; // safety
+
+    const orbiter = {
+      ujbcode: d["UJB Code"],
+      name: d[" Name"],
+      phone: d["Mobile no"],
+      category: d["Category"],
+    };
+
+    await addCpForProspectIntroduction(orbiter);
+  } else {
+    console.warn("⚠️ MentorOrbiter not found in userdetails, CP skipped");
+  }
+}
+
       const docId = docRef.id;
   
       if (userType === 'prospect') {

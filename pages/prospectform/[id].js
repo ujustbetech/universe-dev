@@ -1,10 +1,22 @@
 import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
-import { collection, addDoc, doc, getDoc } from "firebase/firestore";
+
+import {
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
 import Swal from "sweetalert2";
 import { useRouter } from "next/router";
 import HeaderNav from "../../component/HeaderNav";
-
+import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/prospectForm.scss";
 import Headertop from "../../component/Header";
 
@@ -87,6 +99,56 @@ const ProspectForm = () => {
   const handleCityChange = (e) => {
     setFormData(prev => ({ ...prev, city: e.target.value }));
   };
+const ensureCpBoardUser = async (orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "CosmOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+const addCpForProspectAssessment = async (orbiter, prospectPhone) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(orbiter);
+
+  // 🔐 Prevent duplicate CP for same prospect
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "002"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "002",
+      activityName: "Prospect Assessment (Tool)",
+      points: 100,
+      purpose:
+        "High points for structured evaluation through the tool, ensuring quality prospects enter the ecosystem.",
+      prospectName: formData.fullName,
+      prospectPhone,
+      source: "ProspectAssessmentForm",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
   // Fetch Prospect Auto-Population
   useEffect(() => {
@@ -137,9 +199,42 @@ const ProspectForm = () => {
     const subcollectionRef = collection(db, COLLECTIONS.prospect, id, "prospectform");
 
     try {
-      await addDoc(subcollectionRef, formData);
-      Swal.fire("Success", "Assessment Submitted!", "success");
-      setFormData(initialFormState);
+    await addDoc(subcollectionRef, formData);
+
+// ✅ CP AUTOMATION (ACTIVITY 002)
+try {
+  const q = query(
+    collection(db, "userdetails"),
+    where("Mobile no", "==", formData.mentorPhone)
+  );
+
+  const snap = await getDocs(q);
+
+  if (!snap.empty) {
+    const d = snap.docs[0].data();
+
+    if (d["UJB Code"]) {
+      const orbiter = {
+        ujbcode: d["UJB Code"],
+        name: d[" Name"],
+        phone: d["Mobile no"],
+        category: d["Category"],
+      };
+
+      await addCpForProspectAssessment(
+        orbiter,
+        formData.phoneNumber
+      );
+    }
+  }
+} catch (cpErr) {
+  console.error("❌ CP 002 failed:", cpErr);
+}
+
+Swal.fire("Success", "Assessment Submitted!", "success");
+setFormData(initialFormState);
+
+      
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "Something went wrong.", "error");

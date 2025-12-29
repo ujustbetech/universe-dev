@@ -1,5 +1,5 @@
 // src/hooks/useReferralPayments.js
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   doc,
   updateDoc,
@@ -20,14 +20,29 @@ export default function useReferralPayments({
   const [showAddPaymentForm, setShowAddPaymentForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  /* ===================== SAFETY FIX ===================== */
+
+  // 🔒 Normalize payments to ALWAYS be an array
+  const safePayments = useMemo(() => {
+    if (Array.isArray(payments)) return payments;
+    if (payments && typeof payments === "object") return Object.values(payments);
+    return [];
+  }, [payments]);
+
+  /* ===================== AMOUNTS ===================== */
+
   const agreedAmount = Number(referralData?.agreedTotal || 0);
 
+<<<<<<< Updated upstream
   // ✅ FIX 1: Normalize payments safely (array OR object)
   const safePayments = Array.isArray(payments)
     ? payments
     : Object.values(payments || {}).flat();
 
   // Total Cosmo → UJB paid so far
+=======
+  // Total Cosmo → UJB paid so far (SAFE)
+>>>>>>> Stashed changes
   const cosmoPaid = safePayments
     .filter((p) => p?.paymentFrom === "CosmoOrbiter")
     .reduce((sum, p) => sum + Number(p?.amountReceived || 0), 0);
@@ -36,9 +51,12 @@ export default function useReferralPayments({
 
   const r2 = (n) => Math.round(n * 100) / 100;
 
-  // Use latest deal log for distribution
+  /* ===================== DISTRIBUTION ===================== */
+
   const calculateDistribution = (amount) => {
-    const deal = dealLogs?.[dealLogs.length - 1];
+    if (!Array.isArray(dealLogs) || dealLogs.length === 0) return null;
+
+    const deal = dealLogs[dealLogs.length - 1];
     if (!deal?.agreedAmount) return null;
 
     const ratio = amount / Number(deal.agreedAmount || 1);
@@ -50,6 +68,8 @@ export default function useReferralPayments({
       ujustbe: r2((deal.ujustbeShare || 0) * ratio),
     };
   };
+
+  /* ===================== NEW PAYMENT ===================== */
 
   const [newPayment, setNewPayment] = useState({
     paymentFrom: "CosmoOrbiter",
@@ -67,10 +87,13 @@ export default function useReferralPayments({
   const openPaymentModal = () => setShowAddPaymentForm(true);
   const closePaymentModal = () => setShowAddPaymentForm(false);
 
+  /* ===================== SAVE PAYMENT ===================== */
+
   const handleSavePayment = async () => {
     if (!id || isSubmitting) return;
 
     const amount = Number(newPayment.amountReceived || 0);
+
     if (amount <= 0) {
       alert("Enter a valid amount");
       return;
@@ -132,12 +155,17 @@ export default function useReferralPayments({
         ujbBalance: increment(amount),
       });
 
+<<<<<<< Updated upstream
       /**
        * ✅ FIX 2: DO NOT manually reshape payments
        * Firestore snapshot will update payments correctly
        */
       setPayments((prev) => prev);
 
+=======
+      // ✅ SAFE local update
+      setPayments([...safePayments, entry]);
+>>>>>>> Stashed changes
       closePaymentModal();
     } catch (err) {
       console.error("Payment save failed:", err);
@@ -147,10 +175,13 @@ export default function useReferralPayments({
     }
   };
 
+  /* ===================== EXPORT ===================== */
+
   return {
     agreedAmount,
     cosmoPaid,
     agreedRemaining,
+    payments: safePayments, // 👈 IMPORTANT
     showAddPaymentForm,
     newPayment,
     isSubmitting,
