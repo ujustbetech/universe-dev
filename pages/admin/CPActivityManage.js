@@ -341,13 +341,31 @@ const editActivity = (a) => {
               <td>{a.automationType}</td>
               <td>{a.status}</td>
               <td>{a.usageCount}</td>
-              <td>
-                <button onClick={() => editActivity(a)}>Edit</button>
-                <button onClick={() => toggleStatus(a)}>
-                  {a.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                </button>
-                <button onClick={() => deleteActivity(a)}>Delete</button>
-              </td>
+            <td>
+  <button
+    className="btn-edit"
+    onClick={() => editActivity(a)}
+  >
+    Edit
+  </button>
+
+  <button
+    className={`btn-status ${
+      a.status === "ACTIVE" ? "btn-deactivate" : "btn-activate"
+    }`}
+    onClick={() => toggleStatus(a)}
+  >
+    {a.status === "ACTIVE" ? "Deactivate" : "Activate"}
+  </button>
+
+  <button
+    className="btn-delete"
+    onClick={() => deleteActivity(a)}
+  >
+    Delete
+  </button>
+</td>
+
             </tr>
           ))}
         </tbody>
