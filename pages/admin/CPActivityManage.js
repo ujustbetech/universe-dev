@@ -21,6 +21,8 @@ import { db } from "../../firebaseConfig";
 export default function CPActivityManage() {
   /* ================= STATE ================= */
   const [activities, setActivities] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+
   const [activeTab, setActiveTab] = useState("ALL");
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
@@ -93,9 +95,10 @@ const saveActivity = async () => {
     });
   }
 
-  setForm(emptyForm);
-  setEditingId(null);
-  fetchActivities();
+ setForm(emptyForm);
+setEditingId(null);
+setShowForm(false); // 🔑 close form
+fetchActivities();
 };
 
   /* ================= SAVE (ADD / UPDATE) ================= */
@@ -113,19 +116,20 @@ const getNextActivityId = async () => {
   return String(maxId + 1).padStart(3, "0");
 };
 
+const editActivity = (a) => {
+  setEditingId(a.id);
+  setForm({
+    activityName: a.activityName,
+    category: a.category,
+    points: a.points,
+    purpose: a.purpose || "",
+    automationType: a.automationType,
+    status: a.status || "ACTIVE",
+  });
+  setShowForm(true); // 🔑 open form
+};
 
   /* ================= EDIT ================= */
-  const editActivity = (a) => {
-    setEditingId(a.id);
-    setForm({
-      activityName: a.activityName,
-      category: a.category,
-      points: a.points,
-      purpose: a.purpose || "",
-      automationType: a.automationType,
-      status: a.status || "ACTIVE",
-    });
-  };
 
   /* ================= ACTIVATE / DEACTIVATE ================= */
   const toggleStatus = async (a) => {
@@ -185,6 +189,18 @@ const getNextActivityId = async () => {
           </button>
         ))}
       </div>
+<div className="actions-bar">
+  <button
+    className="m-button"
+    onClick={() => {
+      setForm(emptyForm);
+      setEditingId(null);
+      setShowForm(true);
+    }}
+  >
+    + Add Activity
+  </button>
+</div>
 
       {/* ===== SEARCH & SORT ===== */}
       <div className="multipleitem">
@@ -201,46 +217,9 @@ const getNextActivityId = async () => {
           <option value="usage">Sort by Usage</option>
         </select>
       </div>
+ {showForm && (
+  <section className="c-form box">
 
-      {/* ===== TABLE ===== */}
-      <table className="table-class">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Activity</th>
-            <th>Cat</th>
-            <th>Points</th>
-            <th>Automation</th>
-            <th>Status</th>
-            <th>Usage</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((a, i) => (
-            <tr key={a.id} className={a.status === "INACTIVE" ? "inactive" : ""}>
-              <td>{i + 1}</td>
-              <td>{a.activityName}</td>
-              <td>{a.category}</td>
-              <td>{a.points}</td>
-              <td>{a.automationType}</td>
-              <td>{a.status}</td>
-              <td>{a.usageCount}</td>
-              <td>
-                <button onClick={() => editActivity(a)}>Edit</button>
-                <button onClick={() => toggleStatus(a)}>
-                  {a.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                </button>
-                <button onClick={() => deleteActivity(a)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-
-    {/* ================= ADD / EDIT FORM ================= */}
-    <section className="c-form box">
       <h2>{editingId ? "Edit Activity" : "Add Activity"}</h2>
 
       <ul>
@@ -335,7 +314,49 @@ const getNextActivityId = async () => {
           </button>
         </li>
       </ul>
+     </section>
+)}
+
+      {/* ===== TABLE ===== */}
+      <table className="table-class">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Activity</th>
+            <th>Cat</th>
+            <th>Points</th>
+            <th>Automation</th>
+            <th>Status</th>
+            <th>Usage</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((a, i) => (
+            <tr key={a.id} className={a.status === "INACTIVE" ? "inactive" : ""}>
+              <td>{i + 1}</td>
+              <td>{a.activityName}</td>
+              <td>{a.category}</td>
+              <td>{a.points}</td>
+              <td>{a.automationType}</td>
+              <td>{a.status}</td>
+              <td>{a.usageCount}</td>
+              <td>
+                <button onClick={() => editActivity(a)}>Edit</button>
+                <button onClick={() => toggleStatus(a)}>
+                  {a.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                </button>
+                <button onClick={() => deleteActivity(a)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
+
+    {/* ================= ADD / EDIT FORM ================= */}
+
+
   </Layout>
 );
 
