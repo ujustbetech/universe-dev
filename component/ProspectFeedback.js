@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, addDoc ,doc,getDoc} from "firebase/firestore";
+import { collection, getDocs, addDoc ,doc,getDoc,query,where,serverTimestamp} from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/main.scss";
@@ -30,6 +30,64 @@ const ProspectFeedback = ({ id }) => {
     communicationOptions: [],
     additionalComments: "",
   });
+/* ================= CP HELPERS ================= */
+
+const ensureCpBoardUser = async (db, orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "MentOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const addCpForProspectFeedback = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  // 🚫 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "010"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "010",
+      activityName: "Communicating Doorstep Feedback from Guest (Tool)",
+      points: 30,
+      purpose:
+        "Encourages structured documentation of feedback via tool usage for better tracking.",
+      prospectName,
+      prospectPhone,
+      source: "ProspectFeedbackForm",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
  
 useEffect(() => {
@@ -96,16 +154,62 @@ useEffect(() => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const subcollectionRef = collection(db, COLLECTIONS.prospect, id, "prospectfeedbackform");
-      await addDoc(subcollectionRef, formData);
-      alert("Form submitted successfully");
-      setShowForm(false);
-    } catch (error) {
-      console.error("Error submitting form:", error);
+  e.preventDefault();
+  try {
+    // 1️⃣ Save feedback form
+    const subcollectionRef = collection(
+      db,
+      COLLECTIONS.prospect,
+      id,
+      "prospectfeedbackform"
+    );
+
+    await addDoc(subcollectionRef, formData);
+
+    // 2️⃣ Fetch prospect to get orbiterContact
+    const prospectRef = doc(db, COLLECTIONS.prospect, id);
+    const prospectSnap = await getDoc(prospectRef);
+
+    if (prospectSnap.exists()) {
+      const data = prospectSnap.data();
+
+      // 3️⃣ Find mentor (Orbiter)
+      const qMentor = query(
+        collection(db, COLLECTIONS.userDetail),
+        where("MobileNo", "==", data.orbiterContact) // ⚠️ exact field
+      );
+
+      const mentorSnap = await getDocs(qMentor);
+
+      if (!mentorSnap.empty) {
+        const d = mentorSnap.docs[0].data();
+
+        if (d.UJBCode) {
+          const orbiter = {
+            ujbcode: d.UJBCode,
+            name: d.Name,
+            phone: d["MobileNo"],
+            category: d.Category,
+          };
+
+          // ⭐ ADD CP 010
+          await addCpForProspectFeedback(
+            db,
+            orbiter,
+            data.prospectPhone,
+            data.prospectName
+          );
+        }
+      }
     }
-  };
+
+    alert("Form submitted successfully");
+    setShowForm(false);
+  } catch (error) {
+    console.error("Error submitting form:", error);
+  }
+};
+
 
   if (loading) return <p>Loading...</p>;
 

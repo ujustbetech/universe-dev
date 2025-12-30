@@ -20,6 +20,10 @@ const KnowledgeSeries10 = ({ id, fetchData }) => {
   const [eveningData, setEveningData] = useState(null);
 /* ================= CP HELPERS ================= */
 
+
+
+/* ================= CP HELPERS ================= */
+
 const ensureCpBoardUser = async (db, orbiter) => {
   if (!orbiter?.ujbcode) return;
 
@@ -76,6 +80,7 @@ const addCpForKnowledgeSeries10 = async (
     }
   );
 };
+
 
   const WHATSAPP_API_URL =
     "https://graph.facebook.com/v22.0/527476310441806/messages";
@@ -206,66 +211,66 @@ const addCpForKnowledgeSeries10 = async (
       tab
     );
 
-    if (emailSent || wpSent) {
-      const timestamp = new Date().toLocaleString("en-IN", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  if (emailSent || wpSent) {
+  const timestamp = new Date().toLocaleString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
-      const updateField =
-        tab === "morning"
-          ? "knowledgeSeries4_morning"
-          : "knowledgeSeries4_evening";
+  const updateField =
+    tab === "morning"
+      ? "knowledgeSeries10_morning"
+      : "knowledgeSeries10_evening";
 
-      const seriesData = { sent: true, sentAt: timestamp };
+  const seriesData = { sent: true, sentAt: timestamp };
 
-      await updateDoc(docRef, { [updateField]: seriesData });
+  await updateDoc(docRef, { [updateField]: seriesData });
 
-      if (tab === "morning") {
-        setMorningData(seriesData);
+if (tab === "morning") {
+  setMorningData(seriesData);
 
-        // ⭐ ADD CP 016 – ONLY MORNING
-        const qMentor = query(
-          collection(db, COLLECTIONS.userDetail),
-          where("MobileNo", "==", orbiterContact)
-        );
+  const qMentor = query(
+    collection(db, COLLECTIONS.userDetail),
+    where("MobileNo", "==", orbiterContact) // ✅ correct field
+  );
 
-        const mentorSnap = await getDocs(qMentor);
+  const mentorSnap = await getDocs(qMentor);
 
-        if (!mentorSnap.empty) {
-          const d = mentorSnap.docs[0].data();
+  if (!mentorSnap.empty) {
+    const d = mentorSnap.docs[0].data();
 
-          if (d.UJBCode) {
-            const orbiter = {
-              ujbcode: d.UJBCode,
-              name: d.Name,
-              phone: d.MobileNo,
-              category: d.Category,
-            };
+    if (d.UJBCode) {
+      const orbiter = {
+        ujbcode: d.UJBCode,
+        name: d.Name,
+        phone: d["MobileNo"],
+        category: d.Category,
+      };
 
-            await addCpForKnowledgeSeriesMorning(
-              db,
-              orbiter,
-              prospectPhone,
-              prospectName
-            );
-          }
-        }
-      } else {
-        setEveningData(seriesData);
-      }
-
-      Swal.fire(
-        "✅ Sent!",
-        `Knowledge Series 4 (${tab}) sent successfully.`,
-        "success"
+      await addCpForKnowledgeSeries10(
+        db,
+        orbiter,
+        prospectPhone,
+        prospectName
       );
-
-      fetchData?.();
     }
+  }
+
+  } else {
+    setEveningData(seriesData);
+  }
+
+  Swal.fire(
+    "✅ Sent!",
+    `Knowledge Series 10 (${tab}) sent successfully.`,
+    "success"
+  );
+  fetchData?.();
+}
+
   } catch (error) {
     console.error("❌ Error sending Knowledge Series 4:", error);
     Swal.fire("❌ Error", "Something went wrong.", "error");

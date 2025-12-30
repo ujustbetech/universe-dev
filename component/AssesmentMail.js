@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc ,query,collection,setDoc,addDoc,where,getDocs,serverTimestamp} from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import emailjs from "@emailjs/browser";
 import { COLLECTIONS } from "/utility_collection";
@@ -27,6 +27,64 @@ const Assessment = ({ id, fetchData }) => {
     };
     fetchAssessment();
   }, [id]);
+/* ================= CP HELPERS ================= */
+
+const ensureCpBoardUser = async (db, orbiter) => {
+  if (!orbiter?.ujbcode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbcode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: orbiter.category || "MentOrbiter",
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const addCpForAssessment = async (
+  db,
+  orbiter,
+  prospectPhone,
+  prospectName
+) => {
+  if (!orbiter?.ujbcode) return;
+
+  await ensureCpBoardUser(db, orbiter);
+
+  // 🚫 Prevent duplicate CP
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    where("activityNo", "==", "018"),
+    where("prospectPhone", "==", prospectPhone)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbcode, "activities"),
+    {
+      activityNo: "018",
+      activityName: "Completion of OTC Journey till Day 15",
+      points: 75,
+      purpose:
+        "Acknowledges completion of onboarding process with accountability.",
+      prospectName,
+      prospectPhone,
+      source: "AssessmentMail",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+};
 
   // 🔹 Send Email
   const sendAssessmentEmail = async (prospectName, prospectEmail, orbiterName) => {
@@ -120,26 +178,34 @@ const Assessment = ({ id, fetchData }) => {
           prospectPhone
         );
 
-        if (emailSent || wpSent) {
-          const timestamp = new Date().toLocaleString("en-IN", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+    // ⭐ ADD CP 018 AFTER SUCCESSFUL SEND
+const qMentor = query(
+  collection(db, COLLECTIONS.userDetail),
+  where("MobileNo", "==", data.orbiterContact) // ⚠️ exact field name
+);
 
-          const assessmentData = {
-            sent: true,
-            sentAt: timestamp,
-          };
+const mentorSnap = await getDocs(qMentor);
 
-          await updateDoc(docRef, { assessmentMail: assessmentData });
-          setAssessment(assessmentData);
+if (!mentorSnap.empty) {
+  const d = mentorSnap.docs[0].data();
 
-          Swal.fire("✅ Sent!", "Assessment mail sent successfully.", "success");
-          fetchData?.();
-        } else {
+  if (d.UJBCode) {
+    const orbiter = {
+      ujbcode: d.UJBCode,
+      name: d.Name,
+      phone: d["MobileNo"],
+      category: d.Category,
+    };
+
+    await addCpForAssessment(
+      db,
+      orbiter,
+      data.prospectPhone,
+      data.prospectName
+    );
+  }
+}
+else {
           Swal.fire("❌ Error", "Failed to send assessment mail.", "error");
         }
       }
