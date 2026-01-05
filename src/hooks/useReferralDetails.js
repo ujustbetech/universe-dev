@@ -201,22 +201,36 @@ const handleStatusUpdate = async (newStatus) => {
   /* ------------------------------------------------------
      DEAL LOG SAVE
   ------------------------------------------------------ */
-  const handleSaveDealLog = async (distribution) => {
-    if (!id || !distribution) return;
-    try {
-      await updateDoc(doc(db, COLLECTIONS.referral, id), {
-        dealLogs: [distribution],
-        lastDealCalculatedAt: Timestamp.now(),
-        agreedTotal: distribution.agreedAmount,
-        dealValue: distribution.dealValue,
-      });
+/* ------------------------------------------------------
+   DEAL LOG SAVE  ✅ FIXED (APPEND, NOT OVERWRITE)
+------------------------------------------------------ */
+const handleSaveDealLog = async (distribution) => {
+  if (!id || !distribution) return;
 
-      setDealLogs([distribution]);
-      setDealAlreadyCalculated(true);
-    } catch (e) {
-      console.error("Deal log save failed:", e);
-    }
-  };
+  try {
+    const newDealLog = {
+      ...distribution,
+
+      // audit & safety
+      dealStatus: formState?.dealStatus || referralData?.dealStatus || "Deal Won",
+      timestamp: new Date().toISOString(),
+      lastDealCalculatedAt: Timestamp.now(),
+    };
+
+    await updateDoc(doc(db, COLLECTIONS.referral, id), {
+      dealLogs: arrayUnion(newDealLog), // ✅ KEEP PREVIOUS LOGS
+      lastDealCalculatedAt: Timestamp.now(),
+      agreedTotal: distribution.agreedAmount,
+      dealValue: distribution.dealValue,
+    });
+
+    // Update local state (append, not replace)
+    setDealLogs((prev = []) => [...prev, newDealLog]);
+    setDealAlreadyCalculated(true);
+  } catch (e) {
+    console.error("Deal log save failed:", e);
+  }
+};
 
   /* ------------------------------------------------------
      FOLLOWUPS CRUD

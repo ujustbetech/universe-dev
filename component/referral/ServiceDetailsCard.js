@@ -1,57 +1,99 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { buildDealDistribution } from "../../src/utils/referralCalculations";
 
 export default function ServiceDetailsCard({
   referralData,
   dealLogs,
-  dealAlreadyCalculated,
   onSaveDealLog,
 }) {
-  const [localDealValue, setLocalDealValue] = useState(
-    referralData?.dealValue || ""
-  );
-
+  const [localDealValue, setLocalDealValue] = useState("");
   const [invoiceFile, setInvoiceFile] = useState(null);
 
-  // PREVIEW DISTRIBUTION
+  /* =========================
+     🔐 LOCK CONDITION
+     ========================= */
+
+  const isDealLocked =
+    referralData?.dealStatus === "Agreed % Transferred to UJustBe" ||
+    referralData?.dealStatus ===
+      "Agreed Percentage Transferred to UJustBe" ||
+    referralData?.statusLogs?.some(
+      (s) => s.status === "Agreed % Transferred to UJustBe"
+    ) ||
+    referralData?.dealLogs?.some(
+      (log) => log.dealStatus === "Agreed % Transferred to UJustBe"
+    );
+
+  /* =========================
+     📌 LATEST DEAL LOG
+     ========================= */
+
+  const latestDealLog =
+    referralData?.dealLogs?.length > 0
+      ? referralData.dealLogs[referralData.dealLogs.length - 1]
+      : null;
+
+  /* =========================
+     🔁 SYNC DEAL VALUE FROM DB
+     ========================= */
+
+  useEffect(() => {
+    if (latestDealLog?.dealValue) {
+      setLocalDealValue(latestDealLog.dealValue);
+    }
+  }, [latestDealLog]);
+
+  /* =========================
+     🔍 DISTRIBUTION
+     ========================= */
+
   const previewDistribution = useMemo(() => {
+    // 🔒 Locked → show saved distribution
+    if (isDealLocked && latestDealLog) {
+      return {
+        agreedAmount: latestDealLog.agreedAmount,
+        orbiterShare: latestDealLog.orbiterShare,
+        orbiterMentorShare: latestDealLog.orbiterMentorShare,
+        cosmoMentorShare: latestDealLog.cosmoMentorShare,
+        ujustbeShare: latestDealLog.ujustbeShare,
+      };
+    }
+
+    // ✏️ Editable → live calc
     const dealValueNum = Number(localDealValue);
     if (!dealValueNum || dealValueNum <= 0) return null;
 
     return buildDealDistribution(dealValueNum, referralData);
-  }, [localDealValue, referralData]);
+  }, [localDealValue, referralData, isDealLocked, latestDealLog]);
+
+  /* =========================
+     💾 SAVE DEAL
+     ========================= */
 
   const handleSaveDeal = () => {
+    if (isDealLocked) {
+      alert(
+        "Deal is locked. Agreed percentage already transferred to UJustBe."
+      );
+      return;
+    }
+
     if (!previewDistribution) {
       alert("Enter valid deal value first.");
       return;
     }
-    onSaveDealLog(previewDistribution);
+
+    onSaveDealLog({
+      ...previewDistribution,
+      dealValue: Number(localDealValue),
+    });
   };
 
   return (
     <div className="card serviceDetailsCard">
-
       <h2>Service / Product Details</h2>
 
-      {/* Service or Product List */}
-      <div className="spList">
-        {(referralData?.services || []).map((srv, idx) => (
-          <div key={idx} className="spItem">
-            <h4>{srv.name}</h4>
-            <p>{srv.description}</p>
-          </div>
-        ))}
-
-        {(referralData?.products || []).map((prd, idx) => (
-          <div key={idx} className="spItem">
-            <h4>{prd.name}</h4>
-            <p>{prd.description}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Deal Value Input */}
+      {/* ================= DEAL VALUE ================= */}
       <div className="dealBox">
         <label>
           <strong>Deal Value (₹):</strong>
@@ -59,15 +101,16 @@ export default function ServiceDetailsCard({
             type="number"
             value={localDealValue}
             onChange={(e) => setLocalDealValue(e.target.value)}
+            disabled={isDealLocked}
             placeholder="Enter deal value"
-            disabled={dealAlreadyCalculated}
           />
         </label>
 
-        {/* Preview distribution */}
         {previewDistribution && (
           <div className="distributionPreview">
-            <h4>Distribution Preview</h4>
+            <h4>
+              {isDealLocked ? "Final Distribution" : "Distribution Preview"}
+            </h4>
 
             <p>
               <strong>Total Agreed Amount:</strong> ₹
@@ -75,57 +118,27 @@ export default function ServiceDetailsCard({
             </p>
 
             <ul>
-              <li>
-                Orbiter: ₹
-                {previewDistribution.orbiterShare.toLocaleString("en-IN")}
-              </li>
-              <li>
-                Orbiter Mentor: ₹
-                {previewDistribution.orbiterMentorShare.toLocaleString("en-IN")}
-              </li>
-              <li>
-                Cosmo Mentor: ₹
-                {previewDistribution.cosmoMentorShare.toLocaleString("en-IN")}
-              </li>
-              <li>
-                UJustBe: ₹
-                {previewDistribution.ujustbeShare.toLocaleString("en-IN")}
-              </li>
+              <li>Orbiter: ₹{previewDistribution.orbiterShare}</li>
+              <li>Orbiter Mentor: ₹{previewDistribution.orbiterMentorShare}</li>
+              <li>Cosmo Mentor: ₹{previewDistribution.cosmoMentorShare}</li>
+              <li>UJustBe: ₹{previewDistribution.ujustbeShare}</li>
             </ul>
           </div>
         )}
 
-        {!dealAlreadyCalculated && (
+        {!isDealLocked && (
           <button className="saveDealBtn" onClick={handleSaveDeal}>
-            Save Deal Calculation
+            {dealLogs?.length
+              ? "Update Deal Calculation"
+              : "Save Deal Calculation"}
           </button>
         )}
 
-        {dealAlreadyCalculated && (
+        {isDealLocked && (
           <p className="dealSavedTag">
-            ✔ Deal already calculated. Edit not allowed.
+            🔒 Deal locked. Agreed percentage transferred to UJustBe.
           </p>
         )}
-      </div>
-
-      {/* Invoice Upload */}
-      <div className="invoiceBox">
-        <h4>Upload Invoice</h4>
-
-        <input
-          type="file"
-          accept="image/*,application/pdf"
-          onChange={(e) => setInvoiceFile(e.target.files[0])}
-        />
-
-        {invoiceFile && <p>Selected: {invoiceFile.name}</p>}
-
-        <button
-          disabled={!invoiceFile}
-          onClick={() => alert("Upload logic pending")}
-        >
-          Upload Invoice
-        </button>
       </div>
     </div>
   );

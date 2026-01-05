@@ -59,6 +59,7 @@ export const calculateAgreedFromItem = (dealAmount, item) => {
 /* -------------------------------------------------
    DEAL DISTRIBUTION  ✅ THIS WAS MISSING
 ------------------------------------------------- */
+
 export const buildDealDistribution = (dealValue, referralData) => {
   const deal = toNumber(dealValue);
 
