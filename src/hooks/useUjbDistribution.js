@@ -9,6 +9,17 @@ import {
 import { db } from "../../firebaseConfig";
 import { COLLECTIONS } from "../../utility_collection";
 
+/* ===================== TDS CONFIG ===================== */
+
+const TDS_RATE = 0.05;
+
+const applyTDS = (grossAmount) => {
+  const gross = Number(grossAmount || 0);
+  const tds = Math.round(gross * TDS_RATE * 100) / 100;
+  const net = Math.round((gross - tds) * 100) / 100;
+  return { gross, tds, net };
+};
+
 export function useUjbDistribution({
   referralId,
   referralData,
@@ -34,9 +45,11 @@ export function useUjbDistribution({
     CosmoMentor: "paidToCosmoMentor",
   };
 
+  /* ===================== PAYOUT WITH TDS ===================== */
+
   const payFromSlot = async ({
     recipient,
-    amount, // CASH ONLY (can be 0)
+    amount, // 👈 GROSS AMOUNT
     fromPaymentId,
     modeOfPayment,
     transactionRef,
@@ -44,15 +57,17 @@ export function useUjbDistribution({
     adjustmentMeta,
   }) => {
     if (!referralId) return { error: "Referral ID missing" };
-
-    const cashAmount = Number(amount ?? 0);
-    if (cashAmount < 0) return { error: "Invalid amount" };
-
     if (!fieldMap[recipient]) return { error: "Invalid recipient" };
     if (isSubmitting) return { error: "Payout in progress" };
 
+    const grossAmount = Number(amount ?? 0);
+    if (grossAmount < 0) return { error: "Invalid amount" };
+
+    // ✅ APPLY TDS HERE
+    const { gross, tds, net } = applyTDS(grossAmount);
+
     const balance = getBalance();
-    if (cashAmount > balance) {
+    if (net > balance) {
       return { error: "Insufficient UJB balance" };
     }
 
@@ -67,7 +82,10 @@ export function useUjbDistribution({
         paymentFrom: "UJustBe",
         paymentTo: recipient,
         paymentToName: recipientNameMap[recipient],
-        amountReceived: cashAmount,
+        grossAmount: gross,          // 👈 BEFORE TDS
+        tdsAmount: tds,              // 👈 TDS AMOUNT
+        tdsRate: 5,
+        amountReceived: net,         // 👈 NET PAID (e.g. 114)
         createdAt: Timestamp.now(),
         paymentDate:
           paymentDate || new Date().toISOString().split("T")[0],
@@ -81,7 +99,7 @@ export function useUjbDistribution({
         },
       };
 
-      // 🔒 Remove undefined (prevents arrayUnion error)
+      // 🔒 Firestore safe
       Object.keys(entry).forEach(
         (k) => entry[k] === undefined && delete entry[k]
       );
@@ -89,9 +107,16 @@ export function useUjbDistribution({
       await updateDoc(
         doc(db, COLLECTIONS.referral, referralId),
         {
-          ujbBalance: increment(-cashAmount),
+          // ✅ NET deducted from UJB
+          ujbBalance: increment(-net),
+
+          // ✅ TDS tracked separately
+          tdsPayable: increment(tds),
+
+          // ✅ NET added to paidTo*
+          [fieldMap[recipient]]: increment(net),
+
           payments: arrayUnion(entry),
-          [fieldMap[recipient]]: increment(cashAmount),
         }
       );
 

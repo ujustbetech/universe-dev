@@ -154,6 +154,15 @@ export default function ReferralDetailsPage() {
         return { ujb: null, name: "" };
     }
   };
+// TDS preview helper (UI only)
+const TDS_RATE = 0.05;
+
+const getTdsPreview = (amount) => {
+  const gross = n(amount);
+  const tds = Math.round(gross * TDS_RATE * 100) / 100;
+  const net = Math.round((gross - tds) * 100) / 100;
+  return { gross, tds, net };
+};
 
   // Open payout modal for a slot (manual)
   const openPayoutModal = ({ cosmoPaymentId, slot, amount }) => {
@@ -650,9 +659,29 @@ export default function ReferralDetailsPage() {
                 Payout — {payoutModal.slot} ({payoutModal.recipientName})
               </h3>
 
-              <p>
-                <strong>Slot logical (due):</strong> ₹{Number(payoutModal.logicalAmount || 0).toLocaleString("en-IN")}
-              </p>
+            {(() => {
+  const { gross, tds, net } = getTdsPreview(payoutModal.logicalAmount);
+
+  return (
+    <div className="payoutBreakup">
+      <p>
+        <strong>Gross Amount:</strong>{" "}
+        ₹{gross.toLocaleString("en-IN")}
+      </p>
+
+      <p className="tdsLine">
+        <strong>TDS (5%):</strong>{" "}
+        ₹{tds.toLocaleString("en-IN")}
+      </p>
+
+      <p className="netPayLine">
+        <strong>Net Payable:</strong>{" "}
+        ₹{net.toLocaleString("en-IN")}
+      </p>
+    </div>
+  );
+})()}
+
 
               <p>
                 <strong>Recipient UJB:</strong> {payoutModal.recipientUjb || "—"}
