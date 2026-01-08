@@ -9,17 +9,6 @@ import {
 import { db } from "../../firebaseConfig";
 import { COLLECTIONS } from "../../utility_collection";
 
-/* ===================== TDS CONFIG ===================== */
-
-const TDS_RATE = 0.05;
-
-const applyTDS = (grossAmount) => {
-  const gross = Number(grossAmount || 0);
-  const tds = Math.round(gross * TDS_RATE * 100) / 100;
-  const net = Math.round((gross - tds) * 100) / 100;
-  return { gross, tds, net };
-};
-
 export function useUjbDistribution({
   referralId,
   referralData,
@@ -45,11 +34,18 @@ export function useUjbDistribution({
     CosmoMentor: "paidToCosmoMentor",
   };
 
-  /* ===================== PAYOUT WITH TDS ===================== */
-
+  /**
+   * PAY FROM UJB
+   * ─────────────────────────────
+   * amount        = NET paid to person
+   * logicalAmount = GROSS (slot completion)
+   * tdsAmount     = TDS withheld
+   */
   const payFromSlot = async ({
     recipient,
-    amount, // 👈 GROSS AMOUNT
+    amount,          // NET
+    logicalAmount,   // GROSS ✅
+    tdsAmount,       // TDS ✅
     fromPaymentId,
     modeOfPayment,
     transactionRef,
@@ -58,16 +54,18 @@ export function useUjbDistribution({
   }) => {
     if (!referralId) return { error: "Referral ID missing" };
     if (!fieldMap[recipient]) return { error: "Invalid recipient" };
-    if (isSubmitting) return { error: "Payout in progress" };
+    if (isSubmitting) return { error: "Payout already in progress" };
 
-    const grossAmount = Number(amount ?? 0);
-    if (grossAmount < 0) return { error: "Invalid amount" };
+    const netAmount = Number(amount || 0);
+    const grossAmount = Number(logicalAmount || 0);
+    const tds = Number(tdsAmount || 0);
 
-    // ✅ APPLY TDS HERE
-    const { gross, tds, net } = applyTDS(grossAmount);
+    if (netAmount < 0 || grossAmount < 0 || tds < 0) {
+      return { error: "Invalid payout values" };
+    }
 
     const balance = getBalance();
-    if (net > balance) {
+    if (netAmount > balance) {
       return { error: "Insufficient UJB balance" };
     }
 
@@ -82,52 +80,42 @@ export function useUjbDistribution({
         paymentFrom: "UJustBe",
         paymentTo: recipient,
         paymentToName: recipientNameMap[recipient],
-        grossAmount: gross,          // 👈 BEFORE TDS
-        tdsAmount: tds,              // 👈 TDS AMOUNT
-        tdsRate: 5,
-        amountReceived: net,         // 👈 NET PAID (e.g. 114)
+        amountReceived: netAmount, // ✅ NET
+        paymentDate,
+        modeOfPayment,
+        transactionRef,
         createdAt: Timestamp.now(),
-        paymentDate:
-          paymentDate || new Date().toISOString().split("T")[0],
-        modeOfPayment: modeOfPayment || "Internal",
-        transactionRef: transactionRef || "",
+
         meta: {
           isUjbPayout: true,
-          belongsToPaymentId: fromPaymentId || null,
           slot: recipient,
-          ...(adjustmentMeta ? { adjustment: adjustmentMeta } : {}),
+          belongsToPaymentId: fromPaymentId || null,
+
+          // 🔥 CRITICAL FIELDS (DO NOT REMOVE)
+          logicalAmount: grossAmount,
+          tdsAmount: tds,
+
+          adjustment: adjustmentMeta || null,
         },
       };
 
-      // 🔒 Firestore safe
+      // Remove ONLY undefined (keep 0 values)
       Object.keys(entry).forEach(
         (k) => entry[k] === undefined && delete entry[k]
       );
 
-      await updateDoc(
-        doc(db, COLLECTIONS.referral, referralId),
-        {
-          // ✅ NET deducted from UJB
-          ujbBalance: increment(-net),
+      await updateDoc(doc(db, COLLECTIONS.referral, referralId), {
+        ujbBalance: increment(-netAmount),              // NET only
+        payments: arrayUnion(entry),
+        [fieldMap[recipient]]: increment(grossAmount), // ✅ GROSS credited
+      });
 
-          // ✅ TDS tracked separately
-          tdsPayable: increment(tds),
-
-          // ✅ NET added to paidTo*
-          [fieldMap[recipient]]: increment(net),
-
-          payments: arrayUnion(entry),
-        }
-      );
-
-      // 🔒 SAFE local update
-      onPaymentsUpdate?.((prev) =>
-        Array.isArray(prev) ? [...prev, entry] : [entry]
-      );
+      // Local optimistic update
+      onPaymentsUpdate?.((prev = []) => [...prev, entry]);
 
       return { success: true };
     } catch (err) {
-      console.error(err);
+      console.error("UJB payout error:", err);
       setError("Payout failed");
       return { error: "Payout failed" };
     } finally {

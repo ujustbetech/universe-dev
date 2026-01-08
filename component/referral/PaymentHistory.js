@@ -25,23 +25,41 @@ export default function PaymentHistory({
    * logicalAmount → preferred
    * fallback → cash + adjustment
    */
-  const getPaidForSlot = (cosmoPaymentId, slot) =>
-    visiblePayments
-      .filter(
-        (p) =>
-          p?.meta?.isUjbPayout &&
-          p?.meta?.belongsToPaymentId === cosmoPaymentId &&
-          p?.meta?.slot === slot
-      )
-      .reduce((sum, p) => {
-        if (typeof p?.meta?.logicalAmount === "number") {
-          return sum + p.meta.logicalAmount;
-        }
+const getPaidForSlot = (cosmoPaymentId, slot) =>
+  visiblePayments
+    .filter(
+      (p) =>
+        p?.meta?.isUjbPayout === true &&
+        p?.meta?.belongsToPaymentId === cosmoPaymentId &&
+        p?.meta?.slot === slot
+    )
+    .reduce((sum, p) => {
+      // ✅ BEST CASE (new data)
+      if (typeof p?.meta?.logicalAmount === "number") {
+        return sum + p.meta.logicalAmount;
+      }
 
-        const cash = Number(p?.amountReceived || 0);
-        const adj = Number(p?.meta?.adjustment?.deducted || 0);
-        return sum + cash + adj;
-      }, 0);
+      // ⚠️ LEGACY DATA FIX (THIS IS THE KEY)
+      const net = Number(p?.amountReceived || 0);
+
+      // 👇 if tdsAmount missing, derive it from totalShare
+    const tds =
+  typeof p?.meta?.tdsAmount === "number"
+    ? p.meta.tdsAmount
+    : (() => {
+        const rate =
+          typeof p?.meta?.tdsRate === "number"
+            ? p.meta.tdsRate / 100
+            : 0.05; // fallback only for very old data
+
+        return Math.round((net * rate) / (1 - rate));
+      })();
+
+
+      return sum + net + tds;
+    }, 0);
+
+
 
   if (!visiblePayments.length) {
     return <p>No payments yet.</p>;
@@ -59,11 +77,14 @@ export default function PaymentHistory({
         const isCosmo = pay?.meta?.isCosmoToUjb === true;
         const isUjb = pay?.meta?.isUjbPayout === true;
 
-        const logicalTotal =
-          typeof pay?.meta?.logicalAmount === "number"
-            ? pay.meta.logicalAmount
-            : Number(pay?.amountReceived || 0) +
-              Number(pay?.meta?.adjustment?.deducted || 0);
+const logicalTotal =
+  typeof pay?.grossAmount === "number"
+    ? pay.grossAmount
+    : typeof pay?.meta?.logicalAmount === "number"
+    ? pay.meta.logicalAmount
+    : Number(pay?.amountReceived || 0) +
+      Number(pay?.meta?.adjustment?.deducted || 0);
+
 
         return (
           <div className="paymentCard" key={paymentId}>

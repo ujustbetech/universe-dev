@@ -63,6 +63,15 @@ export default function ReferralDetailsPage() {
     setPayments,
     dealLogs,
   });
+const getUjbTdsRate = (isNri) => (isNri ? 0.20 : 0.05);
+
+const calculateUjbTDS = (gross, isNri) => {
+  const g = Number(gross || 0);
+  const rate = getUjbTdsRate(isNri);
+  const tds = Math.round(g * rate);
+  const net = g - tds;
+  return { gross: g, tds, net, rate };
+};
 
   const ujb = useUjbDistribution({
     referralId: id,
@@ -110,59 +119,83 @@ export default function ReferralDetailsPage() {
     paymentDate: new Date().toISOString().split("T")[0],
     processing: false,
   });
+// ================= TDS DERIVED VALUES FOR MODAL =================
+// ================= TDS DERIVED VALUES FOR MODAL =================
+
 
   // Helper: sanitize number
   const n = (v) => Math.max(0, Number(v || 0));
+const getRecipientInfo = (slot) => {
+  const normalize = (status) =>
+    status === "Non-Resident" ? "nri" : "resident";
+
+  switch (slot) {
+    case "Orbiter":
+      return {
+        ujb:
+          referralData?.orbiterUJBCode ||
+          orbiter?.ujbCode ||
+          orbiter?.UJBCode ||
+          null,
+        name: orbiter?.name || "Orbiter",
+        payeeType: normalize(orbiter?.residentStatus),
+      };
+
+    case "OrbiterMentor":
+      return {
+        ujb:
+          referralData?.orbiterMentorUJBCode ||
+          orbiter?.mentorUjbCode ||
+          orbiter?.mentorUJBCode ||
+          null,
+        name: orbiter?.mentorName || "Orbiter Mentor",
+        payeeType: normalize(orbiter?.mentorResidentStatus),
+      };
+
+    case "CosmoMentor":
+      return {
+        ujb:
+          referralData?.cosmoMentorUJBCode ||
+          cosmoOrbiter?.mentorUjbCode ||
+          cosmoOrbiter?.mentorUJBCode ||
+          null,
+        name: cosmoOrbiter?.mentorName || "Cosmo Mentor",
+        payeeType: normalize(cosmoOrbiter?.mentorResidentStatus),
+      };
+
+    default:
+      return { ujb: null, name: "", payeeType: "resident" };
+  }
+};
+
+
+// ================= TDS DERIVED VALUES FOR MODAL =================
+let previewGross = 0;
+let previewTds = 0;
+let previewNet = 0;
+let previewIsNri = false;
+if (payoutModal.open && payoutModal.preview) {
+  const deducted = Number(payoutModal.preview?.deducted || 0);
+  const logical = Number(payoutModal.logicalAmount || 0);
+
+  const adjustedGross =
+    deducted > 0 ? Math.max(logical - deducted, 0) : logical;
+
+  const recipientInfo = getRecipientInfo(payoutModal.slot);
+  previewIsNri = recipientInfo.payeeType === "nri";
+
+  const { gross, tds, net } =
+    calculateUjbTDS(adjustedGross, previewIsNri);
+
+  previewGross = gross;
+  previewTds = tds;
+  previewNet = net;
+}
+
+
 
   // Map slot -> recipient info (we will use referral-level flat fields as authoritative)
-  const getRecipientInfo = (slot) => {
-    if (!referralData) return { ujb: null, name: "" };
 
-    switch (slot) {
-      case "Orbiter":
-        return {
-          ujb: referralData.orbiterUJBCode || orbiter?.ujbCode || orbiter?.UJBCode || null,
-          name: orbiter?.name || orbiter?.Name || "Orbiter",
-        };
-      case "OrbiterMentor":
-        return {
-          ujb:
-            referralData.orbiterMentorUJBCode ||
-            orbiter?.mentorUjbCode ||
-            orbiter?.mentorUJBCode ||
-            orbiter?.MentorUJBCode ||
-            null,
-          name: orbiter?.mentorName || orbiter?.MentorName || "Orbiter Mentor",
-        };
-      case "CosmoMentor":
-        return {
-          ujb:
-            referralData?.cosmoMentorUJBCode ||
-            cosmoOrbiter?.mentorUjbCode ||
-            cosmoOrbiter?.mentorUJBCode ||
-            cosmoOrbiter?.MentorUJBCode ||
-            cosmoOrbiter?.ujbCode ||          // 🔒 fallback
-            cosmoOrbiter?.UJBCode ||          // 🔒 fallback
-            null,
-          name:
-            cosmoOrbiter?.mentorName ||
-            cosmoOrbiter?.MentorName ||
-            cosmoOrbiter?.name ||             // 🔒 fallback
-            "Cosmo Mentor",
-        };
-      default:
-        return { ujb: null, name: "" };
-    }
-  };
-// TDS preview helper (UI only)
-const TDS_RATE = 0.05;
-
-const getTdsPreview = (amount) => {
-  const gross = n(amount);
-  const tds = Math.round(gross * TDS_RATE * 100) / 100;
-  const net = Math.round((gross - tds) * 100) / 100;
-  return { gross, tds, net };
-};
 
   // Open payout modal for a slot (manual)
   const openPayoutModal = ({ cosmoPaymentId, slot, amount }) => {
@@ -255,7 +288,13 @@ const getTdsPreview = (amount) => {
           p.meta?.belongsToPaymentId === payoutModal.cosmoPaymentId &&
           p.meta?.slot === slot
       )
-      .reduce((s, p) => s + n(p.amountReceived), 0);
+     .reduce((s, p) => {
+  if (typeof p?.meta?.logicalAmount === "number") {
+    return s + n(p.meta.logicalAmount);
+  }
+  return s + n(p.amountReceived);
+}, 0);
+
 
     // Find the cosmo distribution for this cosmo payment so we know slot total
     const cosmoEntry = (payments || []).find(
@@ -293,25 +332,37 @@ const getTdsPreview = (amount) => {
         referral: { id },
       });
 
-      const { deducted = 0, cashToPay = logicalAmount, newGlobalRemaining } = adjResult || {};
+   const { deducted = 0, newGlobalRemaining } = adjResult || {};
+
+// gross after adjustment
+const adjustedGross = Math.max(logicalAmount - deducted, 0);
+
+// TDS calculation
+const recipientInfo = getRecipientInfo(slot);
+const isNri = recipientInfo.payeeType === "nri";
+
+const { gross, tds, net, rate } =
+  calculateUjbTDS(adjustedGross, isNri);
+
+
 
       // ✅ EARLY UJB BALANCE CHECK (CRITICAL FIX)
       const availableBalance = Number(referralData?.ujbBalance || 0);
 
-      if (cashToPay > 0 && cashToPay > availableBalance) {
-        alert(
-          `Insufficient UJB balance.\n\n` +
-          `Cash required: ₹${cashToPay}\n` +
-          `Available balance: ₹${availableBalance}\n\n` +
-          `Please wait for Cosmo payment before proceeding.`
-        );
+    if (net > 0 && net > availableBalance) {
+  alert(
+    `Insufficient UJB balance.\n\n` +
+    `Net payable: ₹${net}\n` +
+    `Available balance: ₹${availableBalance}`
+  );
+  setPayoutModal((p) => ({ ...p, processing: false }));
+  return;
+}
 
-        setPayoutModal((p) => ({ ...p, processing: false }));
-        return;
-      }
-
+    
       // ✅ CASE: FULLY ADJUSTED — LOG ONLY (NO CASH PAYOUT)
-      if (Number(cashToPay) <= 0 && deducted > 0) {
+  if (adjustedGross <= 0 && deducted > 0) {
+
         const adjustmentOnlyEntry = {
           paymentId: `ADJ-${Date.now()}`,
           paymentFrom: "UJustBe",
@@ -348,24 +399,33 @@ const getTdsPreview = (amount) => {
       }
 
 
+
       // 2) Perform UJB payout (actual cash = cashToPay; logical increment = logicalAmount)
-      const payRes = await ujb.payFromSlot({
-        recipient: slot,
-        amount: Number(cashToPay || 0),
-        fromPaymentId: payoutModal.cosmoPaymentId || null,
-        modeOfPayment,
-        transactionRef,
-        paymentDate,
-        adjustmentMeta:
-          deducted > 0
-            ? {
-              deducted,
-              cashPaid: Number(cashToPay || 0),
-              previousRemaining: newGlobalRemaining + deducted,
-              newRemaining: newGlobalRemaining,
-            }
-            : undefined,
-      });
+ const payRes =await ujb.payFromSlot({
+  recipient: slot,
+
+  // 💰 BANK
+  amount: net,
+
+  // 📘 ACCOUNTING (ABSOLUTELY REQUIRED)
+  logicalAmount: gross,
+  tdsAmount: tds,
+
+  fromPaymentId: payoutModal.cosmoPaymentId,
+  modeOfPayment,
+  transactionRef,
+  paymentDate,
+
+  adjustmentMeta:
+    deducted > 0
+      ? {
+          deducted,
+          cashPaid: net,
+        }
+      : undefined,
+});
+
+
 
 
       if (payRes?.error) {
@@ -659,51 +719,48 @@ const getTdsPreview = (amount) => {
                 Payout — {payoutModal.slot} ({payoutModal.recipientName})
               </h3>
 
-            {(() => {
-  const { gross, tds, net } = getTdsPreview(payoutModal.logicalAmount);
-
-  return (
-    <div className="payoutBreakup">
-      <p>
-        <strong>Gross Amount:</strong>{" "}
-        ₹{gross.toLocaleString("en-IN")}
-      </p>
-
-      <p className="tdsLine">
-        <strong>TDS (5%):</strong>{" "}
-        ₹{tds.toLocaleString("en-IN")}
-      </p>
-
-      <p className="netPayLine">
-        <strong>Net Payable:</strong>{" "}
-        ₹{net.toLocaleString("en-IN")}
-      </p>
-    </div>
-  );
-})()}
-
+              <p>
+                <strong>Slot logical (due):</strong> ₹{Number(payoutModal.logicalAmount || 0).toLocaleString("en-IN")}
+              </p>
 
               <p>
                 <strong>Recipient UJB:</strong> {payoutModal.recipientUjb || "—"}
               </p>
 
               {/* Preview (from adjustment.applyAdjustmentForRole previewOnly) */}
-              {payoutModal.preview ? (
-                payoutModal.preview.previewOnly ? (
-                  <div className="previewBox">
-                    <p>
-                      <strong>Adjustment (preview)</strong>
-                    </p>
-                    <p>Deducted: ₹{Number(payoutModal.preview.deducted || 0).toLocaleString("en-IN")}</p>
-                    <p>Cash to pay: ₹{Number(payoutModal.preview.cashToPay || 0).toLocaleString("en-IN")}</p>
-                    <p>New remaining: ₹{Number(payoutModal.preview.newGlobalRemaining || 0).toLocaleString("en-IN")}</p>
-                  </div>
-                ) : payoutModal.preview.error ? (
-                  <p className="errorText">Preview error</p>
-                ) : null
-              ) : (
-                <p className="smallHint">Loading adjustment preview...</p>
-              )}
+             {/* PREVIEW BOX */}
+{payoutModal.open && (
+  <div className="previewBox">
+    <p><strong>Payout Breakdown</strong></p>
+
+    <p>
+      Logical Amount: ₹
+      {payoutModal.logicalAmount.toLocaleString("en-IN")}
+    </p>
+
+    <p>
+      Adjustment Used: ₹
+      {Number(payoutModal.preview?.deducted || 0).toLocaleString("en-IN")}
+    </p>
+
+    <p>
+      Gross After Adjustment: ₹
+      {previewGross.toLocaleString("en-IN")}
+    </p>
+
+    <p>
+      TDS ({previewIsNri ? "20%" : "5%"}): ₹
+      {previewTds.toLocaleString("en-IN")}
+    </p>
+
+    <p>
+      <strong>
+        Net Payable: ₹{previewNet.toLocaleString("en-IN")}
+      </strong>
+    </p>
+  </div>
+)}
+ 
 
               <label>
                 Mode of Payment
@@ -773,6 +830,31 @@ const getTdsPreview = (amount) => {
                   onChange={(e) => payment.updateNewPayment("amountReceived", e.target.value)}
                 />
               </label>
+<label>
+  TDS Deducted by Cosmo?
+  <select
+    value={payment.newPayment.tdsDeducted ?? "no"}
+    onChange={(e) =>
+      payment.updateNewPayment("tdsDeducted", e.target.value)
+    }
+  >
+    <option value="no">No</option>
+    <option value="yes">Yes</option>
+  </select>
+</label>
+
+{payment.newPayment.tdsDeducted === "yes" && (
+  <label>
+    TDS %
+    <input
+      type="number"
+      value={payment.newPayment.tdsRate ?? 10}
+      onChange={(e) =>
+        payment.updateNewPayment("tdsRate", e.target.value)
+      }
+    />
+  </label>
+)}
 
               <label>
                 Mode of Payment

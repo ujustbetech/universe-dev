@@ -1008,3 +1008,247 @@ display: flex;
 .m-button:hover {
   color: #f16f06;
 }
+/* =========================================================
+   ADMIN DASHBOARD – COMPLETE THEME
+   Inspired by modern SaaS admin (CareUI style)
+   ========================================================= */
+
+/* ================= THEME VARIABLES ================= */
+
+:root {
+  --bg-main: #f5f7fb;
+
+  --card-bg: #ffffff;
+  --card-border: #eef0f6;
+
+  --primary: #3b82f6;   /* Blue */
+  --success: #22c55e;   /* Green */
+  --warning: #f59e0b;   /* Amber */
+  --danger: #ef4444;    /* Red */
+  --info: #6366f1;      /* Indigo */
+
+  --text-main: #111827;
+  --text-muted: #6b7280;
+
+  --shadow-soft: 0 6px 18px rgba(15, 23, 42, 0.06);
+  --shadow-hover: 0 10px 26px rgba(15, 23, 42, 0.12);
+
+  --radius-lg: 14px;
+  --radius-md: 10px;
+}
+
+/* ================= BASE ================= */
+
+body {
+  background-color: var(--bg-main);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  color: var(--text-main);
+}
+
+/* ================= HEADINGS ================= */
+
+h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+
+h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+/* ================= KPI + PIPELINE CARDS ================= */
+
+div[style*="minWidth: 160px"] {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  transition: all 0.25s ease;
+}
+
+div[style*="minWidth: 160px"]:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+}
+
+div[style*="minWidth: 160px"] p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+div[style*="minWidth: 160px"] h3 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+/* ================= FILTER DROPDOWNS ================= */
+
+select {
+  height: 38px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--card-border);
+  background-color: #ffffff;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+select:hover {
+  border-color: var(--primary);
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* ================= CHART CONTAINERS ================= */
+
+div[style*="height: 300"] {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Recharts polish */
+.recharts-tooltip-wrapper {
+  font-size: 13px;
+}
+
+.recharts-default-tooltip {
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.recharts-legend-wrapper {
+  font-size: 13px;
+}
+
+.recharts-sector {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+/* ================= TABLE ================= */
+
+
+/* ================= STATUS COLOR FEEL ================= */
+/* (Pure CSS approximation, class-based is better but optional) */
+
+td {
+  color: var(--text-main);
+}
+
+td:contains("Won") {
+  color: var(--success);
+  font-weight: 600;
+}
+
+td:contains("Lost") {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 1024px) {
+  div[style*="gridTemplateColumns"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  select {
+    width: 100%;
+  }
+}
+/* ================= CHART VISIBILITY FIX ================= */
+
+/* Make bar chart visible */
+.recharts-bar-rectangle path {
+  fill: #3b82f6 !important; /* Blue bars */
+}
+
+/* Thicker bars */
+.recharts-bar-rectangle {
+  rx: 6;
+}
+
+/* Improve axes visibility */
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: #9ca3af;
+}
+
+.recharts-cartesian-axis-tick-value {
+  fill: #374151;
+  font-size: 12px;
+}
+
+/* Add grid contrast */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #e5e7eb;
+  stroke-dasharray: 3 3;
+}
+
+/* Chart container spacing */
+.recharts-wrapper {
+  padding-top: 10px;
+}
+
+/* Tooltip stronger */
+.recharts-default-tooltip {
+  background-color: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  color: #111827 !important;
+}
+
+/* ================= PIE VISIBILITY ================= */
+
+.recharts-sector {
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+.alert-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.alert-row.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.alert-row.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.alert-row.low {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.alert-row .priority {
+  font-weight: bold;
+}

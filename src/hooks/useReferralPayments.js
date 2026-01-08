@@ -10,6 +10,31 @@ import {
 import { db } from "../../firebaseConfig";
 import { COLLECTIONS } from "../../utility_collection";
 
+/* ===================== CONSTANTS ===================== */
+
+const TDS_RESIDENT = 0.05; // 5%
+const TDS_NRI = 0.20;      // 20%
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/* ===================== HELPERS ===================== */
+
+const calculateTDS = (gross, payeeType = "resident") => {
+  const rate = payeeType === "nri" ? TDS_NRI : TDS_RESIDENT;
+  const g = Number(gross || 0);
+  const tds = Math.max(0, round2(g * rate));
+  const net = round2(g - tds);
+
+  return {
+    gross: g,
+    tds,
+    net,
+    ratePercent: rate * 100,
+  };
+};
+
+/* ===================== HOOK ===================== */
+
 export default function useReferralPayments({
   id,
   referralData,
@@ -20,36 +45,33 @@ export default function useReferralPayments({
   const [showAddPaymentForm, setShowAddPaymentForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /* ===================== SAFETY FIX ===================== */
+  /* ===================== SAFE PAYMENTS ===================== */
 
   const safePayments = useMemo(() => {
     if (Array.isArray(payments)) return payments;
-    if (payments && typeof payments === "object") return Object.values(payments);
+    if (payments && typeof payments === "object")
+      return Object.values(payments);
     return [];
   }, [payments]);
 
-  /* ===================== AMOUNTS ===================== */
+  /* ===================== AGREED & PAID ===================== */
 
-  const agreedAmount = Number(referralData?.agreedTotal || 0);
+ const agreedAmount = useMemo(() => {
+  if (!Array.isArray(dealLogs) || dealLogs.length === 0) return 0;
+  const lastDeal = dealLogs[dealLogs.length - 1];
+  return Number(lastDeal?.agreedAmount || 0);
+}, [dealLogs]);
 
-  const cosmoPaid = safePayments
-    .filter((p) => p?.paymentFrom === "CosmoOrbiter")
-    .reduce((sum, p) => sum + Number(p?.amountReceived || 0), 0);
+ const cosmoPaid = safePayments
+  .filter(p => p?.meta?.isCosmoToUjb)
+  .reduce(
+    (s, p) =>
+      s + Number(p?.grossAmount ?? p?.amountReceived ?? 0),
+    0
+  );
+
 
   const agreedRemaining = Math.max(agreedAmount - cosmoPaid, 0);
-
-  const r2 = (n) => Math.round(n * 100) / 100;
-
-  /* ===================== TDS ===================== */
-
-  const TDS_RATE = 0.05;
-
-  const deductTDS = (amount) => {
-    const gross = Number(amount || 0);
-    const tds = r2(gross * TDS_RATE);
-    const net = r2(gross - tds);
-    return { gross, tds, net };
-  };
 
   /* ===================== DISTRIBUTION ===================== */
 
@@ -59,116 +81,149 @@ export default function useReferralPayments({
     const deal = dealLogs[dealLogs.length - 1];
     if (!deal?.agreedAmount) return null;
 
-    const ratio = amount / Number(deal.agreedAmount || 1);
+    const ratio = Number(amount) / Number(deal.agreedAmount || 1);
 
     return {
-      orbiter: r2((deal.orbiterShare || 0) * ratio),
-      orbiterMentor: r2((deal.orbiterMentorShare || 0) * ratio),
-      cosmoMentor: r2((deal.cosmoMentorShare || 0) * ratio),
-      ujustbe: r2((deal.ujustbeShare || 0) * ratio),
+      orbiter: round2((deal.orbiterShare || 0) * ratio),
+      orbiterMentor: round2((deal.orbiterMentorShare || 0) * ratio),
+      cosmoMentor: round2((deal.cosmoMentorShare || 0) * ratio),
+      ujustbe: round2((deal.ujustbeShare || 0) * ratio),
     };
   };
 
-  /* ===================== NEW PAYMENT ===================== */
+  /* ===================== COSMO → UJB ===================== */
 
   const [newPayment, setNewPayment] = useState({
-    paymentFrom: "CosmoOrbiter",
-    paymentTo: "UJustBe",
     amountReceived: "",
     modeOfPayment: "",
     transactionRef: "",
     paymentDate: "",
-    comment: "",
+
+    // TDS control (admin)
+    tdsDeducted: false,
+    tdsRate: 10, // %
   });
 
   const updateNewPayment = (key, value) =>
-    setNewPayment((prev) => ({ ...prev, [key]: value }));
+    setNewPayment((p) => ({ ...p, [key]: value }));
 
   const openPaymentModal = () => setShowAddPaymentForm(true);
   const closePaymentModal = () => setShowAddPaymentForm(false);
-
-  /* ===================== SAVE COSMO → UJB PAYMENT ===================== */
 
   const handleSavePayment = async () => {
     if (!id || isSubmitting) return;
 
     const amount = Number(newPayment.amountReceived || 0);
-
-    if (amount <= 0) return alert("Enter a valid amount");
-    if (amount > agreedRemaining)
-      return alert("Amount exceeds remaining agreed amount");
-    if (!newPayment.paymentDate)
-      return alert("Select a payment date");
+    if (amount <= 0) return alert("Enter valid amount");
+    if (!newPayment.paymentDate) return alert("Select payment date");
 
     const dist = calculateDistribution(amount);
     if (!dist) return alert("Distribution not available");
+
+    const tdsRate = newPayment.tdsDeducted
+      ? Number(newPayment.tdsRate || 0)
+      : 0;
+
+    const tdsAmount = Math.max(
+      0,
+      round2((amount * tdsRate) / 100)
+    );
+    const netAmount = round2(amount - tdsAmount);
 
     setIsSubmitting(true);
 
     try {
       const entry = {
-        paymentId: `Ref-${id}-COSMO-${Date.now()}`,
+        paymentId: `COSMO-${Date.now()}`,
         paymentFrom: "CosmoOrbiter",
-        paymentFromName: referralData?.cosmoOrbiter?.name || "",
         paymentTo: "UJustBe",
-        paymentToName: "UJustBe",
-        amountReceived: amount,
-        actualReceived: amount,
+
+        grossAmount: amount,
+        tdsAmount,
+        tdsRate,
+        amountReceived: netAmount,
+
         distribution: dist,
-        modeOfPayment: newPayment.modeOfPayment || "",
-        transactionRef: newPayment.transactionRef || "",
-        comment: newPayment.comment || "",
         paymentDate: newPayment.paymentDate,
+        modeOfPayment: newPayment.modeOfPayment,
+        transactionRef: newPayment.transactionRef,
         createdAt: Timestamp.now(),
-        remainingAfter: agreedRemaining - amount,
+
+        meta: {
+          isCosmoToUjb: true,
+          tdsDeducted: newPayment.tdsDeducted,
+        },
       };
 
       await updateDoc(doc(db, COLLECTIONS.referral, id), {
         payments: arrayUnion(entry),
-        agreedRemaining: increment(-amount),
-        cosmoPaid: increment(amount),
-        ujbBalance: increment(amount),
+        ujbBalance: increment(netAmount),   // NET credited
+        tdsReceivable: increment(tdsAmount),
       });
 
-      setPayments((p) => p);
+      setPayments((prev = []) => [...prev, entry]);
       closePaymentModal();
     } catch (err) {
       console.error(err);
-      alert("Payment save failed");
+      alert("Cosmo payment failed");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  /* ===================== UJB PAYOUT (WITH 5% TDS) ===================== */
+  /* ===================== UJB → PEOPLE ===================== */
 
-  const payFromUJB = async ({ to, toName, grossAmount, type }) => {
-    if (!id || grossAmount <= 0) return;
+  const payFromUJB = async ({
+    slot,                  // Orbiter | OrbiterMentor | CosmoMentor
+    recipientName,
+    logicalAmount,         // GROSS
+    payeeType = "resident",// resident | nri
+    fromPaymentId,
+    modeOfPayment,
+    transactionRef,
+    paymentDate,
+  }) => {
+    if (!id) throw new Error("Invalid referral");
 
-    const { gross, tds, net } = deductTDS(grossAmount);
+    const { gross, tds, net, ratePercent } =
+      calculateTDS(logicalAmount, payeeType);
+
+    const balance = Number(referralData?.ujbBalance || 0);
+    if (net > balance) throw new Error("Insufficient UJB balance");
 
     const payoutEntry = {
-      paymentId: `Ref-${id}-UJB-${type}-${Date.now()}`,
+      paymentId: `UJB-${slot}-${Date.now()}`,
       paymentFrom: "UJustBe",
-      paymentFromName: "UJustBe",
-      paymentTo: to,
-      paymentToName: toName || "",
+      paymentTo: slot,
+      paymentToName: recipientName,
+
       grossAmount: gross,
       tdsAmount: tds,
-      tdsRate: 5,
+      tdsRate: ratePercent,
       amountReceived: net,
+
+      paymentDate,
+      modeOfPayment,
+      transactionRef,
       createdAt: Timestamp.now(),
+
       meta: {
-        isTDSApplied: true,
-        payoutType: type,
+        isUjbPayout: true,
+        slot,
+        logicalAmount: gross,
+        payeeType,
+        belongsToPaymentId: fromPaymentId,
       },
     };
 
     await updateDoc(doc(db, COLLECTIONS.referral, id), {
       payments: arrayUnion(payoutEntry),
-      ujbBalance: increment(-net),
+      ujbBalance: increment(-net), // NET only
       tdsPayable: increment(tds),
     });
+
+    setPayments((prev = []) => [...prev, payoutEntry]);
+    return payoutEntry;
   };
 
   /* ===================== EXPORT ===================== */
@@ -177,16 +232,17 @@ export default function useReferralPayments({
     agreedAmount,
     cosmoPaid,
     agreedRemaining,
-    payments: safePayments,
+
     showAddPaymentForm,
-    newPayment,
     isSubmitting,
+    newPayment,
+
     updateNewPayment,
     openPaymentModal,
     closePaymentModal,
     handleSavePayment,
 
-    // TDS payout
     payFromUJB,
+    payments: safePayments,
   };
 }
