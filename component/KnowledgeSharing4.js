@@ -64,10 +64,32 @@ const ensureCpBoardUser = async (db, orbiter) => {
       name: orbiter.name,
       phoneNumber: orbiter.phone,
       role: orbiter.category || "MentOrbiter",
+      totals: { R: 0, H: 0, W: 0 }, // ✅ REQUIRED
       createdAt: serverTimestamp(),
     });
   }
 };
+const updateCategoryTotals = async (orbiter, categories, points) => {
+  if (!orbiter?.ujbcode || !categories?.length) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const totals = snap.data().totals || { R: 0, H: 0, W: 0 };
+  const split = Math.floor(points / categories.length);
+
+  const updatedTotals = { ...totals };
+  categories.forEach((c) => {
+    updatedTotals[c] = (updatedTotals[c] || 0) + split;
+  });
+
+  await updateDoc(ref, {
+    totals: updatedTotals,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
 
 const addCpForKnowledgeSeriesMorning = async (
   db,
@@ -89,12 +111,16 @@ const addCpForKnowledgeSeriesMorning = async (
   const snap = await getDocs(q);
   if (!snap.empty) return;
 
+  const points = 75;
+  const categories = ["R"];
+
   await addDoc(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     {
       activityNo: "016",
       activityName: "Completion of OTC Journey till Day 5",
-      points: 75,
+      points,
+      categories, // ✅ FIXED
       purpose:
         "Encourages timely completion of orientation journey and early engagement.",
       prospectName,
@@ -107,7 +133,11 @@ const addCpForKnowledgeSeriesMorning = async (
       addedAt: serverTimestamp(),
     }
   );
+
+  // ⭐ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
 };
+
 
   // 🔹 Send Email
   const sendEmail = async (prospectName, prospectEmail, orbiterName, tab) => {

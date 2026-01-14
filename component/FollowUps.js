@@ -51,6 +51,26 @@ const Followup = ({ id, data = { followups: [], comments: [] ,event: [] }, fetch
 
 
 // ================= CP HELPERS =================
+const updateCategoryTotals = async (orbiter, categories, points) => {
+  if (!orbiter?.ujbcode || !categories?.length) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  const totals = data.totals || { R: 0, H: 0, W: 0 };
+
+  const split = Math.floor(points / categories.length);
+
+  const updatedTotals = { ...totals };
+  categories.forEach((c) => {
+    updatedTotals[c] = (updatedTotals[c] || 0) + split;
+  });
+
+  await updateDoc(ref, { totals: updatedTotals });
+};
+
 const addCpForMeetingDone = async (orbiter, prospect, mode) => {
   if (!orbiter?.ujbcode) return;
 
@@ -62,7 +82,9 @@ const addCpForMeetingDone = async (orbiter, prospect, mode) => {
       ? "Ensuring Attendance for Doorstep (Online)"
       : "Ensuring Attendance for Doorstep (Offline)";
 
-  // 🚫 Prevent duplicate CP for same prospect + activity
+  const points = 25;
+  const categories = ["R"]; // 🔁 adjust later if needed
+
   const q = query(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     where("activityNo", "==", activityNo),
@@ -77,7 +99,8 @@ const addCpForMeetingDone = async (orbiter, prospect, mode) => {
     {
       activityNo,
       activityName,
-      points: 25,
+      points,
+      categories,
       purpose:
         mode === "online"
           ? "Acknowledges consistent follow-up and engagement to ensure participation."
@@ -92,6 +115,9 @@ const addCpForMeetingDone = async (orbiter, prospect, mode) => {
       addedAt: serverTimestamp(),
     }
   );
+
+  // ✅ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
 };
 
 const ensureCpBoardUser = async (db, orbiter) => {
@@ -106,10 +132,12 @@ const ensureCpBoardUser = async (db, orbiter) => {
       name: orbiter.name,
       phoneNumber: orbiter.phone,
       role: orbiter.category || "MentOrbiter",
+      totals: { R: 0, H: 0, W: 0 }, // ✅ REQUIRED
       createdAt: serverTimestamp(),
     });
   }
 };
+
 
 const addCpForMeetingScheduled = async (
   db,
@@ -121,10 +149,13 @@ const addCpForMeetingScheduled = async (
 
   await ensureCpBoardUser(db, orbiter);
 
-  // 🚫 Prevent duplicate CP
+  const activityNo = "003";
+  const points = 25;
+  const categories = ["R"]; // 🔁 can be ["R","H"] later
+
   const q = query(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
-    where("activityNo", "==", "003"),
+    where("activityNo", "==", activityNo),
     where("prospectPhone", "==", prospectPhone)
   );
 
@@ -134,9 +165,10 @@ const addCpForMeetingScheduled = async (
   await addDoc(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     {
-      activityNo: "003",
+      activityNo,
       activityName: "Prospect Invitation to Doorstep",
-      points: 25,
+      points,
+      categories, // ✅ store categories
       purpose:
         "Rewards outreach effort and relationship-building intent by extending a formal invite.",
       prospectName,
@@ -149,7 +181,11 @@ const addCpForMeetingScheduled = async (
       addedAt: serverTimestamp(),
     }
   );
+
+  // ✅ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
 };
+
 
   const formatReadableDate = (inputDate) => {
     if (!inputDate) return '';

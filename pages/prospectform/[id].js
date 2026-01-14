@@ -111,31 +111,58 @@ const ensureCpBoardUser = async (orbiter) => {
       name: orbiter.name,
       phoneNumber: orbiter.phone,
       role: orbiter.category || "CosmOrbiter",
+      totals: { R: 0, H: 0, W: 0 }, // ✅ REQUIRED
       createdAt: serverTimestamp(),
     });
   }
 };
+const updateCategoryTotals = async (orbiter, categories, points) => {
+  if (!orbiter?.ujbcode || !categories?.length) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  const totals = data.totals || { R: 0, H: 0, W: 0 };
+
+  const splitPoints = Math.floor(points / categories.length);
+
+  const updatedTotals = { ...totals };
+  categories.forEach((cat) => {
+    updatedTotals[cat] = (updatedTotals[cat] || 0) + splitPoints;
+  });
+
+  await updateDoc(ref, { totals: updatedTotals });
+};
+
 const addCpForProspectAssessment = async (orbiter, prospectPhone) => {
   if (!orbiter?.ujbcode) return;
 
   await ensureCpBoardUser(orbiter);
 
-  // 🔐 Prevent duplicate CP for same prospect
+  const activityNo = "002";
+  const points = 100;
+  const categories = ["R"]; // 🔁 future-proof: ["R","H"]
+
+  // 🔐 Prevent duplicate CP
   const q = query(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
-    where("activityNo", "==", "002"),
+    where("activityNo", "==", activityNo),
     where("prospectPhone", "==", prospectPhone)
   );
 
   const snap = await getDocs(q);
   if (!snap.empty) return;
 
+  // 1️⃣ ADD ACTIVITY
   await addDoc(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     {
-      activityNo: "002",
+      activityNo,
       activityName: "Prospect Assessment (Tool)",
-      points: 100,
+      points,
+      categories, // ✅ IMPORTANT
       purpose:
         "High points for structured evaluation through the tool, ensuring quality prospects enter the ecosystem.",
       prospectName: formData.fullName,
@@ -148,7 +175,11 @@ const addCpForProspectAssessment = async (orbiter, prospectPhone) => {
       addedAt: serverTimestamp(),
     }
   );
+
+  // 2️⃣ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
 };
+
 
   // Fetch Prospect Auto-Population
   useEffect(() => {

@@ -351,11 +351,11 @@ const CreateEventPage = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const userRef = collection(db, 'userdetails'); // Firestore collection name
+        const userRef = collection(db, 'usersdetail'); // Firestore collection name
         const snapshot = await getDocs(userRef);
         const users = snapshot.docs.map(doc => ({
           id: doc.id, // Phone number (if needed)
-          name: doc.data()[" Name"], // Ensure 'Name' is correctly capitalized (case-sensitive)
+          name: doc.data()["Name"], // Ensure 'Name' is correctly capitalized (case-sensitive)
         }));
         setUserList(users);
       } catch (error) {
@@ -423,11 +423,11 @@ const CreateEventPage = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const userRef = collection(db, 'userdetails'); // Firestore collection name
+        const userRef = collection(db,COLLECTIONS.userDetail); // Firestore collection name
         const snapshot = await getDocs(userRef);
         const users = snapshot.docs.map(doc => ({
           id: doc.id, // Phone number (if needed)
-          name: doc.data()[" Name"], // Ensure 'Name' is correctly capitalized (case-sensitive)
+          name: doc.data()["Name"], // Ensure 'Name' is correctly capitalized (case-sensitive)
         }));
         setUserList(users);
       } catch (error) {

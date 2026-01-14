@@ -21,6 +21,7 @@
     "@mui/utils": "^7.3.2",
     "axios": "^1.13.2",
     "chart.js": "^4.4.9",
+    "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "emailjs": "^4.0.3",
     "firebase": "^10.14.1",

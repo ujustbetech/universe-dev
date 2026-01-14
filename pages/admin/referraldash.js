@@ -1,244 +1,368 @@
-"use client";
-
 import React, { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
-import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
-import RightDrawer from "../../component/RightDrawer";
-import "../../src/app/styles/page/ReferralLiveDashboard.css";
-
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+import '../../src/app/styles/page/_referral.scss';
+import "../../src/app/styles/main.scss";
+import Layout from "../../component/Layout";
 /* ================= HELPERS ================= */
 
-const tsToDate = (ts) => (ts?.seconds ? new Date(ts.seconds * 1000) : null);
+const toDate = (ts) =>
+  ts?.seconds ? new Date(ts.seconds * 1000) : null;
 
-const pipelineStage = (d) => {
-  const s = (d?.cosmoOrbiter?.dealStatus || "").toLowerCase();
-  if (!s) return "New";
-  if (s.includes("lost")) return "Lost";
-  if (s.includes("full") || s.includes("received")) return "Paid";
-  if (s.includes("part") || s.includes("progress")) return "In Progress";
-  return "New";
+const isSameDay = (d1, d2) =>
+  d1 && d2 && d1.toDateString() === d2.toDateString();
+
+const getPipelineStatus = (dealStatus = "") => {
+  if (!dealStatus) return "New";
+  if (dealStatus.includes("Lost")) return "Closed - Lost";
+  if (dealStatus.includes("Received")) return "Closed - Won";
+  if (dealStatus.includes("Transferred")) return "Awaiting Closure";
+  return "In Progress";
 };
 
-/* ================= CHART ================= */
+const getUJBPaid = (payments = []) =>
+  payments
+    .filter((p) => p.ujbShareType === "UJustBe")
+    .reduce((s, p) => s + Number(p.amountReceived || 0), 0);
 
-const AreaChartComp = dynamic(
-  () =>
-    Promise.resolve(({ data }) => {
-      const {
-        ResponsiveContainer,
-        AreaChart,
-        Area,
-        XAxis,
-        YAxis,
-        Tooltip,
-      } = require("recharts");
+/* ===== TIME BUCKET HELPER ===== */
 
-      return (
-        <ResponsiveContainer height={260}>
-          <AreaChart data={data}>
-            <XAxis dataKey="label" />
-            <YAxis />
-            <Tooltip />
-            <Area dataKey="referrals" stroke="#60a5fa" fill="#1e3a8a" />
-            <Area dataKey="revenue" stroke="#22c55e" fill="#14532d" />
-          </AreaChart>
-        </ResponsiveContainer>
-      );
-    }),
-  { ssr: false }
-);
+const getTrendKey = (date, view) => {
+  const d = new Date(date);
+
+  if (view === "daily") return d.toISOString().split("T")[0];
+
+  if (view === "weekly") {
+    const firstDayOfYear = new Date(d.getFullYear(), 0, 1);
+    const week = Math.ceil(
+      (((d - firstDayOfYear) / 86400000) +
+        firstDayOfYear.getDay() +
+        1) /
+        7
+    );
+    return `${d.getFullYear()}-W${week}`;
+  }
+
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const PIE_COLORS = [
+  "#2563eb", // New
+  "#ca8a04", // In Progress
+  "#6366f1", // Awaiting
+  "#16a34a", // Won
+  "#dc2626", // Lost
+];
 
 /* ================= MAIN ================= */
 
-export default function ReferralAdminDashboard() {
-  const [docs, setDocs] = useState([]);
-  const [range, setRange] = useState("monthly");
-  const [stageFilter, setStageFilter] = useState("All");
+export default function AdminReferralDashboard() {
+  const [referrals, setReferrals] = useState([]);
+  const [expandedId, setExpandedId] = useState(null);
+  const [trendView, setTrendView] = useState("monthly");
+  const [filters, setFilters] = useState({
+    orbiter: "All",
+    cosmo: "All",
+    source: "All",
+  });
 
-  const [drawer, setDrawer] = useState(null); // referral | orbiter
-  const [drawerData, setDrawerData] = useState(null);
+  const today = new Date();
 
-  /* ===== FETCH ===== */
+  /* ================= FIRESTORE ================= */
+
   useEffect(() => {
-    const q = query(collection(db, "Referraldev"), orderBy("timestamp", "desc"));
-    return onSnapshot(q, (snap) =>
-      setDocs(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
+    const unsub = onSnapshot(collection(db, "Referraldev"), (snap) => {
+      const data = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setReferrals(data);
+    });
+    return () => unsub();
   }, []);
 
-  /* ===== FILTER ===== */
+  /* ================= FILTER ================= */
+
   const filtered = useMemo(() => {
-    let out = [...docs];
+    return referrals.filter((r) => {
+      if (filters.orbiter !== "All" && r.orbiter?.name !== filters.orbiter)
+        return false;
+      if (filters.cosmo !== "All" && r.cosmoOrbiter?.name !== filters.cosmo)
+        return false;
+      if (filters.source !== "All" && r.referralSource !== filters.source)
+        return false;
+      return true;
+    });
+  }, [referrals, filters]);
 
-    if (stageFilter !== "All") {
-      out = out.filter((d) => pipelineStage(d) === stageFilter);
-    }
+  /* ================= STATS ================= */
 
-    return out;
-  }, [docs, stageFilter]);
+  const stats = useMemo(() => {
+    let todayCount = 0;
+    let pipeline = {
+      New: 0,
+      "In Progress": 0,
+      "Awaiting Closure": 0,
+      "Closed - Won": 0,
+      "Closed - Lost": 0,
+    };
+    let paid = 0;
+    let closed = 0;
 
-  /* ===== KPIs ===== */
-  const kpis = useMemo(() => {
-    let revenue = 0;
-    const counts = { New: 0, "In Progress": 0, Paid: 0, Lost: 0 };
+    filtered.forEach((r) => {
+      const created = toDate(r.timestamp);
+      if (isSameDay(created, today)) todayCount++;
 
-    filtered.forEach((d) => {
-      counts[pipelineStage(d)]++;
-      (d.payments || []).forEach((p) => {
-        if (p.paymentTo === "UJustBe")
-          revenue += Number(p.amountReceived || 0);
-      });
+      const status = getPipelineStatus(r.cosmoOrbiter?.dealStatus);
+      pipeline[status]++;
+      paid += getUJBPaid(r.payments);
+
+      if (status.startsWith("Closed")) closed++;
     });
 
-    return { total: filtered.length, revenue, ...counts };
+    return {
+      todayCount,
+      pipeline,
+      paid,
+      conversion: filtered.length
+        ? ((closed / filtered.length) * 100).toFixed(1)
+        : 0,
+    };
   }, [filtered]);
 
-  /* ===== CHART DATA ===== */
-  const chartData = useMemo(() => {
+  /* ================= TREND DATA ================= */
+
+  const trendData = useMemo(() => {
     const map = {};
-    filtered.forEach((d) => {
-      const dt = tsToDate(d.timestamp);
-      if (!dt) return;
-
-      const label =
-        range === "daily"
-          ? `${dt.getHours()}:00`
-          : range === "weekly"
-          ? dt.toLocaleDateString("en", { weekday: "short" })
-          : dt.getDate();
-
-      if (!map[label]) map[label] = { label, referrals: 0, revenue: 0 };
-      map[label].referrals++;
-
-      (d.payments || []).forEach((p) => {
-        if (p.paymentTo === "UJustBe")
-          map[label].revenue += Number(p.amountReceived || 0);
-      });
+    referrals.forEach((r) => {
+      const d = toDate(r.timestamp);
+      if (!d) return;
+      const key = getTrendKey(d, trendView);
+      map[key] = (map[key] || 0) + 1;
     });
-    return Object.values(map);
-  }, [filtered, range]);
 
-  /* ===== ORBITERS ===== */
-  const orbiters = useMemo(() => {
-    const map = {};
-    filtered.forEach((d) => {
-      const o = d?.orbiter?.name;
-      if (!o) return;
-      if (!map[o]) map[o] = { total: 0, paid: 0, revenue: 0 };
-      map[o].total++;
-      if (pipelineStage(d) === "Paid") map[o].paid++;
-      (d.payments || []).forEach((p) => {
-        if (p.paymentTo === "UJustBe")
-          map[o].revenue += Number(p.amountReceived || 0);
-      });
-    });
-    return Object.entries(map).map(([name, v]) => ({
-      name,
-      ...v,
-      conversion: v.total ? Math.round((v.paid / v.total) * 100) : 0,
-    }));
-  }, [filtered]);
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([period, count]) => ({
+        period,
+        referrals: count,
+      }));
+  }, [referrals, trendView]);
+
+  /* ================= PIE DATA ================= */
+
+  const pieData = Object.entries(stats.pipeline).map(([k, v]) => ({
+    name: k,
+    value: v,
+  }));
+
+  /* ================= DROPDOWNS ================= */
+
+  const orbiters = [
+    "All",
+    ...new Set(referrals.map((r) => r.orbiter?.name).filter(Boolean)),
+  ];
+  const cosmos = [
+    "All",
+    ...new Set(referrals.map((r) => r.cosmoOrbiter?.name).filter(Boolean)),
+  ];
+  const sources = [
+    "All",
+    ...new Set(referrals.map((r) => r.referralSource).filter(Boolean)),
+  ];
 
   /* ================= UI ================= */
 
   return (
-    <div className="dash">
-      {/* HEADER */}
-      <div className="dash-header">
-        <h1>Referral Admin Dashboard</h1>
-        <div className="range">
-          {["daily", "weekly", "monthly"].map((r) => (
-            <button
-              key={r}
-              className={range === r ? "active" : ""}
-              onClick={() => setRange(r)}
-            >
-              {r.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
+    <Layout>
+    <div style={{ padding: 24 }}>
+      <h2>Referral & Contribution Tracking</h2>
 
-      {/* KPI STRIP */}
-      <div className="kpi-row">
-        <div className="kpi">Total <h2>{kpis.total}</h2></div>
-        <div className="kpi">New <h2>{kpis.New}</h2></div>
-        <div className="kpi">In Progress <h2>{kpis["In Progress"]}</h2></div>
-        <div className="kpi">Paid <h2>{kpis.Paid}</h2></div>
-        <div className="kpi">Lost <h2>{kpis.Lost}</h2></div>
-        <div className="kpi">Revenue <h2>₹{kpis.revenue}</h2></div>
+      {/* STATS */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
+        <Card label="Referrals Today" value={stats.todayCount} />
+        <Card label="Total Referrals" value={filtered.length} />
+        <Card label="Conversion %" value={stats.conversion} />
+        <Card label="UJustBe Paid ₹" value={stats.paid} />
       </div>
 
       {/* PIPELINE CARDS */}
-      <div className="pipeline-row">
-        {["All", "New", "In Progress", "Paid", "Lost"].map((p) => (
-          <div
-            key={p}
-            className={`pipeline-card ${
-              stageFilter === p ? "active" : ""
-            }`}
-            onClick={() => setStageFilter(p)}
-          >
-            {p}
-          </div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
+        {Object.entries(stats.pipeline).map(([k, v]) => (
+          <Card key={k} label={k} value={v} />
         ))}
       </div>
 
-      {/* CHART */}
-      <div className="panel">
-        <h3>Referral Inflow</h3>
-        <AreaChartComp data={chartData} />
+      {/* FILTERS */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        <select onChange={(e) => setFilters((f) => ({ ...f, orbiter: e.target.value }))}>
+          {orbiters.map((o) => <option key={o}>{o}</option>)}
+        </select>
+
+        <select onChange={(e) => setFilters((f) => ({ ...f, cosmo: e.target.value }))}>
+          {cosmos.map((c) => <option key={c}>{c}</option>)}
+        </select>
+
+        <select onChange={(e) => setFilters((f) => ({ ...f, source: e.target.value }))}>
+          {sources.map((s) => <option key={s}>{s}</option>)}
+        </select>
+
+        <select value={trendView} onChange={(e) => setTrendView(e.target.value)}>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
       </div>
 
-      {/* ORBITERS */}
-      <div className="panel">
-        <h3>Orbiter Performance</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Orbiter</th>
-              <th>Total</th>
-              <th>Paid</th>
-              <th>Conversion</th>
-              <th>Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orbiters.map((o) => (
-              <tr
-                key={o.name}
-                onClick={() => {
-                  setDrawer("orbiter");
-                  setDrawerData(o);
-                }}
-              >
-                <td>{o.name}</td>
-                <td>{o.total}</td>
-                <td>{o.paid}</td>
-                <td>{o.conversion}%</td>
-                <td>₹{o.revenue}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* DRAWER */}
-      <RightDrawer
-        open={!!drawer}
-        title={drawer === "orbiter" ? drawerData?.name : "Details"}
-        onClose={() => setDrawer(null)}
+      {/* ================= CHART ROW ================= */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 2fr",
+          gap: 20,
+          marginBottom: 30,
+        }}
       >
-        {drawer === "orbiter" && drawerData && (
-          <>
-            <p>Total: {drawerData.total}</p>
-            <p>Paid: {drawerData.paid}</p>
-            <p>Revenue: ₹{drawerData.revenue}</p>
-            <p>Conversion: {drawerData.conversion}%</p>
-          </>
-        )}
-      </RightDrawer>
+        {/* PIE */}
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 12,
+            padding: 16,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+            height: 300,
+          }}
+        >
+          <h4>Pipeline Distribution</h4>
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                data={pieData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={60}
+                outerRadius={100}
+                paddingAngle={3}
+              >
+                {pieData.map((_, i) => (
+                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+              <Legend verticalAlign="bottom" height={36} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* BAR */}
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 12,
+            padding: 16,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+            height: 300,
+          }}
+        >
+          <h4>Referral Trend</h4>
+          <ResponsiveContainer>
+            <BarChart
+              data={trendData}
+              barCategoryGap={8}
+              margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
+            >
+              <XAxis
+                dataKey="period"
+                angle={-35}
+                textAnchor="end"
+                height={50}
+                interval="preserveStartEnd"
+              />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="referrals" barSize={14} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* TABLE */}
+      <table width="100%" border="1" cellPadding="8">
+        <thead>
+          <tr>
+            <th>Referral ID</th>
+            <th>Orbiter</th>
+            <th>CosmoOrbiter</th>
+            <th>Status</th>
+            <th>UJB Paid</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((r) => {
+            const status = getPipelineStatus(r.cosmoOrbiter?.dealStatus);
+            return (
+              <React.Fragment key={r.id}>
+                <tr>
+                  <td>{r.referralId}</td>
+                  <td>{r.orbiter?.name}</td>
+                  <td>{r.cosmoOrbiter?.name}</td>
+                  <td>{status}</td>
+                  <td>₹{getUJBPaid(r.payments)}</td>
+                  <td>
+                    <button onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                      View
+                    </button>
+                  </td>
+                </tr>
+
+                {expandedId === r.id && (
+                  <tr>
+                    <td colSpan="6">
+                      <strong>Product:</strong> {r.product?.name}
+                      <br />
+                      <strong>Description:</strong> {r.product?.description}
+                      <br />
+                      <strong>Referral Type:</strong> {r.referralType}
+                      <br />
+                      <strong>Referral Source:</strong> {r.referralSource || "-"}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
+    </Layout>
   );
 }
+
+/* ================= CARD ================= */
+
+const Card = ({ label, value }) => (
+  <div
+    style={{
+      background: "#fff",
+      padding: 16,
+      minWidth: 160,
+      borderRadius: 8,
+      boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+    }}
+  >
+    <p style={{ margin: 0 }}>{label}</p>
+    <h3>{value}</h3>
+  </div>
+);

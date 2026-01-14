@@ -71,13 +71,13 @@ const RegisteredUsers = () => {
   
         try {
           const nameAndUJBPromises = userDetails.map(async (user) => {
-            const userDocRef = doc(db, `userdetails/${user.id}`);
+            const userDocRef = doc(db, `usersdetail/${user.id}`);
             const userDocSnap = await getDoc(userDocRef);
   
             return {
               id: user.id,
-              name: userDocSnap.exists() ? userDocSnap.data()[" Name"] : 'Unknown',
-              ujbcode: userDocSnap.exists() ? userDocSnap.data()["UJB Code"] : 'Unknown',
+              name: userDocSnap.exists() ? userDocSnap.data()["Name"] : 'Unknown',
+              ujbcode: userDocSnap.exists() ? userDocSnap.data()["UJBCode"] : 'Unknown',
               category: userDocSnap.exists() ? userDocSnap.data()["Category"] : 'Unknown',
               ...user,
             };
@@ -251,12 +251,12 @@ const RegisteredUsers = () => {
       }
   
       for (const docSnap of querySnapshot.docs) {
-        const phoneNumber = docSnap.id;
+        const ujbCode = docSnap.id;
   
         // Get user name from userdetails/{phoneNumber}
-        const userDocRef = doc(db, "userdetails", phoneNumber);
+        const userDocRef = doc(db, "usersdetail", ujbCode);
         const userDocSnap = await getDoc(userDocRef);
-        const userName = userDocSnap.exists() ? userDocSnap.data()[" Name"] || "there" : "there";
+        const userName = userDocSnap.exists() ? userDocSnap.data()["Name"] || "there" : "there";
   
         // Send WhatsApp Message
         const response = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {

@@ -9,7 +9,7 @@ import {
   getDoc,
   query,
   orderBy,
-  limit,
+  limit,where
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
@@ -146,150 +146,203 @@ const Profiling = () => {
     });
   };
 
+// ================== FETCH USER BY UJBCODE ==================
+const fetchMentorByUjbCode = async (ujbCode) => {
+  if (!ujbCode) return null;
+
+  const snap = await getDoc(
+    doc(db, COLLECTIONS.userDetail, ujbCode)
+  );
+
+  return snap.exists() ? snap.data() : null;
+};
+
   // ================== SUBMIT REFERRAL ==================
-  const handleSubmit = async () => {
-    if (!selectedOrbiter || !selectedCosmo || (!selectedService && !selectedProduct)) {
-      alert("Please select Orbiter, Cosmo, and Service OR Product.");
-      return;
-    }
+const handleSubmit = async () => {
+  if (
+    !selectedOrbiter ||
+    !selectedCosmo ||
+    (!selectedService && !selectedProduct)
+  ) {
+    alert("Please select Orbiter, Cosmo, and Service OR Product.");
+    return;
+  }
 
+  try {
+    const referralId = await generateReferralId();
+
+    // ================== KEEP SERVICE / PRODUCT ==================
+    const serviceData = selectedService
+      ? JSON.parse(JSON.stringify(selectedService))
+      : null;
+
+    const productData = selectedProduct
+      ? JSON.parse(JSON.stringify(selectedProduct))
+      : null;
+
+    // ================== FETCH FRESH USER DATA (SOURCE OF TRUTH) ==================
+    const orbiterSnap = await getDoc(
+      doc(db, COLLECTIONS.userDetail, selectedOrbiter.id)
+    );
+
+    const cosmoSnap = await getDoc(
+      doc(db, COLLECTIONS.userDetail, selectedCosmo.id)
+    );
+
+    const orbiterData = orbiterSnap.exists() ? orbiterSnap.data() : {};
+    const cosmoData = cosmoSnap.exists() ? cosmoSnap.data() : {};
+
+    // ================== ORBITER FEE ADJUSTMENT ==================
+    let orbiterFeeAdjustment = 0;
     try {
-      const referralId = await generateReferralId();
-
-      // ✅ keep entire service/product object, including agreedValue
-      const serviceData = selectedService
-        ? JSON.parse(JSON.stringify(selectedService))
-        : null;
-
-      const productData = selectedProduct
-        ? JSON.parse(JSON.stringify(selectedProduct))
-        : null;
-
-      // ================== ORBITER FEE ADJUSTMENT LOGIC ==================
-      // If orbiter feeType = "adjustment" (not paid upfront),
-      // we store a pending adjustment (e.g. 1000) on the referral.
-      let orbiterFeeAdjustment = 0;
-      try {
-        // We already have full user object, but we ensure fresh value:
-        const orbRef = doc(db, COLLECTIONS.userDetail, selectedOrbiter.id);
-        const orbSnap = await getDoc(orbRef);
-        if (orbSnap.exists()) {
-          const payment = orbSnap.data().payment?.orbiter;
-          if (payment?.feeType === "adjustment") {
-            orbiterFeeAdjustment = 1000; // your fixed fee to adjust later
-          }
-        }
-      } catch (err) {
-        console.warn("Failed to check orbiter fee adjustment", err);
+      const payment = orbiterData?.payment?.orbiter;
+      if (payment?.feeType === "adjustment") {
+        orbiterFeeAdjustment = 1000;
       }
-
-      // ================== FINAL REFERRAL DATA ==================
-      const data = {
-        referralId,
-
-        orbiter: {
-          name: selectedOrbiter.Name || "",
-          email: selectedOrbiter.Email || "",
-          phone: selectedOrbiter.MobileNo || "",
-          ujbCode: selectedOrbiter.UJBCode || "",
-          mentorName: selectedOrbiter.MentorName || "",
-          mentorPhone: selectedOrbiter.MentorPhone || "",
-        },
-
-        cosmoOrbiter: {
-          name: selectedCosmo.Name || "",
-          email: selectedCosmo.Email || "",
-          phone: selectedCosmo.MobileNo || "",
-          mentorName: selectedCosmo.MentorName || "",
-          mentorPhone: selectedCosmo.MentorPhone || "",
-        },
-
-        service: serviceData,
-        product: productData,
-
-        leadDescription,
-
-        referralType: refType,
-        referralSource:
-          referralSource === "Other" ? otherReferralSource : referralSource,
-
-        orbitersInfo:
-          refType === "Others"
-            ? {
-                name: otherName,
-                phone: otherPhone,
-                email: otherEmail,
-              }
-            : null,
-
-        dealStatus,
-        lastUpdated,
-        timestamp: new Date(),
-
-        // 🔥 NEW payment-related fields (initialized for ReferralDetails & Payment screens)
-        payments: [],
-        dealLogs: [],
-        statusLogs: [
-          {
-            status: dealStatus || "Pending",
-            updatedAt: new Date().toISOString(),
-          },
-        ],
-        agreedTotal: 0,
-        agreedRemaining: 0,
-        ujbBalance: 0,
-        paidToOrbiter: 0,
-        paidToOrbiterMentor: 0,
-        paidToCosmoMentor: 0,
-
-        // 🔥 store pending orbiter fee to adjust from referral earnings
-        orbiterFeeAdjustment,
-      };
-
-      await addDoc(collection(db, COLLECTIONS.referral), data);
-
-      const serviceOrProductName =
-        selectedService?.name || selectedProduct?.name || "";
-
-      // WhatsApp notifications (same as earlier, but with updated name)
-      await Promise.all([
-        sendWhatsAppTemplate(
-          selectedOrbiter.MobileNo,
-          selectedOrbiter.Name,
-          `🚀 You’ve passed a referral for *${serviceOrProductName}* to *${selectedCosmo.Name}*. Will be actioned within 24 hours!`
-        ),
-        sendWhatsAppTemplate(
-          selectedCosmo.MobileNo,
-          selectedCosmo.Name,
-          `✨ You’ve received a referral from *${selectedOrbiter.Name}* for *${serviceOrProductName}*. Please act within 24 hours.`
-        ),
-      ]);
-
-      alert("Referral submitted successfully!");
-
-      // Reset form
-      setSelectedOrbiter(null);
-      setSelectedCosmo(null);
-      setOrbiterSearch("");
-      setCosmoSearch("");
-      setServices([]);
-      setProducts([]);
-      setSelectedService(null);
-      setSelectedProduct(null);
-      setLeadDescription("");
-      setRefType("Self");
-      setOtherName("");
-      setOtherPhone("");
-      setOtherEmail("");
-      setReferralSource("MonthlyMeeting");
-      setOtherReferralSource("");
-      setDealStatus("Pending");
-      setLastUpdated(new Date());
-    } catch (error) {
-      console.error("Error submitting referral:", error);
-      alert("Failed to submit referral.");
+    } catch (err) {
+      console.warn("Failed to check orbiter fee adjustment", err);
     }
-  };
+
+    // ================== FETCH MENTOR RESIDENT STATUS ==================
+   // ================== FETCH MENTOR RESIDENT STATUS (BY UJBCODE) ==================
+let orbiterMentor = null;
+let cosmoMentor = null;
+
+try {
+  if (orbiterData?.MentorUJBCode) {
+    orbiterMentor = await fetchMentorByUjbCode(
+      orbiterData.MentorUJBCode
+    );
+  }
+
+  if (cosmoData?.MentorUJBCode) {
+    cosmoMentor = await fetchMentorByUjbCode(
+      cosmoData.MentorUJBCode
+    );
+  }
+} catch (err) {
+  console.warn("Mentor fetch failed", err);
+}
+
+    // ================== FINAL REFERRAL DATA ==================
+    const data = {
+      referralId,
+
+     orbiter: {
+  name: orbiterData.Name || "",
+  email: orbiterData.Email || "",
+  phone: orbiterData.MobileNo || "",
+  ujbCode: orbiterData.UJBCode || "",
+
+  mentorName: orbiterData.MentorName || "",
+  mentorPhone: orbiterData.MentorPhone || "",
+
+  // ✅ If null / undefined → "Resident"
+  residentStatus: orbiterData.residentStatus ?? "Resident",
+  mentorResidentStatus: orbiterMentor?.residentStatus ?? "Resident",
+},
+
+cosmoOrbiter: {
+  name: cosmoData.Name || "",
+  email: cosmoData.Email || "",
+  phone: cosmoData.MobileNo || "",
+
+  mentorName: cosmoData.MentorName || "",
+  mentorPhone: cosmoData.MentorPhone || "",
+
+  // ✅ If null / undefined → "Resident"
+  residentStatus: cosmoData.residentStatus ?? "Resident",
+  mentorResidentStatus: cosmoMentor?.residentStatus ?? "Resident",
+},
+
+
+      service: serviceData,
+      product: productData,
+
+      leadDescription,
+
+      referralType: refType,
+      referralSource:
+        referralSource === "Other" ? otherReferralSource : referralSource,
+
+      orbitersInfo:
+        refType === "Others"
+          ? {
+              name: otherName,
+              phone: otherPhone,
+              email: otherEmail,
+            }
+          : null,
+
+      dealStatus,
+      lastUpdated,
+      timestamp: new Date(),
+
+      payments: [],
+      dealLogs: [],
+      statusLogs: [
+        {
+          status: dealStatus || "Pending",
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+
+      agreedTotal: 0,
+      agreedRemaining: 0,
+      ujbBalance: 0,
+      paidToOrbiter: 0,
+      paidToOrbiterMentor: 0,
+      paidToCosmoMentor: 0,
+
+      orbiterFeeAdjustment,
+    };
+
+    // ================== SAVE REFERRAL ==================
+    await addDoc(collection(db, COLLECTIONS.referral), data);
+
+    const serviceOrProductName =
+      selectedService?.name || selectedProduct?.name || "";
+
+    // ================== WHATSAPP NOTIFICATIONS ==================
+    await Promise.all([
+      sendWhatsAppTemplate(
+        orbiterData.MobileNo,
+        orbiterData.Name,
+        `🚀 You’ve passed a referral for *${serviceOrProductName}* to *${cosmoData.Name}*. Will be actioned within 24 hours!`
+      ),
+      sendWhatsAppTemplate(
+        cosmoData.MobileNo,
+        cosmoData.Name,
+        `✨ You’ve received a referral from *${orbiterData.Name}* for *${serviceOrProductName}*. Please act within 24 hours.`
+      ),
+    ]);
+
+    alert("Referral submitted successfully!");
+
+    // ================== RESET ==================
+    setSelectedOrbiter(null);
+    setSelectedCosmo(null);
+    setOrbiterSearch("");
+    setCosmoSearch("");
+    setServices([]);
+    setProducts([]);
+    setSelectedService(null);
+    setSelectedProduct(null);
+    setLeadDescription("");
+    setRefType("Self");
+    setOtherName("");
+    setOtherPhone("");
+    setOtherEmail("");
+    setReferralSource("MonthlyMeeting");
+    setOtherReferralSource("");
+    setDealStatus("Pending");
+    setLastUpdated(new Date());
+  } catch (error) {
+    console.error("Error submitting referral:", error);
+    alert("Failed to submit referral.");
+  }
+};
+
 
   // ================== RENDER ==================
   return (

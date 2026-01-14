@@ -135,38 +135,50 @@ const getRecipientInfo = (slot) => {
         ujb:
           referralData?.orbiterUJBCode ||
           orbiter?.ujbCode ||
-          orbiter?.UJBCode ||
           null,
         name: orbiter?.name || "Orbiter",
-        payeeType: normalize(orbiter?.residentStatus),
+        payeeType: normalize(
+          referralData?.orbiter?.residentStatus ??
+          orbiter?.residentStatus
+        ),
       };
 
     case "OrbiterMentor":
       return {
         ujb:
           referralData?.orbiterMentorUJBCode ||
-          orbiter?.mentorUjbCode ||
           orbiter?.mentorUJBCode ||
           null,
         name: orbiter?.mentorName || "Orbiter Mentor",
-        payeeType: normalize(orbiter?.mentorResidentStatus),
+        payeeType: normalize(
+          referralData?.orbiter?.mentorResidentStatus ??
+          orbiter?.mentorResidentStatus
+        ),
       };
 
-    case "CosmoMentor":
-      return {
-        ujb:
-          referralData?.cosmoMentorUJBCode ||
-          cosmoOrbiter?.mentorUjbCode ||
-          cosmoOrbiter?.mentorUJBCode ||
-          null,
-        name: cosmoOrbiter?.mentorName || "Cosmo Mentor",
-        payeeType: normalize(cosmoOrbiter?.mentorResidentStatus),
-      };
+ 
+case "CosmoMentor":
+  return {
+    ujb:
+      referralData?.cosmoMentorUJBCode ||
+      cosmoOrbiter?.mentorUJBCode ||
+      null,
+
+    name: cosmoOrbiter?.mentorName || "Cosmo Mentor",
+
+    payeeType:
+      cosmoOrbiter?.mentorResidentStatus === "Non-Resident"
+        ? "nri"
+        : "resident",
+  };
+
+
 
     default:
       return { ujb: null, name: "", payeeType: "resident" };
   }
 };
+
 
 
 // ================= TDS DERIVED VALUES FOR MODAL =================

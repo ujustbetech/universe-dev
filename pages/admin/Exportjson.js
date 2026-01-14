@@ -6,7 +6,7 @@ export default function ExportReferralJSON() {
 
   const exportAsJSON = async () => {
     try {
-      const colRef = collection(db, "Prospects");
+      const colRef = collection(db, "MonthlyMeeting");
       const snapshot = await getDocs(colRef);
 
       let result = [];
@@ -24,7 +24,7 @@ export default function ExportReferralJSON() {
       // Create a temporary download link
       const link = document.createElement("a");
       link.href = url;
-      link.download = "referrals.json";
+      link.download = "mm.json";
       link.click();
 
       URL.revokeObjectURL(url);

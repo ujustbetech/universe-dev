@@ -36,11 +36,33 @@ const ensureCpBoardUser = async (db, orbiter) => {
       name: orbiter.name,
       phoneNumber: orbiter.phone,
       role: orbiter.category || "MentOrbiter",
+      totals: { R: 0, H: 0, W: 0 }, // ✅ REQUIRED
       createdAt: serverTimestamp(),
     });
   }
 };
+const updateCategoryTotals = async (orbiter, categories, points) => {
+  if (!orbiter?.ujbcode || !categories?.length) return;
 
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  const totals = data.totals || { R: 0, H: 0, W: 0 };
+
+  const split = Math.floor(points / categories.length);
+  const updatedTotals = { ...totals };
+
+  categories.forEach((c) => {
+    updatedTotals[c] = (updatedTotals[c] || 0) + split;
+  });
+
+  await updateDoc(ref, {
+    totals: updatedTotals,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
 const addCpForKnowledgeSeries10 = async (
   db,
   orbiter,
@@ -61,14 +83,17 @@ const addCpForKnowledgeSeries10 = async (
   const snap = await getDocs(q);
   if (!snap.empty) return;
 
+  const points = 75;
+  const categories = ["R"];
+
   await addDoc(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     {
       activityNo: "017",
       activityName: "Completion of OTC Journey till Day 10",
-      points: 75,
-      purpose:
-        "Sustains engagement and reinforces learning consistency.",
+      points,
+      categories, // ✅ FIXED
+      purpose: "Sustains engagement and reinforces learning consistency.",
       prospectName,
       prospectPhone,
       source: "KnowledgeSeries10",
@@ -79,6 +104,9 @@ const addCpForKnowledgeSeries10 = async (
       addedAt: serverTimestamp(),
     }
   );
+
+  // ⭐ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
 };
 
 

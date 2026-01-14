@@ -98,6 +98,7 @@ const addCpForProspectFeedback = async (
       activityNo: "010",
       activityName: "Communicating Doorstep Feedback from Guest (Tool)",
       points: 30,
+      category: "R",
       purpose:
         "Encourages structured documentation of feedback via tool usage for better tracking.",
       prospectName,
