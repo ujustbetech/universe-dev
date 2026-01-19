@@ -14,7 +14,7 @@ import Swal from 'sweetalert2';
 import { COLLECTIONS } from "/utility_collection";
 import { db, storage } from '../firebaseConfig';
 import { useSearchParams } from 'next/navigation'; 
-
+import { encryptData, decryptData } from "../src/utils/encryption";
 // ------------------------------------------------------------
 // Helper: filename generator + base path + upload wrapper
 // ------------------------------------------------------------
@@ -55,6 +55,9 @@ async function uploadWithMeta(file, fullPath) {
 const UserProfileForm = () => {
   const searchParams = useSearchParams();
   const ujbcode = searchParams.get('user');
+// Resident / Tax
+const [residentStatus, setResidentStatus] = useState("");
+const [taxSlab, setTaxSlab] = useState("");
 
   // form / UI state
   const [activeTab, setActiveTab] = useState('Personal Info');
@@ -69,6 +72,12 @@ const [businessKYC, setBusinessKYC] = useState({
   businessPan: null,
   cheque: null,
   addressProof: null,
+});
+const [bankDetails, setBankDetails] = useState({
+  accountHolderName: "",
+  bankName: "",
+  accountNumber: "",
+  ifscCode: "",
 });
 
 const [businessKYCPreview, setBusinessKYCPreview] = useState({
@@ -87,6 +96,17 @@ const [businessKYCPreview, setBusinessKYCPreview] = useState({
       itemSlabs: []
     }
   });
+const handleResidentStatusChange = (value) => {
+  setResidentStatus(value);
+
+  if (value === "Resident") {
+    setTaxSlab("5%");
+  } else if (value === "Non-Resident") {
+    setTaxSlab("20%");
+  } else {
+    setTaxSlab("");
+  }
+};
 
   const [services, setServices] = useState([
     { name: '', description: '', image: null,  keywords: '', agreedValue: emptyAgreedValue() }
@@ -263,6 +283,11 @@ const handleBusinessKYCChange = (field, file) => {
           setDocId(userDoc.id);
 // -----------------------------------------
 // LOAD PERSONAL KYC PREVIEW (on Refresh)
+if (userData.residentStatus) {
+  setResidentStatus(userData.residentStatus);
+  setTaxSlab(userData.taxSlab || (userData.residentStatus === "Resident" ? "5%" : "20%"));
+}
+
 // -----------------------------------------
 if (userData.personalKYC) {
   setPersonalKYCPreview({
@@ -294,6 +319,14 @@ if (userData.personalKYC) {
     aadhaarBack: userData.personalKYC.aadhaarBack?.url || "",
     panCard: userData.personalKYC.panCard?.url || "",
     addressProof: userData.personalKYC.addressProof?.url || "",
+  });
+}
+if (userData.bankDetails) {
+  setBankDetails({
+    accountHolderName: decryptData(userData.bankDetails.accountHolderName),
+    bankName: decryptData(userData.bankDetails.bankName),
+    accountNumber: decryptData(userData.bankDetails.accountNumber),
+    ifscCode: decryptData(userData.bankDetails.ifscCode),
   });
 }
 
@@ -803,28 +836,40 @@ const handleSubmit = async () => {
           };
         })
     );
+const encryptedBankDetails = {
+  accountHolderName: encryptData(bankDetails.accountHolderName),
+  bankName: encryptData(bankDetails.bankName),
+  accountNumber: encryptData(bankDetails.accountNumber),
+  ifscCode: encryptData(bankDetails.ifscCode),
+};
 
     // -----------------------------------------
     // FINAL DATA (CLEAN + SAFE FOR FIRESTORE)
     // -----------------------------------------
-    const finalData = {
-      ...formData,
+  const finalData = {
+  ...formData,
 
-      ProfilePhotoURL: profileURL,
-      BusinessLogo: businessLogoURL,
+  residentStatus,
+  taxSlab,
 
-      personalKYC: personalKycData,
-      businessKYC: businessKycData,
+  ProfilePhotoURL: profileURL,
+  BusinessLogo: businessLogoURL,
 
-      services: finalServices,
-      products: finalProducts,
+  personalKYC: personalKycData,
+  businessKYC: businessKycData,
 
-      BusinessSocialMediaPages: socialMediaLinks.filter(
-        s => s.url && (s.platform || s.customPlatform)
-      ),
+  bankDetails: encryptedBankDetails, // 🔐 ENCRYPTED
 
-      payment,
-    };
+  services: finalServices,
+  products: finalProducts,
+
+  BusinessSocialMediaPages: socialMediaLinks.filter(
+    s => s.url && (s.platform || s.customPlatform)
+  ),
+
+  payment,
+};
+
 
     const userRef = doc(db, COLLECTIONS.userDetail, docId);
     await updateDoc(userRef, finalData);
@@ -889,6 +934,31 @@ const handleSubmit = async () => {
                 <li className="form-row"><h4>Category</h4><div className="multipleitem"><select name="Category" value={formData.Category || ''} onChange={handleChange} required><option value="">Select Category</option><option value="Orbiter">Orbiter</option><option value="CosmOrbiter">CosmOrbiter</option></select></div></li>
                 <li className="form-row"><h4>Email</h4><div className="multipleitem"><input type="text" value={formData.Email || ''} readOnly /></div></li>
                 <li className="form-row"><h4>Mobile</h4><div className="multipleitem"><input type="text" value={formData['MobileNo'] || formData.Mobile || ''} readOnly /></div></li>
+                <li className="form-row">
+  <h4>Resident Status</h4>
+  <div className="multipleitem">
+    <select
+      value={residentStatus}
+      onChange={(e) => handleResidentStatusChange(e.target.value)}
+    >
+      <option value="">Select Status</option>
+      <option value="Resident">Resident</option>
+      <option value="Non-Resident">Non-Resident</option>
+    </select>
+  </div>
+</li>
+
+<li className="form-row">
+  <h4>Applicable Tax Slab</h4>
+  <div className="multipleitem">
+    <input
+      type="text"
+      value={taxSlab}
+      readOnly
+    />
+  </div>
+</li>
+
    <h3 style={{ marginTop: "25px" }}>KYC Details</h3>
 
 {/* Aadhaar Front */}
@@ -991,6 +1061,51 @@ const handleSubmit = async () => {
   </div>
 </li>
 
+<h3 style={{ marginTop: "25px" }}>Bank Details</h3>
+
+<li className="form-row">
+  <h4>Account Holder Name</h4>
+  <input
+    type="text"
+    value={bankDetails.accountHolderName}
+    onChange={(e) =>
+      setBankDetails({ ...bankDetails, accountHolderName: e.target.value })
+    }
+  />
+</li>
+
+<li className="form-row">
+  <h4>Bank Name</h4>
+  <input
+    type="text"
+    value={bankDetails.bankName}
+    onChange={(e) =>
+      setBankDetails({ ...bankDetails, bankName: e.target.value })
+    }
+  />
+</li>
+
+<li className="form-row">
+  <h4>Account Number</h4>
+  <input
+    type="password"
+    value={bankDetails.accountNumber}
+    onChange={(e) =>
+      setBankDetails({ ...bankDetails, accountNumber: e.target.value })
+    }
+  />
+</li>
+
+<li className="form-row">
+  <h4>IFSC Code</h4>
+  <input
+    type="text"
+    value={bankDetails.ifscCode}
+    onChange={(e) =>
+      setBankDetails({ ...bankDetails, ifscCode: e.target.value.toUpperCase() })
+    }
+  />
+</li>
 
 
                 

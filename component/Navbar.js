@@ -79,7 +79,20 @@ const Navbar = (props) => {
                 <li><Link href="/prospectadmin/event/manageProspect">Manage Prospects</Link></li>
               </ul>
             </li>
-
+  <li>
+              <span className="nav-link_jobs" tabIndex={0}>
+                <span className="icons"><FaRegUser /></span>
+                <span className="linklabel">Dashboards</span>
+                <MdOutlineKeyboardArrowDown className="submenuIcon" />
+              </span>
+              <ul>
+                <li><Link href="/admin/referraldash">Referral</Link></li>
+                    <li><Link href="/admin/orbiteractivitydash">Orbiter Activity</Link></li>
+                <li><Link href="/admin/eventdash">Event</Link></li>
+                <li><Link href="/admin/alertdash">Alert</Link></li>
+                      <li><Link href="/admin/financial">Financial</Link></li>
+              </ul>
+            </li>
             {/* Event */}
             <li>
               <span className="nav-link" tabIndex={0}>

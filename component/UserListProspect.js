@@ -44,7 +44,7 @@ const formattedDOB = formatDOB(newUser.dob); // Convert to dd/mm/yyyy
     };
 
     try {
-        await setDoc(doc(db, 'userdetails', newUser.phoneNumber), userDoc);
+        await setDoc(doc(db, COLLECTIONS.userDetail, newUser.phoneNumber), userDoc);
         setUsers([...users, {
             id: newUser.phoneNumber,
             name: newUser.name,
@@ -71,13 +71,13 @@ const formattedDOB = formatDOB(newUser.dob); // Convert to dd/mm/yyyy
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const userCollection = collection(db, 'userdetails');
+                const userCollection = collection(db, COLLECTIONS.userDetail);
                 const userSnapshot = await getDocs(userCollection);
                 
                 const userList = userSnapshot.docs.map(doc => ({
                     id: doc.id, // Store document ID for deletion
-                    phoneNumber: doc.data()["Mobile no"],
-                    name: doc.data()[" Name"],
+                    phoneNumber: doc.data()["MobileNo"],
+                    name: doc.data()["Name"],
                     role: doc.data()["Category"]
                 }));
 
@@ -124,7 +124,7 @@ const formattedDOB = formatDOB(newUser.dob); // Convert to dd/mm/yyyy
     const deleteUser = async () => {
         if (userToDelete) {
             try {
-                await deleteDoc(doc(db, 'userdetails', userToDelete.id));
+                await deleteDoc(doc(db, COLLECTIONS.userDetail, userToDelete.id));
                 setUsers(users.filter(user => user.id !== userToDelete.id));
                 closeDeleteModal();
             } catch (err) {

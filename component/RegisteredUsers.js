@@ -50,6 +50,12 @@ const CP_ACTIVITY_FOR_MM = {
   points: 100,
   purpose: "Attending and participating in MM",
 };
+const CP_ACTIVITY_FOR_FEEDBACK = {
+  activityNo: "072",
+  activityName: "Event Feedback Capture & Review",
+  points: 50,
+  purpose: "Acknowledges contribution in collecting and reviewing feedback for improvement.",
+};
 
   const [registeredNumberFilter, setRegisteredNumberFilter] = useState('');
   const [userNameFilter, setUserNameFilter] = useState('');
@@ -74,6 +80,43 @@ const CP_ACTIVITY_FOR_MM = {
     "Tentative",
     "Other response",
   ];
+const hasFeedbackCpAlreadyAdded = async (ujbCode, eventId) => {
+  const q = query(
+    collection(db, "CPBoard", ujbCode, "activities"),
+    where("sourceEventId", "==", eventId),
+    where("activityNo", "==", CP_ACTIVITY_FOR_FEEDBACK.activityNo)
+  );
+
+  const snap = await getDocs(q);
+  return !snap.empty;
+};
+const addCpPointsForFeedback = async (user) => {
+  if (!user?.ujbcode) return;
+
+  // ensure CPBoard user exists
+  await ensureCpBoardUser(user);
+
+  // prevent duplicate feedback CP
+  const alreadyAdded = await hasFeedbackCpAlreadyAdded(
+    user.ujbcode,
+    eventId
+  );
+  if (alreadyAdded) return;
+
+  await addDoc(collection(db, "CPBoard", user.ujbcode, "activities"), {
+    activityNo: CP_ACTIVITY_FOR_FEEDBACK.activityNo,
+    activityName: CP_ACTIVITY_FOR_FEEDBACK.activityName,
+    points: CP_ACTIVITY_FOR_FEEDBACK.points,
+    purpose: CP_ACTIVITY_FOR_FEEDBACK.purpose,
+    sourceEventId: eventId,
+    source: "MonthlyMeeting",
+    month: new Date().toLocaleString("default", {
+      month: "short",
+      year: "numeric",
+    }),
+    addedAt: serverTimestamp(),
+  });
+};
 
   // ✅ REAL FIX HERE — Correctly fetch name/category using MobileNo
   useEffect(() => {
@@ -234,21 +277,48 @@ const ensureCpBoardUser = async (user) => {
     alert("Feedback submitted successfully!");
   };
 
-  const submitAddFeedback = async () => {
-    if (!predefinedFeedback && !customFeedback) {
-      alert("Please provide feedback.");
-      return;
-    }
+const submitAddFeedback = async () => {
+  if (!predefinedFeedback && !customFeedback) {
+    alert("Please provide feedback.");
+    return;
+  }
 
-    const entry = {
-      predefined: predefinedFeedback || "None",
-      custom: customFeedback || "None",
-      timestamp: new Date().toLocaleString(),
-    };
-
-    await updateFeedback(currentUserId, entry);
-    closeAddFeedbackModal();
+  const entry = {
+    predefined: predefinedFeedback || "None",
+    custom: customFeedback || "None",
+    timestamp: new Date().toLocaleString(),
   };
+
+  await updateFeedback(currentUserId, entry);
+
+  // 🔥 ADD CP POINTS FOR FEEDBACK
+  const user = registeredUsers.find((u) => u.id === currentUserId);
+  if (user) {
+    await addCpPointsForFeedback(user);
+  }
+
+  closeAddFeedbackModal();
+};
+const calculateTotalCpPoints = async (ujbCode) => {
+  const snap = await getDocs(
+    collection(db, "CPBoard", ujbCode, "activities")
+  );
+
+  let total = 0;
+  snap.forEach((doc) => {
+    total += Number(doc.data().points || 0);
+  });
+
+  return total;
+};
+const updateTotalCpPoints = async (ujbCode) => {
+  const total = await calculateTotalCpPoints(ujbCode);
+
+  await updateDoc(doc(db, "CPBoard", ujbCode), {
+    totalPoints: total,
+    lastCalculatedAt: serverTimestamp(),
+  });
+};
 
   // Attendance
 const markAttendance = async (phone) => {

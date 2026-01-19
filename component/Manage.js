@@ -52,14 +52,18 @@ const ManageEvents = () => {
         }
     };
 
-    const handleCopyEventLink = (eventId) => {
-        const eventLink = `https://uspacex.vercel.app/events/${eventId}`;
-        navigator.clipboard.writeText(eventLink).then(() => {
-            alert('Event link copied to clipboard!');
-        }).catch(err => {
-            console.error('Error copying event link:', err);
-        });
-    };
+  const handleCopyEventLink = (eventId) => {
+  const origin = window.location.origin; // 🔥 current domain
+  const eventLink = `${origin}/events/${eventId}`;
+
+  navigator.clipboard.writeText(eventLink)
+    .then(() => {
+      alert("Event link copied to clipboard!");
+    })
+    .catch((err) => {
+      console.error("Error copying event link:", err);
+    });
+};
 
     const formatTime = (timestamp) => {
         if (timestamp && timestamp.seconds) {

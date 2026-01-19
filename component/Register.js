@@ -8,7 +8,7 @@ import {
   query,
   where,
   getDoc,
-  setDoc,
+  setDoc,updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -36,6 +36,7 @@ const Register = (props) => {
     const [email, setEmail] = useState(props?.data?.email || '');
     const [date, setDate] = useState(props?.data?.date || '');
     const [userType, setUserType] = useState('prospect'); // default to prospect
+const [selectedOrbiter, setSelectedOrbiter] = useState(null);
 
     const WHATSAPP_API_URL = 'https://graph.facebook.com/v22.0/527476310441806/messages';
     const WHATSAPP_API_TOKEN = 'Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT0h5cwyiLyIq7BnKmXAgNs0ZCC8C33UzhGWTlwhUarfbcVoBdkc1bhuxZBXvroCHiXNwZCZBVxXlZBdinVoVnTB7IC1OYS4lhNEQprXm5l0XZAICVYISvkfwTEju6kV4Aqzt4lPpN8D3FD7eIWXDhnA4SG6QZDZD';
@@ -54,26 +55,28 @@ const Register = (props) => {
       };
       
     
-      useEffect(() => {
-        const fetchUsers = async () => {
-          try {
-            const userRef = collection(db, 'userdetails');
-            const snapshot = await getDocs(userRef);
-            const data = snapshot.docs.map(doc => ({
-              id: doc.id,
-              name: doc.data()[" Name"],
-              phone: doc.data()["Mobile no"],
-              Email: doc.data()["Email"]
-            }));
-            setUserList(data);
-          } catch (error) {
-            console.error('Error fetching users:', error);
-          }
-        };
-    
-        fetchUsers();
-      }, []);
-    
+   useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const userRef = collection(db, "usersdetail");
+      const snapshot = await getDocs(userRef);
+
+      const data = snapshot.docs.map((docSnap) => ({
+        ujbCode: docSnap.id,              // ✅ DOC ID = UJBCode
+        name: docSnap.data().Name || "",
+        phone: docSnap.data().MobileNo || "",
+        email: docSnap.data().Email || "",
+      }));
+
+      setUserList(data);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  fetchUsers();
+}, []);
+
   
   
     
@@ -87,28 +90,29 @@ const Register = (props) => {
         setFilteredUsers(filtered);
     };
 
-    const handleSelectUser = (user) => {
-      if (userType === 'orbiter') {
-        // Populate dummy MentOrbiter data
-        setName("UJustBeSupport");
-        setPhone("8928660399");
-        setOrbiterEmail("support@ujustbe.com");
-    
-        // Use selected user's info as prospect details
-        setProspectName(user.name);
-        setProspectPhone(user.phone);
-        setEmail(user.Email);
-      } else {
-        // Default behavior: set selected user as MentOrbiter
-        setName(user.name);
-        setPhone(user.phone);
-        setOrbiterEmail(user.Email);
-      }
-    
-      setUserSearch('');
-      setFilteredUsers([]);
-    };
-    
+const handleSelectUser = (user) => {
+  // 🔑 SAVE FULL USER (includes ujbcode)
+  setSelectedOrbiter(user);
+
+  if (userType === "orbiter") {
+    setName("UJustBeSupport");
+    setPhone("8928660399");
+    setOrbiterEmail("support@ujustbe.com");
+
+    setProspectName(user.name);
+    setProspectPhone(user.phone);
+    setEmail(user.email);
+  } else {
+    setName(user.name);
+    setPhone(user.phone);
+    setOrbiterEmail(user.email);
+  }
+
+  setUserSearch("");
+  setFilteredUsers([]);
+};
+
+
     
 
     // Handle Dropdown Change for Type
@@ -191,7 +195,7 @@ const sendAssesmentMessage = async (orbiterName, prospectName, phone,formLink) =
   };
          
 
-   const ensureCpBoardUser = async (orbiter) => {
+const ensureCpBoardUser = async (orbiter) => {
   if (!orbiter?.ujbcode) return;
 
   const ref = doc(db, "CPBoard", orbiter.ujbcode);
@@ -203,16 +207,43 @@ const sendAssesmentMessage = async (orbiterName, prospectName, phone,formLink) =
       name: orbiter.name,
       phoneNumber: orbiter.phone,
       role: orbiter.category || "CosmOrbiter",
+      totals: { R: 0, H: 0, W: 0 }, // ✅ category totals
       createdAt: serverTimestamp(),
     });
   }
 };
-const addCpForProspectIntroduction = async (orbiter) => {
-  if (!orbiter?.ujbcode) return;
+const updateCategoryTotals = async (
+  orbiter,
+  categories, // ["R"] or ["R","H"]
+  totalPoints
+) => {
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  const existingTotals = data.totals || { R: 0, H: 0, W: 0 };
+
+  const splitPoints = Math.floor(totalPoints / categories.length);
+
+  const updatedTotals = { ...existingTotals };
+
+  categories.forEach((cat) => {
+    updatedTotals[cat] = (updatedTotals[cat] || 0) + splitPoints;
+  });
+
+  await updateDoc(ref, { totals: updatedTotals });
+};
+
+const addCpForProspectIntroduction = async (
+  orbiter,
+  prospectName,
+  prospectPhone
+) => {
+  if (!orbiter?.ujbcode || !prospectPhone) return;
 
   await ensureCpBoardUser(orbiter);
 
-  // 🔐 Prevent duplicate CP for same prospect
   const q = query(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     where("activityNo", "==", "001"),
@@ -222,13 +253,16 @@ const addCpForProspectIntroduction = async (orbiter) => {
   const snap = await getDocs(q);
   if (!snap.empty) return;
 
+  const categories = ["R"];
+  const points = 50;
+
   await addDoc(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     {
       activityNo: "001",
-      activityName: "	Prospect to Enrollment – Prospect Identification",
-      points: 50,
-      purpose: "Recognizes initiative in identifying potential new Orbiters aligned with UJustBe values and vision.",
+      activityName: "Prospect to Enrollment – Prospect Identification",
+      points,
+      categories,
       prospectName,
       prospectPhone,
       source: "ProspectRegistration",
@@ -239,7 +273,10 @@ const addCpForProspectIntroduction = async (orbiter) => {
       addedAt: serverTimestamp(),
     }
   );
+
+  await updateCategoryTotals(orbiter, categories, points);
 };
+
 
 
   const handleSubmit = async (e) => {
@@ -293,31 +330,21 @@ const addCpForProspectIntroduction = async (orbiter) => {
       // Save to Firestore
       const docRef = await addDoc(prospectRef, data);
  // ✅ ADD CP POINTS ONLY IF REAL MENTOR ORBITER EXISTS
-if (userType === "prospect" && phone) {
-  const q = query(
-    collection(db, "userdetails"),
-    where("Mobile no", "==", phone)
+if (userType === "prospect" && selectedOrbiter?.ujbCode) {
+  const orbiter = {
+    ujbcode: selectedOrbiter.ujbCode,
+    name: selectedOrbiter.name,
+    phone: selectedOrbiter.phone,
+    category: "CosmOrbiter",
+  };
+
+  await addCpForProspectIntroduction(
+    orbiter,
+    prospectName,
+    prospectPhone
   );
-
-  const snap = await getDocs(q);
-
-  if (!snap.empty) {
-    const d = snap.docs[0].data();
-
-    if (!d["UJB Code"]) return; // safety
-
-    const orbiter = {
-      ujbcode: d["UJB Code"],
-      name: d[" Name"],
-      phone: d["Mobile no"],
-      category: d["Category"],
-    };
-
-    await addCpForProspectIntroduction(orbiter);
-  } else {
-    console.warn("⚠️ MentorOrbiter not found in userdetails, CP skipped");
-  }
 }
+
 
       const docId = docRef.id;
   

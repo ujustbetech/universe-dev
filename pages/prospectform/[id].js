@@ -10,7 +10,7 @@ import {
   query,
   where,
   setDoc,
-  serverTimestamp,
+  serverTimestamp, updateDoc,
 } from "firebase/firestore";
 
 import Swal from "sweetalert2";
@@ -43,6 +43,9 @@ const initialFormState = {
   mentorName: "",
   mentorPhone: "",
   mentorEmail: "",
+    howFoundOther: "",
+  interestOther: "",
+  contributionOther: "",
   assessmentDate: "",
 };
 
@@ -106,15 +109,20 @@ const ensureCpBoardUser = async (orbiter) => {
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await setDoc(ref, {
-      id: orbiter.ujbcode,
-      name: orbiter.name,
-      phoneNumber: orbiter.phone,
-      role: orbiter.category || "CosmOrbiter",
-      totals: { R: 0, H: 0, W: 0 }, // ✅ REQUIRED
-      createdAt: serverTimestamp(),
-    });
-  }
+  await setDoc(ref, {
+    id: orbiter.ujbcode,
+    name: orbiter.name,
+    phoneNumber: orbiter.phone,
+    role: orbiter.category || "CosmOrbiter",
+    totals: { R: 0, H: 0, W: 0 },
+    createdAt: serverTimestamp(),
+  });
+} else if (!snap.data().totals) {
+  await updateDoc(ref, {
+    totals: { R: 0, H: 0, W: 0 },
+  });
+}
+
 };
 const updateCategoryTotals = async (orbiter, categories, points) => {
   if (!orbiter?.ujbcode || !categories?.length) return;
@@ -228,39 +236,55 @@ const addCpForProspectAssessment = async (orbiter, prospectPhone) => {
     e.preventDefault();
 
     const subcollectionRef = collection(db, COLLECTIONS.prospect, id, "prospectform");
+const finalData = {
+  ...formData,
+  howFound:
+    formData.howFound === "Other"
+      ? formData.howFoundOther
+      : formData.howFound,
+};
 
     try {
-    await addDoc(subcollectionRef, formData);
+  await addDoc(subcollectionRef, finalData);
+
 
 // ✅ CP AUTOMATION (ACTIVITY 002)
 try {
   const q = query(
-    collection(db, "userdetails"),
-    where("Mobile no", "==", formData.mentorPhone)
+    collection(db, COLLECTIONS.userDetail),
+    where("MobileNo", "==", formData.mentorPhone)
   );
 
-  const snap = await getDocs(q);
+  const snap = await getDocs(q); // 🔥 THIS LINE WAS MISSING
 
-  if (!snap.empty) {
-    const d = snap.docs[0].data();
-
-    if (d["UJB Code"]) {
-      const orbiter = {
-        ujbcode: d["UJB Code"],
-        name: d[" Name"],
-        phone: d["Mobile no"],
-        category: d["Category"],
-      };
-
-      await addCpForProspectAssessment(
-        orbiter,
-        formData.phoneNumber
-      );
-    }
+  if (!snap || snap.empty) {
+    console.warn("⚠️ No mentor found, CP skipped");
+    return;
   }
+
+  const d = snap.docs[0].data();
+
+  if (!d?.UJBCode) {
+    console.warn("⚠️ Mentor has no UJBCode");
+    return;
+  }
+
+  const orbiter = {
+    ujbcode: d.UJBCode,
+    name: d.Name,
+    phone: d.MobileNo,
+    category: d.Category,
+  };
+
+  await addCpForProspectAssessment(
+    orbiter,
+    formData.phoneNumber
+  );
+
 } catch (cpErr) {
   console.error("❌ CP 002 failed:", cpErr);
 }
+
 
 Swal.fire("Success", "Assessment Submitted!", "success");
 setFormData(initialFormState);
@@ -410,14 +434,31 @@ setFormData(initialFormState);
 
                   <div className="pf-field">
                     <label>How did you find the prospect?</label>
-                    <select name="howFound" value={formData.howFound}
-                      onChange={handleChange}>
-                      <option value="">Select</option>
-                      <option value="Referral">Referral</option>
-                      <option value="Networking Event">Networking Event</option>
-                      <option value="Social Media">Social Media</option>
-                      <option value="Other">Other</option>
-                    </select>
+                   <select
+  name="howFound"
+  value={formData.howFound}
+  onChange={handleChange}
+>
+  <option value="">Select</option>
+  <option value="Referral">Referral</option>
+  <option value="Networking Event">Networking Event</option>
+  <option value="Social Media">Social Media</option>
+  <option value="Other">Other</option>
+</select>
+{formData.howFound === "Other" && (
+  <div className="pf-field">
+    <label>Please specify</label>
+    <input
+      type="text"
+      name="howFoundOther"
+      value={formData.howFoundOther}
+      onChange={handleChange}
+      placeholder="Enter details"
+      required
+    />
+  </div>
+)}
+
                   </div>
 
                   <div className="pf-field">
@@ -431,43 +472,72 @@ setFormData(initialFormState);
                     </select>
                   </div>
 
-                  <div className="pf-field">
-                    <label>Interest Areas</label>
-                    <div className="pf-checkbox-group">
-                      {interestOptions.map((opt, i) => (
-                        <div key={i} className="pf-checkbox-item">
-                          <input
-                            type="checkbox"
-                            value={opt}
-                            checked={formData.interestAreas.includes(opt)}
-                            onChange={(e) =>
-                              handleCheckboxChange(e, "interestAreas")
-                            }
-                          />
-                          <label>{opt}</label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                 <div className="pf-field">
+  <label>Interest Areas</label>
+  <div className="pf-checkbox-group">
+    {interestOptions.map((opt, i) => (
+      <div key={i} className="pf-checkbox-item">
+        <input
+          type="checkbox"
+          value={opt}
+          checked={formData.interestAreas.includes(opt)}
+          onChange={(e) =>
+            handleCheckboxChange(e, "interestAreas")
+          }
+        />
+        <label>{opt}</label>
+      </div>
+    ))}
+  </div>
 
-                  <div className="pf-field">
-                    <label>Contribution Ways</label>
-                    <div className="pf-checkbox-group">
-                      {contributionOptions.map((opt, i) => (
-                        <div key={i} className="pf-checkbox-item">
-                          <input
-                            type="checkbox"
-                            value={opt}
-                            checked={formData.contributionWays.includes(opt)}
-                            onChange={(e) =>
-                              handleCheckboxChange(e, "contributionWays")
-                            }
-                          />
-                          <label>{opt}</label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+  {formData.interestAreas.includes("Others (please specify)") && (
+    <div className="pf-field">
+      <label>Please specify</label>
+      <input
+        type="text"
+        name="interestOther"
+        value={formData.interestOther}
+        onChange={handleChange}
+        placeholder="Enter interest"
+        required
+      />
+    </div>
+  )}
+</div>
+
+
+              <div className="pf-field">
+  <label>Contribution Ways</label>
+  <div className="pf-checkbox-group">
+    {contributionOptions.map((opt, i) => (
+      <div key={i} className="pf-checkbox-item">
+        <input
+          type="checkbox"
+          value={opt}
+          checked={formData.contributionWays.includes(opt)}
+          onChange={(e) =>
+            handleCheckboxChange(e, "contributionWays")
+          }
+        />
+        <label>{opt}</label>
+      </div>
+    ))}
+  </div>
+
+  {formData.contributionWays.includes("Other (please specify)") && (
+    <div className="pf-field">
+      <label>Please specify</label>
+      <input
+        type="text"
+        name="contributionOther"
+        value={formData.contributionOther}
+        onChange={handleChange}
+        placeholder="Enter contribution"
+        required
+      />
+    </div>
+  )}
+</div>
 
                   <div className="pf-field">
                     <label>Informed Status</label>
