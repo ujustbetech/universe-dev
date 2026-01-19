@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { COLLECTIONS } from "/utility_collection";
-import { doc, getDoc, setDoc, collection, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection,query,where,addDoc,serverTimestamp, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 const FacilitatorSection = (props) => {
@@ -9,6 +9,83 @@ const FacilitatorSection = (props) => {
   const [facilitatorSearch, setFacilitatorSearch] = useState([]);
   const [userList, setUserList] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
+const CP_ACTIVITY_EVENT_HOST = {
+  activityNo: "081",
+  activityName: "Event Host (Online)",
+  points: 50,
+  categories: ["R"],
+  purpose: "Acknowledges leadership in facilitating virtual sessions.",
+};
+const ensureCpBoardUser = async (user) => {
+  if (!user?.ujbCode) return;
+
+  const ref = doc(db, "CPBoard", user.ujbCode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: user.ujbCode,
+      name: user.name,
+      phoneNumber: user.phone,
+      role: "Facilitator",
+      totals: { R: 0, H: 0, W: 0 },
+      createdAt: serverTimestamp(),
+    });
+  } else if (!snap.data().totals) {
+    await updateDoc(ref, { totals: { R: 0, H: 0, W: 0 } });
+  }
+};
+const updateCategoryTotals = async (ujbCode, categories, points) => {
+  const ref = doc(db, "CPBoard", ujbCode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const totals = snap.data().totals || { R: 0, H: 0, W: 0 };
+  const split = Math.floor(points / categories.length);
+
+  const updated = { ...totals };
+  categories.forEach(c => {
+    updated[c] = (updated[c] || 0) + split;
+  });
+
+  await updateDoc(ref, { totals: updated });
+};
+const addCpForFacilitator = async (user, eventID) => {
+  await ensureCpBoardUser(user);
+
+  const q = query(
+    collection(db, "CPBoard", user.ujbCode, "activities"),
+    where("activityNo", "==", CP_ACTIVITY_EVENT_HOST.activityNo),
+    where("sourceEventId", "==", eventID)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return; // 🔐 no duplicate CP
+
+  await addDoc(
+    collection(db, "CPBoard", user.ujbCode, "activities"),
+    {
+      activityNo: CP_ACTIVITY_EVENT_HOST.activityNo,
+      activityName: CP_ACTIVITY_EVENT_HOST.activityName,
+      points: CP_ACTIVITY_EVENT_HOST.points,
+      categories: CP_ACTIVITY_EVENT_HOST.categories,
+      purpose: CP_ACTIVITY_EVENT_HOST.purpose,
+      source: "MonthlyMeeting",
+      sourceEventId: eventID,
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+
+  await updateCategoryTotals(
+    user.ujbCode,
+    CP_ACTIVITY_EVENT_HOST.categories,
+    CP_ACTIVITY_EVENT_HOST.points
+  );
+};
 
   // Initialize facilitator search for each section
   useEffect(() => {
@@ -99,19 +176,45 @@ useEffect(() => {
     setSections(newSections);
     setFacilitatorSearch(facilitatorSearch.filter((_, i) => i !== index));
   };
+const updateFacilitatorSections = async () => {
+  try {
+    const eventRef = doc(db, COLLECTIONS.monthlyMeeting, props.eventID);
 
-  const updateFacilitatorSections = async () => {
-    try {
-      const eventRef = doc(db, COLLECTIONS.monthlyMeeting, props.eventID);
-      await updateDoc(eventRef, {
-        facilitatorSections: sections,
-      });
-      console.log('Facilitator sections updated successfully');
-      props.fetchData(1);
-    } catch (error) {
-      console.error('Error updating facilitator sections:', error);
+    await updateDoc(eventRef, {
+      facilitatorSections: sections,
+    });
+
+    // 🔥 ADD CP FOR EACH FACILITATOR
+    for (const section of sections) {
+      if (!section.facilitator) continue;
+
+      // Find facilitator user
+      const matchedUser = userList.find(
+        u => u.name === section.facilitator
+      );
+
+      if (!matchedUser) {
+        console.warn("Facilitator not found:", section.facilitator);
+        continue;
+      }
+
+      await addCpForFacilitator(
+        {
+          ujbCode: matchedUser.ujbCode,
+          name: matchedUser.name,
+          phone: matchedUser.phone,
+        },
+        props.eventID
+      );
     }
-  };
+
+    console.log("Facilitators + CP updated successfully");
+    props.fetchData(1);
+
+  } catch (error) {
+    console.error("Error updating facilitator sections:", error);
+  }
+};
 
   return (
     <div className='content-wrapper'>

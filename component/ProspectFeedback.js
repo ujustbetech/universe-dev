@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, addDoc ,doc,getDoc,query,where,serverTimestamp} from "firebase/firestore";
+import { collection, getDocs, addDoc ,doc,getDoc,setDoc,query,where,serverTimestamp} from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { COLLECTIONS } from "/utility_collection";
 import "../src/app/styles/main.scss";
@@ -75,6 +75,7 @@ const addCpForProspectFeedback = async (
       activityNo: "010",
       activityName: "Communicating Doorstep Feedback from Guest (Tool)",
       points: 30,
+      category: "R",
       purpose:
         "Encourages structured documentation of feedback via tool usage for better tracking.",
       prospectName,

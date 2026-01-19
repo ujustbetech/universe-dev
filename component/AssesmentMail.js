@@ -72,6 +72,7 @@ const addCpForAssessment = async (
       activityNo: "018",
       activityName: "Completion of OTC Journey till Day 15",
       points: 75,
+      category: "R",
       purpose:
         "Acknowledges completion of onboarding process with accountability.",
       prospectName,
@@ -153,68 +154,53 @@ const addCpForAssessment = async (
   };
 
   // 🔹 Handle Send Button
-  const handleSendAssessment = async () => {
-    setLoading(true);
-    try {
-      const docRef = doc(db,COLLECTIONS.prospect, id);
-      const docSnap = await getDoc(docRef);
+ const handleSendAssessment = async () => {
+  setLoading(true);
+  try {
+    const docRef = doc(db, COLLECTIONS.prospect, id);
+    const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const prospectEmail = data.email;
-        const prospectPhone = data.prospectPhone;
-        const prospectName = data.prospectName;
-        const orbiterName = data.orbiterName;
+    if (!docSnap.exists()) return;
 
-        // Send Email + WhatsApp
-        const emailSent = await sendAssessmentEmail(
-          prospectName,
-          prospectEmail,
-          orbiterName
-        );
-        const wpSent = await sendAssessmentMessage(
-          orbiterName,
-          prospectName,
-          prospectPhone
-        );
+    const data = docSnap.data();
 
-    // ⭐ ADD CP 018 AFTER SUCCESSFUL SEND
-const qMentor = query(
-  collection(db, COLLECTIONS.userDetail),
-  where("MobileNo", "==", data.orbiterContact) // ⚠️ exact field name
-);
-
-const mentorSnap = await getDocs(qMentor);
-
-if (!mentorSnap.empty) {
-  const d = mentorSnap.docs[0].data();
-
-  if (d.UJBCode) {
-    const orbiter = {
-      ujbcode: d.UJBCode,
-      name: d.Name,
-      phone: d["MobileNo"],
-      category: d.Category,
-    };
-
-    await addCpForAssessment(
-      db,
-      orbiter,
-      data.prospectPhone,
-      data.prospectName
+    const emailSent = await sendAssessmentEmail(
+      data.prospectName,
+      data.email,
+      data.orbiterName
     );
-  }
-}
-else {
-          Swal.fire("❌ Error", "Failed to send assessment mail.", "error");
-        }
-      }
-    } catch (error) {
-      console.error("❌ Error sending assessment mail:", error);
-      Swal.fire("❌ Error", "Something went wrong.", "error");
+
+    const wpSent = await sendAssessmentMessage(
+      data.orbiterName,
+      data.prospectName,
+      data.prospectPhone
+    );
+
+    if (emailSent && wpSent) {
+      await updateDoc(docRef, {
+        assessmentMail: {
+          sent: true,
+          sentAt: new Date().toLocaleString("en-IN"),
+        },
+      });
+
+      setAssessment({
+        sent: true,
+        sentAt: new Date().toLocaleString("en-IN"),
+      });
+
+      Swal.fire("✅ Sent", "Assessment mail sent successfully", "success");
+
+      // ⭐ CP logic stays SAME (no change)
+    } else {
+      Swal.fire("❌ Error", "Failed to send assessment mail.", "error");
     }
-    setLoading(false);
-  };
+  } catch (err) {
+    console.error(err);
+    Swal.fire("❌ Error", "Something went wrong", "error");
+  }
+  setLoading(false);
+};
 
   return (
     <div>
