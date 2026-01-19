@@ -9,8 +9,7 @@ const ParticipantSection = ({ eventID, data = {}, fetchData }) => {
   const [userList, setUserList] = useState([]);
   const router = useRouter();
 const { conclaveId, id: meetingId } = router.query;
-
-  const [filteredUsers, setFilteredUsers] = useState({});
+const [filteredUsers, setFilteredUsers] = useState({});
   const [loading, setLoading] = useState(false);
 
   // Fetch users
@@ -212,4 +211,4 @@ const handleSaveParticipants = async () => {
   );
 };
 
-export default ParticipantSection;
+export default ParticipantSection; 

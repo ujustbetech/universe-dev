@@ -3,7 +3,16 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { COLLECTIONS } from "/utility_collection";
-import { collection, getDocs, addDoc ,getDoc,doc,query,where} from 'firebase/firestore';
+import {  collection,
+  getDocs,
+  addDoc,
+  getDoc,
+  doc,
+  query,
+  where,
+  setDoc,
+  updateDoc,
+  Timestamp} from 'firebase/firestore';
 
 export default function CreateConclavePage() {
   const [users, setUsers] = useState([]);
@@ -17,6 +26,97 @@ export default function CreateConclavePage() {
     leaderRole: '',
     ntRoles: '',
   });
+const CP_ACTIVITY_EVENT_HOST = {
+  activityNo: "081",
+  activityName: "Event Host (Online)",
+  points: 50,
+  categories: ["R"],
+  purpose: "Acknowledges leadership in facilitating virtual sessions.",
+};
+const ensureCpBoardUser = async (user) => {
+  if (!user?.ujbCode) return;
+
+  const ref = doc(db, "CPBoard", user.ujbCode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: user.ujbCode,
+      name: user.name,
+      phoneNumber: user.phone,
+      role: "Leader",
+      totals: { R: 0, H: 0, W: 0 },
+      createdAt: Timestamp.now(),
+    });
+  } else if (!snap.data().totals) {
+    await updateDoc(ref, { totals: { R: 0, H: 0, W: 0 } });
+  }
+};
+const updateCategoryTotals = async (ujbCode, categories, points) => {
+  const ref = doc(db, "CPBoard", ujbCode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const totals = snap.data().totals || { R: 0, H: 0, W: 0 };
+  const split = Math.floor(points / categories.length);
+
+  const updated = { ...totals };
+  categories.forEach(c => {
+    updated[c] = (updated[c] || 0) + split;
+  });
+
+  await updateDoc(ref, { totals: updated });
+};
+const addCpForConclaveLeader = async (leaderUjbCode, conclaveId) => {
+  // Fetch leader details
+  const userRef = doc(db, COLLECTIONS.userDetail, leaderUjbCode);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) return;
+
+  const d = userSnap.data();
+
+  const leader = {
+    ujbCode: leaderUjbCode,
+    name: d.Name,
+    phone: d.MobileNo,
+  };
+
+  await ensureCpBoardUser(leader);
+
+  // 🔐 Prevent duplicate CP for same conclave
+  const q = query(
+    collection(db, "CPBoard", leaderUjbCode, "activities"),
+    where("activityNo", "==", CP_ACTIVITY_EVENT_HOST.activityNo),
+    where("sourceConclaveId", "==", conclaveId)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", leaderUjbCode, "activities"),
+    {
+      activityNo: CP_ACTIVITY_EVENT_HOST.activityNo,
+      activityName: CP_ACTIVITY_EVENT_HOST.activityName,
+      points: CP_ACTIVITY_EVENT_HOST.points,
+      categories: CP_ACTIVITY_EVENT_HOST.categories,
+      purpose: CP_ACTIVITY_EVENT_HOST.purpose,
+      source: "Conclave",
+      sourceConclaveId: conclaveId,
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: Timestamp.now(),
+    }
+  );
+
+  await updateCategoryTotals(
+    leaderUjbCode,
+    CP_ACTIVITY_EVENT_HOST.categories,
+    CP_ACTIVITY_EVENT_HOST.points
+  );
+};
 
   const [leaderSearch, setLeaderSearch] = useState('');
   const [ntSearch, setNtSearch] = useState('');
@@ -95,88 +195,52 @@ const handleSubmit = async (e) => {
   try {
     let finalForm = { ...form };
 
-    // 🔥 Convert Leader UJB Code → Phone number
+    // Convert Leader → Phone (for storage only)
     if (form.leader) {
       const ref = doc(db, COLLECTIONS.userDetail, form.leader);
       const snap = await getDoc(ref);
-
       if (snap.exists()) {
-        finalForm.leader = snap.data()?.MobileNo || form.leader;
+        finalForm.leader = snap.data().MobileNo;
       }
     }
 
-    // 🔥 Convert NT Members
-    if (form.ntMembers.length > 0) {
-      const ntPhones = [];
-      for (const ujb of form.ntMembers) {
-        const ref = doc(db, COLLECTIONS.userDetail, ujb);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          ntPhones.push(snap.data()?.MobileNo || ujb);
-        }
-      }
-      finalForm.ntMembers = ntPhones;
+    // NT Members
+    const ntPhones = [];
+    for (const ujb of form.ntMembers) {
+      const ref = doc(db, COLLECTIONS.userDetail, ujb);
+      const snap = await getDoc(ref);
+      if (snap.exists()) ntPhones.push(snap.data().MobileNo);
     }
+    finalForm.ntMembers = ntPhones;
 
-    // 🔥 Convert Orbiters
-    if (form.orbiters.length > 0) {
-      const orbiterPhones = [];
-      for (const ujb of form.orbiters) {
-        const ref = doc(db, COLLECTIONS.userDetail, ujb);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          orbiterPhones.push(snap.data()?.MobileNo || ujb);
-        }
-      }
-      finalForm.orbiters = orbiterPhones;
+    // Orbiters
+    const orbiterPhones = [];
+    for (const ujb of form.orbiters) {
+      const ref = doc(db, COLLECTIONS.userDetail, ujb);
+      const snap = await getDoc(ref);
+      if (snap.exists()) orbiterPhones.push(snap.data().MobileNo);
     }
+    finalForm.orbiters = orbiterPhones;
 
-    // 1️⃣ Save Conclave with PHONE NUMBERS (not UJB codes)
-    await addDoc(collection(db, COLLECTIONS.conclaves), finalForm);
+    // ✅ CREATE CONCLAVE ONCE
+    const conclaveRef = await addDoc(
+      collection(db, COLLECTIONS.conclaves),
+      finalForm
+    );
+
+    // ✅ ADD CP FOR LEADER (USES UJB CODE)
+    if (form.leader) {
+      await addCpForConclaveLeader(form.leader, conclaveRef.id);
+    }
 
     alert("Conclave created successfully!");
 
-    const eventName = form.conclaveStream;
-    const eventDate = form.startDate;
-
-    // 2️⃣ Prepare all recipients using final PHONE LISTS
-    const allRecipients = [
-      { role: "Leader", phones: [finalForm.leader] },
-      { role: "NT Member", phones: finalForm.ntMembers || [] },
-      { role: "Orbiter", phones: finalForm.orbiters || [] },
-    ];
-
-    // 3️⃣ Loop and Send WhatsApp
-for (const group of allRecipients) {
-  for (const phone of group.phones) {
-
-    // 🔥 Fetch user by MobileNo field (NOT docId)
-    const q = query(
-      collection(db, COLLECTIONS.userDetail),
-      where("MobileNo", "==", phone)
-    );
-
-    const snap = await getDocs(q);
-
-    let userName = phone; // fallback
-
-    if (!snap.empty) {
-      const userData = snap.docs[0].data();
-      userName = userData?.Name || phone;
-    }
-
-    console.log("Sending WhatsApp →", phone, userName);
-
-    await sendWhatsAppMessage(userName, eventName, eventDate, "", phone);
-  }
-}
-
-
   } catch (err) {
-    console.error("Error adding document:", err);
+    console.error("Error creating conclave:", err);
     alert("Failed to create conclave.");
   }
 };
+
 
 
 

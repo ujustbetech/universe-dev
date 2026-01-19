@@ -55,6 +55,8 @@ const addCpForEnrollmentFeeUpfront = async (
       activityNo: "013",
       activityName: "One-time Enrollment Fees (Upfront)",
       points: 150,
+    categories: ["W"],
+
       purpose:
         "Incentivizes financial commitment and direct contribution to the ecosystem.",
       prospectName,
@@ -67,6 +69,8 @@ const addCpForEnrollmentFeeUpfront = async (
       addedAt: serverTimestamp(),
     }
   );
+  await updateCategoryTotals(orbiter, ["W"], 150);
+
 };
 
   useEffect(() => {
@@ -171,6 +175,44 @@ const generateNextUJBCode = async () => {
 
   return `UJB${String(maxNumber + 1).padStart(4, "0")}`;
 }
+const updateCategoryTotals = async (orbiter, categories, points) => {
+  if (!orbiter?.ujbcode || !Array.isArray(categories) || categories.length === 0) {
+    console.warn("❌ Invalid category update payload", orbiter, categories);
+    return;
+  }
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    console.warn("❌ CPBoard user missing for", orbiter.ujbcode);
+    return;
+  }
+
+  const data = snap.data();
+
+  // ✅ ENSURE TOTALS EXIST
+  let totals = data.totals;
+  if (!totals) {
+    totals = { R: 0, H: 0, W: 0 };
+    await updateDoc(ref, { totals });
+  }
+
+  const split = Math.floor(points / categories.length);
+  const updatedTotals = { ...totals };
+
+  categories.forEach((c) => {
+    updatedTotals[c] = (updatedTotals[c] || 0) + split;
+  });
+
+  console.log("✅ Updating CP totals:", orbiter.ujbcode, updatedTotals);
+
+  await updateDoc(ref, {
+    totals: updatedTotals,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
 // ================= CP HELPERS =================
 const addCpForEnrollmentInitiation = async (
   db,
@@ -198,6 +240,7 @@ const addCpForEnrollmentInitiation = async (
       activityNo: "011",
       activityName: "Initiating Enrollment (Tool)",
       points: 100,
+        categories: ["R"],
       purpose:
         "Marks transition from prospecting to formal enrollment; key conversion milestone.",
       prospectName,
@@ -210,6 +253,7 @@ const addCpForEnrollmentInitiation = async (
       addedAt: serverTimestamp(),
     }
   );
+  await updateCategoryTotals(orbiter, ["R"], 100);
 };
 
 const ensureCpBoardUser = async (db, orbiter) => {
@@ -224,10 +268,12 @@ const ensureCpBoardUser = async (db, orbiter) => {
       name: orbiter.name,
       phoneNumber: orbiter.phone,
       role: orbiter.category || "MentOrbiter",
+      totals: { R: 0, H: 0, W: 0 }, // ✅ REQUIRED
       createdAt: serverTimestamp(),
     });
   }
 };
+
 
 const addCpForEnrollmentCompletion = async (
   db,
@@ -266,6 +312,8 @@ const addCpForEnrollmentCompletion = async (
       addedAt: serverTimestamp(),
     }
   );
+  
+await updateCategoryTotals(orbiter, ["R"], 50);
 };
 
 const handleSave = async () => {
@@ -318,44 +366,13 @@ if (initiationStage?.status === "Completed") {
 }
 
 
-if (initiationStage?.status === "Completed") {
-  const prospectSnap = await getDoc(doc(db, "Prospects", id));
-  const p = prospectSnap.data();
-
-  const qMentor = query(
-    collection(db, COLLECTIONS.userDetail),
-    where("MobileNo", "==", p.orbiterContact)
-  );
-
-  const mentorSnap = await getDocs(qMentor);
-
-  if (!mentorSnap.empty) {
-    const d = mentorSnap.docs[0].data();
-
-    if (d.UJBCode) {
-      const orbiter = {
-        ujbcode: d.UJBCode,
-        name: d.Name,
-        phone: d.MobileNo,
-        category: d.Category,
-      };
-
-      await addCpForEnrollmentInitiation(
-        db,
-        orbiter,
-        p.prospectPhone,
-        p.prospectName
-      );
-    }
-  }
-}
 
 /* ⭐ ADD CP FOR ENROLLMENT FEES – UPFRONT (013) */
 const feeStage = rows.find(
   (r) => r.label === "Enrollment fees Option Opted for"
 );
 
-if (feeStage?.status === "Upfront") {
+if (feeStage?.status?.includes("Upfront")) {
   const prospectSnap = await getDoc(doc(db, "Prospects", id));
   const p = prospectSnap.data();
 

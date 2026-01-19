@@ -40,10 +40,31 @@ const WHATSAPP_API_TOKEN = 'Bearer EAAHwbR1fvgsBOwUInBvR1SGmVLSZCpDZAkn9aZCDJYaT
 
     fetchStatus();
   }, [id]);
+  const updateCategoryTotals = async (orbiter, categories, points) => {
+  if (!orbiter?.ujbcode || !categories?.length) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbcode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const totals = snap.data().totals || { R: 0, H: 0, W: 0 };
+  const split = Math.floor(points / categories.length);
+
+  const updatedTotals = { ...totals };
+  categories.forEach((c) => {
+    updatedTotals[c] = (updatedTotals[c] || 0) + split;
+  });
+
+  await updateDoc(ref, {
+    totals: updatedTotals,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
 const addCpForEnrollment = async (orbiter, prospect) => {
   if (!orbiter?.ujbcode) return;
 
-  // ensure CPBoard user exists
+  // ✅ ensure CPBoard user exists WITH totals
   const ref = doc(db, "CPBoard", orbiter.ujbcode);
   const snap = await getDoc(ref);
 
@@ -53,11 +74,12 @@ const addCpForEnrollment = async (orbiter, prospect) => {
       name: orbiter.name,
       phoneNumber: orbiter.phone,
       role: orbiter.category || "MentOrbiter",
+      totals: { R: 0, H: 0, W: 0 }, // ⭐ REQUIRED
       createdAt: serverTimestamp(),
     });
   }
 
-  // 🚫 prevent duplicate CP for same prospect
+  // 🚫 prevent duplicate CP
   const q = query(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     where("activityNo", "==", "011"),
@@ -67,12 +89,16 @@ const addCpForEnrollment = async (orbiter, prospect) => {
   const dupSnap = await getDocs(q);
   if (!dupSnap.empty) return;
 
+  const points = 100;
+  const categories = ["R"];
+
   await addDoc(
     collection(db, "CPBoard", orbiter.ujbcode, "activities"),
     {
       activityNo: "011",
       activityName: "Initiating Enrollment (Tool)",
-      points: 100,
+      points,
+      categories, // ✅ FIXED
       purpose:
         "Marks transition from prospecting to formal enrollment; key conversion milestone.",
       prospectName: prospect.prospectName,
@@ -85,7 +111,11 @@ const addCpForEnrollment = async (orbiter, prospect) => {
       addedAt: serverTimestamp(),
     }
   );
+
+  // ⭐ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
 };
+
 
   const sendAssessmentEmail = async (prospectName, prospectEmail, orbiterName, selectedstatus, formattedDate) => {
     if (!prospectEmail) {
