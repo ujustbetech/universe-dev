@@ -18,7 +18,13 @@ const Edit = ({ id, data }) => {
     const [occupation, setOccupation] = useState(data?.occupation || '');
     const [hobbies, setHobbies] = useState(data?.hobbies || '');
     const [email, setEmail] = useState(data?.email || '');
-    const [date, setDate] = useState(data?.date || '');
+ const getNowForDateTimeLocal = () => {
+  const now = new Date();
+  return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+};
+
+const [date, setDate] = useState(getNowForDateTimeLocal());
+
     const [userSearch, setUserSearch] = useState('');
     const [filteredUsers, setFilteredUsers] = useState([]);
     const [userList, setUserList] = useState([]);    
@@ -45,12 +51,12 @@ const Edit = ({ id, data }) => {
     useEffect(() => {
         const fetchUsers = async () => {
           try {
-            const userRef = collection(db, 'userdetails');
+            const userRef = collection(db, COLLECTIONS.userDetail);
             const snapshot = await getDocs(userRef);
             const data = snapshot.docs.map(doc => ({
               id: doc.id,
-              name: doc.data()[" Name"],
-              phone: doc.data()["Mobile no"],
+              name: doc.data()["Name"],
+              phone: doc.data()["MobileNo"],
               Email: doc.data()["Email"]
             }));
             setUserList(data);
@@ -94,51 +100,67 @@ const Edit = ({ id, data }) => {
 
 
   // Accept docId as a prop or from context
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-  
-    if (!name || !phone || !orbiteremail || !type || !prospectName || !prospectPhone || !occupation || !email || !hobbies || !date) {
-      alert('Please fill all fields');
-      return;
-    }
-  
-    try {
-      const formattedDate = formatReadableDate(date);
-      
-const prospectDocRef = doc(db, COLLECTIONS.prospect, id);
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-  
-      await updateDoc(prospectDocRef, {
-        orbiterName: name,
-        orbiterContact: phone,
-        orbiterEmail: orbiteremail,
-        type,
-        prospectName,
-        prospectPhone,
-        occupation,
-        hobbies,
-        email,
-        date: formattedDate,
-        updatedAt: new Date()
-      });
-  
-      // Clear form
-      setName('');
-      setPhone('');
-      setOrbiterEmail('');
-      setType('');
-      setProspectName('');
-      setProspectPhone('');
-      setOccupation('');
-      setHobbies('');
-      setEmail('');
-      setDate('');
-    } catch (error) {
-      console.error("❌ Error updating user:", error);
-      alert('Error updating user');
-    }
-  };
-  
+  if (
+    !name ||
+    !phone ||
+    !orbiteremail ||
+    !type ||
+    !prospectName ||
+    !prospectPhone ||
+    !occupation ||
+    !email ||
+    !hobbies
+  ) {
+    alert('Please fill all fields');
+    return;
+  }
+
+  try {
+    // ✅ date is already in YYYY-MM-DDTHH:mm format from datetime-local
+    const formattedDate = formatReadableDate(date); // human-readable
+    const realTimestamp = new Date(date);            // real JS date
+
+    const prospectDocRef = doc(db, COLLECTIONS.prospect, id);
+
+    await updateDoc(prospectDocRef, {
+      orbiterName: name,
+      orbiterContact: phone,
+      orbiterEmail: orbiteremail,
+      type,
+      prospectName,
+      prospectPhone,
+      occupation,
+      hobbies,
+      email,
+
+      // ✅ correct date storage
+      date: formattedDate,        // "02 January 26 at 4.17 PM"
+      submittedAt: realTimestamp, // actual timestamp
+      updatedAt: new Date(),
+    });
+
+    alert('Prospect updated successfully');
+
+    // ❌ Do NOT clear date (it is auto-captured)
+    setName('');
+    setPhone('');
+    setOrbiterEmail('');
+    setType('');
+    setProspectName('');
+    setProspectPhone('');
+    setOccupation('');
+    setHobbies('');
+    setEmail('');
+
+  } catch (error) {
+    console.error("❌ Error updating user:", error);
+    alert('Error updating user');
+  }
+};
+
   
    
       
