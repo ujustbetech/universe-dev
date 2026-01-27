@@ -62,12 +62,12 @@ const formatDate = (date) => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const userRef = collection(db, 'userdetails');
+        const userRef = collection(db, COLLECTIONS.userDetail);
         const snapshot = await getDocs(userRef);
         const data = snapshot.docs.map(doc => ({
           id: doc.id,
-          name: doc.data()[" Name"],
-          phone: doc.data()["Mobile no"],
+          name: doc.data()["Name"],
+          phone: doc.data()["MobileNo"],
           Email: doc.data()["Email"]
         }));
         setUserList(data);

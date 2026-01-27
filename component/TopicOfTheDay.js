@@ -18,11 +18,11 @@ const TopicSection = (props) => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const userRef = collection(db, 'userdetails');
+        const userRef = collection(db, COLLECTIONS.userDetail);
         const snapshot = await getDocs(userRef);
         const users = snapshot.docs.map(doc => ({
           id: doc.id,
-          name: doc.data()[" Name"],
+          name: doc.data()["Name"],
         }));
         setUserList(users);
       } catch (error) {

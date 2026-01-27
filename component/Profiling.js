@@ -517,7 +517,7 @@ const handlePersonalKYCChange = (field, file) => {
     'FamilyHistorySummary', 'MaritalStatus', 'ProfessionalHistory',
     'CurrentProfession', 'EducationalBackground', 'LanguagesKnown',
     'ContributionAreainUJustBe', 'ImmediateDesire', 'Mastery',
-    'SpecialSocialContribution', 'ProfileStatus',  'BusinessSocialMediaPages',
+    'SpecialSocialContribution', 'ProfileStatus',  'BusinessSocialMediaPages', 'ReferralPassed',
   ];
 
   const cosmorbiterFields = [
@@ -533,7 +533,7 @@ const handlePersonalKYCChange = (field, file) => {
     'USP',
     'BusinessLogo',
     'TagLine',
-    'EstablishedAt'
+    'EstablishedAt' ,
   ];
 
   const fieldGroups = {
@@ -563,7 +563,7 @@ const handlePersonalKYCChange = (field, file) => {
     'Additional Info': [
       'Hobbies', 'InterestArea', 'Skills', 'ExclusiveKnowledge', 'Aspirations',
       'ContributionAreainUJustBe', 'ImmediateDesire', 'Mastery',
-      'SpecialSocialContribution', 'ProfileStatus' , 'BusinessSocialMediaPages',
+      'SpecialSocialContribution', 'ProfileStatus' , 'BusinessSocialMediaPages','ReferralPassed',
     ],
   };
 
@@ -585,7 +585,8 @@ const handlePersonalKYCChange = (field, file) => {
     'ProfileStatus': ['Pending', 'In process', 'Submitted', 'Verified', 'Inactive'],
     'BusinessDetails (Nature & Type)': ['Product', 'Service', 'Both; Proprietorship', 'LLP', 'Pvt Ltd'],
     'City': ['Mumbai', 'Pune', 'Delhi', 'Bengaluru', 'Hyderabad', 'Chennai', 'Kolkata', 'Ahmedabad', 'Other'],
-    'State': ['Maharashtra', 'Karnataka', 'Delhi', 'Telangana', 'Tamil Nadu', 'West Bengal', 'Gujarat', 'Other']
+    'State': ['Maharashtra', 'Karnataka', 'Delhi', 'Telangana', 'Tamil Nadu', 'West Bengal', 'Gujarat', 'Other'],
+    'ReferralPassed': ['Yes', 'No'],
   };
 
   const skillsOptions = ['Leadership', 'Communication', 'Management', 'Design', 'Coding', 'Marketing'];

@@ -43,6 +43,7 @@ export default function SlotPayoutRow({
           >
             Pay ₹{remaining}
           </button>
+        
         )}
 
         <div className="slotTooltip">

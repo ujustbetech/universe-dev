@@ -29,9 +29,9 @@ const UploadExcel = () => {
   const uploadDataToFirestore = async () => {
     if (excelData) {
       try {
-        const collectionRef = collection(db, "userdetails"); // Replace with your Firestore collection name
+        const collectionRef = collection(db, COLLECTIONS.userDetail); // Replace with your Firestore collection name
         for (let row of excelData) {
-          const mobileNumber = String(row["Mobile no"]); // Convert 'Mobile no' column value to string
+          const mobileNumber = String(row["MobileNo"]); // Convert 'Mobile no' column value to string
           if (mobileNumber) {
             // Use the mobile number as the document ID, ensuring it's a string
             await setDoc(doc(collectionRef, mobileNumber), row);

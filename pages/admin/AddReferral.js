@@ -8,8 +8,8 @@ import {
   doc,
   getDoc,
   query,
-  orderBy,
-  limit,where
+  orderBy,setDoc,
+  limit,where,serverTimestamp,updateDoc
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
@@ -54,6 +54,160 @@ const Profiling = () => {
     };
     fetchUsers();
   }, []);
+// ================= CP HELPERS =================
+
+const ensureCpBoardUser = async (orbiter) => {
+  if (!orbiter?.ujbCode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbCode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbCode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: "Orbiter",
+      totals: { R: 0, H: 0, W: 0 },
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const updateCategoryTotals = async (orbiter, categories, points) => {
+  const ref = doc(db, "CPBoard", orbiter.ujbCode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const totals = snap.data().totals || { R: 0, H: 0, W: 0 };
+  const split = Math.floor(points / categories.length);
+
+  const updated = { ...totals };
+  categories.forEach((c) => {
+    updated[c] = (updated[c] || 0) + split;
+  });
+
+  await updateDoc(ref, {
+    totals: updated,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
+const addCpForSelfReferral = async (orbiter, cosmoName) => {
+  await ensureCpBoardUser(orbiter);
+
+  // 🚫 Prevent duplicate CP for same referral
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    where("activityNo", "==", "DIP_SELF"),
+    where("cosmoName", "==", cosmoName)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  const points = 100;
+  const categories = ["R"];
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    {
+      activityNo: "DIP_SELF",
+      activityName: "Referral Identification by Self (DIP Status)",
+      points,
+      categories,
+      purpose: "Recognizes self-driven contribution to network expansion.",
+      cosmoName,
+      source: "ReferralModule",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+
+  // ⭐ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
+};
+const addCpForFirstReferral = async (orbiter) => {
+  if (!orbiter?.ujbCode) return;
+
+  await ensureCpBoardUser(orbiter);
+
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    where("activityNo", "==", "DIP_FIRST")
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  const points = 125;
+  const categories = ["R"];
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    {
+      activityNo: "DIP_FIRST",
+      activityName:
+        "Referral Identification by the Prospect (DIP Status)",
+      points,
+      categories,
+      purpose:
+        "High value as it shows new Orbiter’s proactive participation and trust-building.",
+      source: "ReferralModule",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+
+  await updateCategoryTotals(orbiter, categories, points);
+};
+
+const addCpForThirdPartyReferral = async (orbiter, thirdPartyName) => {
+  if (!orbiter?.ujbCode) return;
+
+  await ensureCpBoardUser(orbiter);
+
+  // 🚫 Prevent duplicate CP for same third party
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    where("activityNo", "==", "DIP_THIRD"),
+    where("thirdPartyName", "==", thirdPartyName)
+  );
+
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  const points = 75;
+  const categories = ["R"];
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    {
+      activityNo: "DIP_THIRD",
+      activityName: "Referral passed for Third Party (DIP Status)",
+      points,
+      categories,
+      purpose:
+        "Encourages collaborative referral sharing across Orbiters.",
+      thirdPartyName,
+      source: "ReferralModule",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+
+  // ⭐ UPDATE TOTALS
+  await updateCategoryTotals(orbiter, categories, points);
+};
 
   // ================== SELECT ORBITER ==================
   const handleOrbiterSelect = (user) => {
@@ -299,6 +453,33 @@ cosmoOrbiter: {
 
     // ================== SAVE REFERRAL ==================
     await addDoc(collection(db, COLLECTIONS.referral), data);
+const orbiter = {
+  ujbCode: orbiterData.UJBCode,
+  name: orbiterData.Name,
+  phone: orbiterData.MobileNo,
+};
+
+// 🔹 SELF → 100 CP
+if (refType === "Self") {
+  await addCpForSelfReferral(orbiter, cosmoData.Name);
+}
+
+// 🔹 OTHERS → 75 CP
+if (refType === "Others") {
+  const thirdPartyName = otherName || "Third Party Referral";
+  await addCpForThirdPartyReferral(orbiter, thirdPartyName);
+}
+
+// ⭐ FIRST TIME BONUS → 125 CP (ONLY ONCE)
+if (orbiterData.ReferralPassed === "No") {
+  await addCpForFirstReferral(orbiter);
+
+  // lock so it never runs again
+  await updateDoc(
+    doc(db, COLLECTIONS.userDetail, selectedOrbiter.id),
+    { ReferralPassed: "Yes" }
+  );
+}
 
     const serviceOrProductName =
       selectedService?.name || selectedProduct?.name || "";

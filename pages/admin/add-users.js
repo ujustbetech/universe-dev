@@ -25,12 +25,12 @@ const AddUser = () => {
     // Fetch users from Firestore
     useEffect(() => {
         const fetchUsers = async () => {
-            const userCollection = collection(db, 'userdetails');
+            const userCollection = collection(db, COLLECTIONS.userDetail);
             const userSnapshot = await getDocs(userCollection);
             const userList = userSnapshot.docs.map(doc => ({
                 id: doc.id, 
-                name: doc.data()[" Name"], // Ensure correct field name for name
-                phone: doc.data()["Mobile no"] // Correctly accessing the 'Mobile no' field for phone number
+                name: doc.data()["Name"], // Ensure correct field name for name
+                phone: doc.data()["MobileNo"] // Correctly accessing the 'Mobile no' field for phone number
             }));
             setUserList(userList);
         };
