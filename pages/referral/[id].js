@@ -1,8 +1,20 @@
 // pages/referral/[id].js
 import { useRouter } from "next/router";
 import { useState } from "react";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  query,
+  where,
+  setDoc,
+  serverTimestamp,
+  updateDoc, arrayUnion
+} from "firebase/firestore";
 
-import { doc, updateDoc, arrayUnion } from "firebase/firestore";
+
 import { db } from "../../firebaseConfig";
 import { COLLECTIONS } from "../../utility_collection";
 
@@ -121,6 +133,170 @@ const calculateUjbTDS = (gross, isNri) => {
   });
 // ================= TDS DERIVED VALUES FOR MODAL =================
 // ================= TDS DERIVED VALUES FOR MODAL =================
+// ================= CP HELPERS =================
+
+
+const ensureCpBoardUser = async (orbiter) => {
+  if (!orbiter?.ujbCode) return;
+
+  const ref = doc(db, "CPBoard", orbiter.ujbCode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: orbiter.ujbCode,
+      name: orbiter.name,
+      phoneNumber: orbiter.phone,
+      role: "Orbiter",
+      totals: { R: 0, H: 0, W: 0 },
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+const updateCategoryTotals = async (orbiter, categories, points) => {
+  const ref = doc(db, "CPBoard", orbiter.ujbCode);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const totals = snap.data().totals || { R: 0, H: 0, W: 0 };
+  const split = Math.floor(points / categories.length);
+
+  const updated = { ...totals };
+  categories.forEach((c) => {
+    updated[c] = (updated[c] || 0) + split;
+  });
+
+  await updateDoc(ref, {
+    totals: updated,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
+const addCpForSelfReferral = async (orbiter) => {
+  await ensureCpBoardUser(orbiter);
+
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    where("activityNo", "==", "DIP_SELF")
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  const points = 100;
+
+  await addDoc(collection(db, "CPBoard", orbiter.ujbCode, "activities"), {
+    activityNo: "DIP_SELF",
+    activityName: "Referral Identification by Self",
+    points,
+    categories: ["R"],
+    source: "ReferralModule",
+    month: new Date().toLocaleString("default", {
+      month: "short",
+      year: "numeric",
+    }),
+    addedAt: serverTimestamp(),
+  });
+
+  await updateCategoryTotals(orbiter, ["R"], points);
+};
+
+const addCpForThirdPartyReferral = async (orbiter) => {
+  await ensureCpBoardUser(orbiter);
+
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    where("activityNo", "==", "DIP_THIRD")
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  const points = 75;
+
+  await addDoc(collection(db, "CPBoard", orbiter.ujbCode, "activities"), {
+    activityNo: "DIP_THIRD",
+    activityName: "Referral passed for Third Party",
+    points,
+    categories: ["R"],
+    source: "ReferralModule",
+    month: new Date().toLocaleString("default", {
+      month: "short",
+      year: "numeric",
+    }),
+    addedAt: serverTimestamp(),
+  });
+
+  await updateCategoryTotals(orbiter, ["R"], points);
+};
+
+
+
+const hasAnyReferralClosure = async (ujbCode) => {
+  const q = query(
+    collection(db, "CPBoard", ujbCode, "activities"),
+    where("activityNo", "in", [
+      "CLOSE_SELF",
+      "CLOSE_THIRD",
+      "CLOSE_PROSPECT",
+    ])
+  );
+  const snap = await getDocs(q);
+  return !snap.empty;
+};
+const addCpClosure = async ({ orbiter, type }) => {
+  await ensureCpBoardUser(orbiter);
+
+  const map = {
+    SELF: {
+      activityNo: "CLOSE_SELF",
+      name: "Referral Closure passed by Self",
+      points: 150,
+      purpose: "Rewards contribution in completing referral process personally.",
+    },
+    THIRD: {
+      activityNo: "CLOSE_THIRD",
+      name: "Referral Closure passed for Third Party",
+      points: 125,
+      purpose: "Recognizes collaborative closures creating mutual growth.",
+    },
+    PROSPECT: {
+      activityNo: "CLOSE_PROSPECT",
+      name: "Referral Closure passed by Prospect",
+      points: 200,
+      purpose: "Acknowledges direct business closure driven by new member’s initiative.",
+    },
+  };
+
+  const cfg = map[type];
+  if (!cfg) return;
+
+  // prevent duplicate
+  const q = query(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    where("activityNo", "==", cfg.activityNo)
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    {
+      activityNo: cfg.activityNo,
+      activityName: cfg.name,
+      points: cfg.points,
+      categories: ["R"],
+      purpose: cfg.purpose,
+      source: "ReferralClosure",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+
+  await updateCategoryTotals(orbiter, ["R"], cfg.points);
+};
 
 
   // Helper: sanitize number
@@ -410,6 +586,61 @@ const { gross, tds, net, rate } =
         return;
       }
 
+const hasAnyReferralClosure = async (ujbCode) => {
+  const q = query(
+    collection(db, "CPBoard", ujbCode, "activities"),
+    where("activityNo", "in", ["CLOSE_SELF", "CLOSE_THIRD", "CLOSE_PROSPECT"])
+  );
+  const snap = await getDocs(q);
+  return !snap.empty;
+};
+
+const addCpClosure = async ({ orbiter, type }) => {
+  await ensureCpBoardUser(orbiter);
+
+  const map = {
+    SELF: {
+      activityNo: "CLOSE_SELF",
+      name: "Referral Closure passed by Self",
+      points: 150,
+      purpose: "Rewards contribution in completing referral process personally.",
+    },
+    THIRD: {
+      activityNo: "CLOSE_THIRD",
+      name: "Referral Closure passed for Third Party",
+      points: 125,
+      purpose: "Recognizes collaborative closures creating mutual growth.",
+    },
+    PROSPECT: {
+      activityNo: "CLOSE_PROSPECT",
+      name: "Referral Closure passed by Prospect",
+      points: 200,
+      purpose: "Acknowledges direct business closure driven by new member’s initiative.",
+    },
+  };
+
+  const cfg = map[type];
+  if (!cfg) return;
+
+  await addDoc(
+    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
+    {
+      activityNo: cfg.activityNo,
+      activityName: cfg.name,
+      points: cfg.points,
+      categories: ["R"],
+      purpose: cfg.purpose,
+      source: "ReferralClosure",
+      month: new Date().toLocaleString("default", {
+        month: "short",
+        year: "numeric",
+      }),
+      addedAt: serverTimestamp(),
+    }
+  );
+
+  await updateCategoryTotals(orbiter, ["R"], cfg.points);
+};
 
 
       // 2) Perform UJB payout (actual cash = cashToPay; logical increment = logicalAmount)
@@ -578,6 +809,43 @@ const { gross, tds, net, rate } =
               setFormState={setFormState}
               onUpdate={async () => {
                 await handleStatusUpdate(formState.dealStatus)
+const newStatus = formState.dealStatus;
+
+const orbiterUjb =
+  orbiter?.UJBCode ||
+  referralData?.orbiter?.ujbCode ||
+  referralData?.orbiterUJBCode;
+
+
+const orbiterObj = {
+  ujbCode: orbiterUjb,
+  name: orbiter?.name || orbiter?.Name,
+  phone: orbiter?.phone || orbiter?.MobileNo,
+};
+if (newStatus === "Discussion in Progress") {
+  if (referralData?.referralType === "Self") {
+    await addCpForSelfReferral(orbiterObj);
+  } 
+  else if (referralData?.referralType === "Third Party") {
+    await addCpForThirdPartyReferral(orbiterObj);
+  }
+}
+
+
+
+/* ================= CLOSURE STAGE ================= */
+if (newStatus === "Agreed % Transferred to UJustBe") {
+  const firstTime = !(await hasAnyReferralClosure(orbiterUjb));
+
+  if (firstTime) {
+    await addCpClosure({ orbiter: orbiterObj, type: "SELF" });
+    await addCpClosure({ orbiter: orbiterObj, type: "PROSPECT" });
+  }
+
+  if (referralData?.referralType === "Others") {
+    await addCpClosure({ orbiter: orbiterObj, type: "THIRD" });
+  }
+}
 
                 // WHATSAPP: STATUS CHANGE (Orbiter + CosmoOrbiter)
                 try {

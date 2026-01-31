@@ -70,6 +70,7 @@ export default function CPPointsSummary() {
                 <th>Phone Number</th>
                 <th>Role</th>
                 <th>Total CP Points</th>
+                <th>View</th>
               </tr>
             </thead>
 
@@ -80,6 +81,15 @@ export default function CPPointsSummary() {
                   <td>{m.phoneNumber}</td>
                   <td>{m.role}</td>
                   <td>{m.totalPoints}</td>
+                  <td>
+  <a
+    href={`/cp-board/${m.id}`}
+    style={{ color: "#2563eb", fontWeight: 600 }}
+  >
+    {m.name}
+  </a>
+</td>
+
                 </tr>
               ))}
             </tbody>

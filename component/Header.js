@@ -61,9 +61,13 @@ const Headertop = () => {
           <div className="beta">BETA</div>
         </div>
         <div className="headerRight">
-          <button onClick={() => router.push(`/cp-details/${user.phoneNumber}`)} className="reward-btn">
-            <BiSolidCoinStack size={18} /> CP: {cpPoints}
-          </button>
+       <button
+  onClick={() => router.push(`/cp-details/${user.ujbCode}`)}
+  className="reward-btn"
+>
+  <BiSolidCoinStack size={18} /> CP: {cpPoints}
+</button>
+
           <div className="userName" onClick={handleLogout}>
             <span>{getInitials(user.name)}</span>
           </div>
