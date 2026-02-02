@@ -21,7 +21,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const db = getFirestore(app);
 
-const ReferralModal = ({ item, onClose, userCache, setUserCache }) => {
+const ReferralModal = ({
+  item,
+  recommendedItems = [],   // ⭐ ADD THIS
+  onClose,
+  userCache,
+  setUserCache
+}) => {
+
     const [userDetails, setUserDetails] = useState(null);
     const [orbiterDetails, setOrbiterDetails] = useState({ name: '', phone: '', email: '' });
     const [selectedOption, setSelectedOption] = useState('');
@@ -34,8 +41,14 @@ const ReferralModal = ({ item, onClose, userCache, setUserCache }) => {
     const [services, setServices] = useState([]);
     const [products, setProducts] = useState([]);
     const [submitting, setSubmitting] = useState(false);
+const [loadingRecommendations, setLoadingRecommendations] = useState(true);
 
     const dropdownRef = useRef();
+useEffect(() => {
+  if (recommendedItems && recommendedItems.length >= 0) {
+    setLoadingRecommendations(false);
+  }
+}, [recommendedItems]);
 
    
 const generateReferralId = async () => {
@@ -410,6 +423,52 @@ const sendWhatsAppMessage = async (phone, parameters = []) => {
                                     </button>
                                 </div>
                             </div>
+                            {/* ⭐ RECOMMENDATIONS */}
+<div className="modal-recommendation">
+  <p className="modal-rec-title">Recommended for you</p>
+
+  <div className="modal-rec-scroll">
+    {loadingRecommendations
+      ? Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="modal-rec-card skeleton-card">
+            <div className="modal-rec-img skeleton-img" />
+            <div className="modal-rec-info">
+              <div className="skeleton-text short" />
+              <div className="skeleton-text tiny" />
+            </div>
+          </div>
+        ))
+      : recommendedItems.slice(0, 6).map((rec) => (
+          <div
+            key={rec.id}
+            className="modal-rec-card"
+            onClick={() => setSelectedOption(rec.name)}
+          >
+            <div className="modal-rec-img">
+              {rec.imageURL ? (
+                <img src={rec.imageURL} alt={rec.name} />
+              ) : (
+                <div className="modal-rec-placeholder" />
+              )}
+
+              {rec.percentage && (
+                <span className="modal-rec-badge">
+                  {rec.percentage}%
+                </span>
+              )}
+            </div>
+
+            <div className="modal-rec-info">
+              <p className="modal-rec-name">{rec.name}</p>
+              <span className="modal-rec-business">
+                {rec.businessName}
+              </span>
+            </div>
+          </div>
+        ))}
+  </div>
+</div>
+
                         </div>
 
                         <div className="modelheader">

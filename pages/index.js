@@ -9,6 +9,8 @@ import MeetingCard from '../component/MeetingCard';
 import HeaderNav from '../component/HeaderNav';
 import '../src/app/styles/user.scss';
 import { COLLECTIONS } from "/utility_collection";
+import Swal from "sweetalert2";
+import { updateDoc } from "firebase/firestore";
 
 const HomePage = () => {
   const router = useRouter();
@@ -175,6 +177,56 @@ useEffect(() => {
 
   fetchReferralData();
 }, []);
+// ✅ Agreement Check (SHOW ONLY ONCE)
+useEffect(() => {
+  const checkAgreement = async () => {
+    const ujbCode = localStorage.getItem("mmUJBCode");
+    if (!ujbCode) return;
+
+    try {
+      const userRef = doc(db, COLLECTIONS.userDetail, ujbCode);
+      const userSnap = await getDoc(userRef);
+
+      // ✅ If already accepted → do nothing
+      if (userSnap.exists() && userSnap.data().agreementAccepted === true) {
+        return;
+      }
+
+      // ✅ Show Agreement Modal
+      const result = await Swal.fire({
+        title: "User Agreement",
+        html: `
+          <div style="text-align:left; max-height:200px; overflow:auto;">
+            <p>• You agree to follow community guidelines</p>
+            <p>• Your data will be used for platform operations</p>
+            <p>• Misuse may lead to account suspension</p>
+          </div>
+        `,
+        icon: "info",
+        confirmButtonText: "Accept",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+      });
+
+      // ✅ Save acceptance
+      if (result.isConfirmed) {
+        await updateDoc(userRef, {
+          agreementAccepted: true,
+          agreementAcceptedAt: new Date(),
+        });
+
+        Swal.fire("Thank you!", "Agreement accepted", "success");
+      }
+
+    } catch (err) {
+      console.error("Agreement error:", err);
+    }
+  };
+
+  if (isLoggedIn) {
+    checkAgreement();
+  }
+}, [isLoggedIn]);
 
 
   if (!isLoggedIn) {

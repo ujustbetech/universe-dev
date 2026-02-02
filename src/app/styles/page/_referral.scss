@@ -1156,15 +1156,137 @@ td:contains("Lost") {
   font-weight: 600;
 }
 
-.recommend-section {
-  margin-top: 24px;
+/* Recommendation wrapper */
+.modal-recommendation {
+  margin-top: 16px;
 }
 
-.recommend-section h3 {
+.modal-rec-title {
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  color: #0a2540;
 }
 
+/* Horizontal scroll */
+.modal-rec-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+/* Individual card */
+.modal-rec-card {
+  min-width: 120px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  cursor: pointer;
+}
+
+/* Image section */
+.modal-rec-img {
+  position: relative;
+  height: 90px;
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
+  background: #f3f3f3;
+}
+
+.modal-rec-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.modal-rec-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+}
+
+/* Percentage badge */
+.modal-rec-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #ff7a00;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+/* Info */
+.modal-rec-info {
+  padding: 6px 8px 8px;
+}
+
+.modal-rec-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.modal-rec-business {
+  font-size: 11px;
+  color: #666;
+}
+/* ===== Skeleton Loader ===== */
+
+.skeleton-card {
+  pointer-events: none;
+}
+
+.skeleton-img {
+  height: 90px;
+  background: linear-gradient(
+    90deg,
+    #eeeeee 25%,
+    #dddddd 37%,
+    #eeeeee 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 12px 12px 0 0;
+}
+
+.skeleton-text {
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    #eeeeee 25%,
+    #dddddd 37%,
+    #eeeeee 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.skeleton-text.short {
+  width: 80%;
+}
+
+.skeleton-text.tiny {
+  width: 60%;
+  height: 8px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
 
 /* ================= RESPONSIVE ================= */
 

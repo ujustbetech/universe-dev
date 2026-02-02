@@ -9,13 +9,13 @@ const ServiceProductCard = ({
   item,
   onRefer,
   onView,
-  disableNavigation = false, // ⭐ NEW PROP
+  disableNavigation = false, // ⭐ used for recommendation cards / modal
 }) => {
   const router = useRouter();
 
   // ✅ Navigate ONLY when allowed
   const handleCardClick = () => {
-    if (disableNavigation) return;       // ⛔ modal / recommendation
+    if (disableNavigation) return; // ⛔ prevent navigation
     if (!item?.mainId) return;
     router.push(`/BusinessDetails/${item.mainId}`);
   };
@@ -31,23 +31,25 @@ const ServiceProductCard = ({
       className={styles.cardsDiv}
       style={{ cursor: disableNavigation ? "default" : "pointer" }}
 
-      // ⭐ Desktop hover
+      // ⭐ Desktop hover → recommendation
       onMouseEnter={() => onView?.(item)}
 
-      // ⭐ Mobile tap (IMPORTANT)
+      // ⭐ Mobile tap → recommendation
       onTouchStart={() => onView?.(item)}
 
       onClick={handleCardClick}
     >
+      {/* IMAGE */}
       <div className={styles.cardImg}>
         {item?.imageURL ? (
           <img src={item.imageURL} alt={displayName} />
         ) : (
           <div className={styles.thumbnail_NA}>
-            <CiImageOff />
+            <CiImageOff size={28} />
           </div>
         )}
 
+        {/* PERCENTAGE BADGE */}
         {item?.percentage && (
           <span className={styles.wdp_ribbon}>
             {item.percentage}
@@ -56,6 +58,7 @@ const ServiceProductCard = ({
         )}
       </div>
 
+      {/* CONTENT */}
       <div className={styles.description}>
         <h4>{displayName}</h4>
         <p className={styles.ownerInfo}>{item?.businessName}</p>
@@ -63,6 +66,7 @@ const ServiceProductCard = ({
         {/* ✅ Referral button must NOT navigate */}
         {onRefer && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation(); // ⛔ stop card click
               onRefer(item);       // ✅ open referral modal
