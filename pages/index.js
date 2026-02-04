@@ -11,6 +11,13 @@ import '../src/app/styles/user.scss';
 import { COLLECTIONS } from "/utility_collection";
 import Swal from "sweetalert2";
 import { updateDoc } from "firebase/firestore";
+import jsPDF from "jspdf";
+import {
+  LISTED_PARTNER_AGREEMENT,
+  PARTNER_AGREEMENT
+} from "../src/utils/agreements";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "../firebaseConfig";
 
 const HomePage = () => {
   const router = useRouter();
@@ -43,6 +50,147 @@ useEffect(() => {
   }
   setLoading(false);
 }, []);
+
+
+const generateAgreementPDF = async ({ name, address, city, category }) => {
+  const doc = new jsPDF("p", "mm", "a4");
+
+  const PAGE_WIDTH = 210;
+  const PAGE_HEIGHT = 297;
+
+  /* ================= LAYOUT CONFIG ================= */
+  const MARGIN_X = 20;
+  const MARGIN_Y = 40;
+
+  const FONT_SIZE = 11.5;
+  const LINE_HEIGHT = 6.5;
+
+  const TEXT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
+  let cursorY = MARGIN_Y;
+
+  const isCosmOrbiter = category === "CosmOrbiter";
+
+  const agreementText = isCosmOrbiter
+    ? LISTED_PARTNER_AGREEMENT
+    : PARTNER_AGREEMENT;
+
+  const finalText = agreementText
+    .replace(/{{NAME}}/g, name)
+    .replace(/{{ADDRESS}}/g, `${address}, ${city}`);
+
+  /* ================= LOGO ================= */
+  const LOGO_WIDTH = 30;
+  const LOGO_HEIGHT = 30; // ✅ taller logo
+  const LOGO_X = (PAGE_WIDTH - LOGO_WIDTH) / 2;
+
+  doc.addImage("/ujustlogo.png", "PNG", LOGO_X, 10, LOGO_WIDTH, LOGO_HEIGHT);
+
+  cursorY = 55;
+
+  /* ================= TITLE ================= */
+  doc.setFont("Helvetica", "Bold");
+  doc.setFontSize(17);
+  doc.text(
+    isCosmOrbiter
+      ? "LISTED PARTNER AGREEMENT"
+      : "PARTNER AGREEMENT",
+    PAGE_WIDTH / 2,
+    cursorY,
+    { align: "center" }
+  );
+
+  cursorY += 18;
+
+  /* ================= BODY ================= */
+  doc.setFont("Helvetica", "Normal");
+  doc.setFontSize(FONT_SIZE);
+
+  finalText.split("\n").forEach((line) => {
+    if (!line.trim()) {
+      cursorY += LINE_HEIGHT;
+      return;
+    }
+
+    const wrappedLines = doc.splitTextToSize(line, TEXT_WIDTH);
+
+    wrappedLines.forEach((wrapLine) => {
+      if (cursorY > PAGE_HEIGHT - 30) {
+        doc.addPage();
+        cursorY = MARGIN_Y;
+      }
+
+      doc.text(wrapLine, MARGIN_X, cursorY, {
+        align: "left",
+        maxWidth: TEXT_WIDTH,
+      });
+
+      cursorY += LINE_HEIGHT;
+    });
+  });
+
+  /* ================= SIGNATURE PAGE ================= */
+  doc.addPage();
+  cursorY = 60;
+
+  doc.setFont("Helvetica", "Bold");
+  doc.setFontSize(14);
+  doc.text("ACCEPTANCE & CONFIRMATION", PAGE_WIDTH / 2, cursorY, {
+    align: "center",
+  });
+
+  cursorY += 20;
+
+  doc.setFont("Helvetica", "Normal");
+  doc.setFontSize(12);
+
+  doc.text(`Name: ${name}`, MARGIN_X, cursorY); cursorY += 12;
+  doc.text(`Category: ${category}`, MARGIN_X, cursorY); cursorY += 12;
+  doc.text(`Address: ${address}, ${city}`, MARGIN_X, cursorY); cursorY += 12;
+  doc.text(`Date: ${new Date().toLocaleDateString()}`, MARGIN_X, cursorY);
+
+  cursorY += 25;
+  doc.text("Signature: Digitally Accepted", MARGIN_X, cursorY);
+
+  /* ================= WATERMARK + FOOTER ================= */
+  const pageCount = doc.getNumberOfPages();
+
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+
+    doc.setFontSize(42);
+    doc.setTextColor(235);
+    doc.text(
+      "DIGITALLY ACCEPTED",
+      PAGE_WIDTH / 2,
+      PAGE_HEIGHT / 2,
+      { align: "center", angle: 35 }
+    );
+
+    doc.setTextColor(0);
+    doc.setFontSize(10);
+    doc.text(
+      `Page ${i} of ${pageCount}`,
+      PAGE_WIDTH / 2,
+      PAGE_HEIGHT - 12,
+      { align: "center" }
+    );
+  }
+
+  /* ================= DOWNLOAD + UPLOAD ================= */
+  const pdfBlob = doc.output("blob");
+
+  doc.save(
+    `${isCosmOrbiter ? "ListedPartner" : "Partner"}_Agreement_${name}.pdf`
+  );
+
+  const pdfRef = ref(storage, `agreements/${Date.now()}_${name}.pdf`);
+  await uploadBytes(pdfRef, pdfBlob);
+  const pdfUrl = await getDownloadURL(pdfRef);
+
+  return pdfUrl;
+};
+
+
 
 
 // ✅ Fetch data using UJBCode as Doc ID
@@ -187,19 +335,24 @@ useEffect(() => {
       const userRef = doc(db, COLLECTIONS.userDetail, ujbCode);
       const userSnap = await getDoc(userRef);
 
+      if (!userSnap.exists()) return;
+
+      const data = userSnap.data();
+
       // ✅ If already accepted → do nothing
-      if (userSnap.exists() && userSnap.data().agreementAccepted === true) {
-        return;
-      }
+      if (data.agreementAccepted === true) return;
 
       // ✅ Show Agreement Modal
       const result = await Swal.fire({
-        title: "User Agreement",
+        title:
+          data.Category === "CosmOrbiter"
+            ? "Listed Partner Agreement"
+            : "Partner Agreement",
         html: `
-          <div style="text-align:left; max-height:200px; overflow:auto;">
-            <p>• You agree to follow community guidelines</p>
-            <p>• Your data will be used for platform operations</p>
-            <p>• Misuse may lead to account suspension</p>
+          <div style="text-align:left; max-height:250px; overflow:auto;">
+            <p>• You have read and understood the agreement</p>
+            <p>• You accept all terms & conditions</p>
+            <p>• This acceptance is legally binding</p>
           </div>
         `,
         icon: "info",
@@ -208,25 +361,58 @@ useEffect(() => {
         allowEscapeKey: false,
       });
 
-      // ✅ Save acceptance
+      // ✅ On Accept
       if (result.isConfirmed) {
+        const name =
+          data.Name ||
+          data.BusinessName ||
+          userName ||
+          "User";
+
+        const address = data.Address || "—";
+        const city = data.City || "—";
+        const category = data.Category; // CosmOrbiter / Orbiter
+
+        // ✅ Generate PDF + Upload → get URL
+        const pdfUrl = await generateAgreementPDF({
+          name,
+          address,
+          city,
+          category,
+        });
+
+        // ✅ Save acceptance + PDF URL in Firestore
         await updateDoc(userRef, {
           agreementAccepted: true,
           agreementAcceptedAt: new Date(),
+          agreementType:
+            category === "CosmOrbiter"
+              ? "LISTED_PARTNER"
+              : "PARTNER",
+          agreementPdfUrl: pdfUrl,
         });
 
-        Swal.fire("Thank you!", "Agreement accepted", "success");
+        Swal.fire(
+          "Agreement Accepted",
+          "Your agreement has been signed and saved successfully",
+          "success"
+        );
       }
-
     } catch (err) {
       console.error("Agreement error:", err);
+      Swal.fire(
+        "Error",
+        "Something went wrong while saving the agreement",
+        "error"
+      );
     }
   };
 
   if (isLoggedIn) {
     checkAgreement();
   }
-}, [isLoggedIn]);
+}, [isLoggedIn, userName]);
+
 
 
   if (!isLoggedIn) {

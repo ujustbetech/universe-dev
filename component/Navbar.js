@@ -40,7 +40,17 @@ const Navbar = (props) => {
                 <li><Link href="/admin/event/manageEvent">Manage Meet</Link></li>
               </ul>
             </li>
-
+  <li>
+              <span className="nav-link" tabIndex={0}>
+                <span className="icons"><FaPeopleArrows /></span>
+                <span className="linklabel">Referrals</span>
+                <MdOutlineKeyboardArrowDown className="submenuIcon" />
+              </span>
+              <ul>
+                <li><Link href="/admin/AddRedeem">Add Redeem</Link></li>
+                <li><Link href="/admin/ManageReferrals">Manage Referrals</Link></li>
+              </ul>
+            </li>
             {/* Referrals */}
             <li>
               <span className="nav-link" tabIndex={0}>

@@ -11,7 +11,11 @@ import {
     updateDoc,
     Timestamp,
     arrayUnion,
-    onSnapshot,
+    onSnapshot,getDoc,
+setDoc,
+addDoc,
+getDocs
+
 } from "firebase/firestore";
 import { app } from "../firebaseConfig";
 import Link from "next/link";
@@ -39,6 +43,66 @@ const getDynamicMessage = (template, referral) => {
         .replace(/\(CosmOrbiter Name\)/g, referral.cosmoOrbiter.name)
         .replace(/\(Orbiter Name\)/g, referral.orbiter.name)
         .replace(/\(Product\/Service\)/g, serviceOrProduct);
+};
+// ================= CP LOGIC =================
+
+
+
+
+const ensureCpBoardUser = async (user) => {
+  if (!user?.ujbCode) return;
+
+  const ref = doc(db, "CPBoard", user.ujbCode);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      id: user.ujbCode,
+      name: user.name,
+      phoneNumber: user.phone,
+      role: "Orbiter",
+      totals: { R: 0, H: 0, W: 0 },
+      createdAt: Timestamp.now(),
+    });
+  }
+};
+
+const hasCpActivity = async (ujbCode, activityNo, refId) => {
+  const q = query(
+    collection(db, "CPBoard", ujbCode, "activities"),
+    where("activityNo", "==", activityNo),
+    where("referralId", "==", refId)
+  );
+  const snap = await getDocs(q);
+  return !snap.empty;
+};
+
+const addCp = async ({
+  user,
+  activityNo,
+  activityName,
+  points,
+  referralId,
+  purpose,
+}) => {
+  await ensureCpBoardUser(user);
+
+  if (await hasCpActivity(user.ujbCode, activityNo, referralId)) return;
+
+  await addDoc(collection(db, "CPBoard", user.ujbCode, "activities"), {
+    activityNo,
+    activityName,
+    points,
+    categories: ["R"],
+    referralId,
+    purpose,
+    source: "ReferralModule",
+    month: new Date().toLocaleString("default", {
+      month: "short",
+      year: "numeric",
+    }),
+    addedAt: Timestamp.now(),
+  });
 };
 
 // Predefined status messages
@@ -229,39 +293,108 @@ const UserReferrals = () => {
     }, []);
 
     // Handle deal status change (My Referrals)
-    const handleStatusChange = async (referral, newStatus) => {
-        try {
-            const docRef = doc(db, COLLECTIONS.referral, referral.id);
-            const statusLog = { status: newStatus, updatedAt: Timestamp.now() };
+   const handleStatusChange = async (referral, newStatus) => {
+  try {
+    const docRef = doc(db, COLLECTIONS.referral, referral.id);
 
-            await updateDoc(docRef, {
-                dealStatus: newStatus,
-                "cosmoOrbiter.dealStatus": newStatus,
-                statusLogs: arrayUnion(statusLog),
-                lastUpdated: Timestamp.now(),
-            });
+    await updateDoc(docRef, {
+      dealStatus: newStatus,
+      "cosmoOrbiter.dealStatus": newStatus,
+      statusLogs: arrayUnion({
+        status: newStatus,
+        updatedAt: Timestamp.now(),
+      }),
+      lastUpdated: Timestamp.now(),
+    });
 
-            // Send WhatsApp messages dynamically if templates exist
-            const templates = statusMessages[newStatus];
-            if (templates) {
-                await Promise.all([
-                    sendWhatsAppTemplate(
-                        referral.orbiter.phone,
-                        referral.orbiter.name,
-                        getDynamicMessage(templates.Orbiter, referral)
-                    ),
-                    sendWhatsAppTemplate(
-                        referral.cosmoOrbiter.phone,
-                        referral.cosmoOrbiter.name,
-                        getDynamicMessage(templates.CosmOrbiter, referral)
-                    ),
-                ]);
-            }
-        } catch (error) {
-            console.error("Error updating deal status:", error);
-            Swal.fire("Error", "Failed to update deal status.", "error");
-        }
-    };
+    const referralType = referral?.referralType; // "Self" | "Others"
+
+    // ================= DIP =================
+// ================= CP LOGIC (MY REFERRALS) =================
+if (newStatus === "Discussion in Progress") {
+  await addCp({
+    user: referral.cosmoOrbiter, // ✅ ALWAYS COSMO ORBITER
+    activityNo: "DIP_MY",
+    activityName: "Referral Discussion in Progress",
+    points: referral.referralType === "Others" ? 75 : 100,
+    referralId: referral.id,
+    purpose: "Referral moved to discussion stage",
+  });
+}
+
+if (newStatus === "Agreed % Transferred to UJustBe") {
+  // BASE CLOSURE CP
+  await addCp({
+    user: referral.cosmoOrbiter, // ✅ ALWAYS COSMO ORBITER
+    activityNo: "CLOSE_MY",
+    activityName: "Referral Closure Completed",
+    points:
+      referral.referralType === "Others"
+        ? 125   // third party closure
+        : 150,  // self closure
+    referralId: referral.id,
+    purpose: "Referral successfully closed",
+  });
+}
+
+
+    // ================= CLOSURE =================
+    if (newStatus === "Agreed % Transferred to UJustBe") {
+      // SELF
+      await addCp({
+        user: referral.orbiter,
+        activityNo: "CLOSE_SELF",
+        activityName: "Referral Closure passed by Self",
+        points: 150,
+        referralId: referral.id,
+        purpose: "Self referral closed",
+      });
+
+      // PROSPECT
+      await addCp({
+        user: referral.orbiter,
+        activityNo: "CLOSE_PROSPECT",
+        activityName: "Referral Closure passed by Prospect",
+        points: 200,
+        referralId: referral.id,
+        purpose: "Prospect closed referral",
+      });
+
+      // THIRD PARTY
+      if (referralType === "Others") {
+        await addCp({
+          user: referral.orbiter,
+          activityNo: "CLOSE_THIRD",
+          activityName: "Referral Closure passed for Third Party",
+          points: 125,
+          referralId: referral.id,
+          purpose: "Third party closure",
+        });
+      }
+    }
+
+    // ================= WHATSAPP =================
+    const templates = statusMessages[newStatus];
+    if (templates) {
+      await Promise.all([
+        sendWhatsAppTemplate(
+          referral.orbiter.phone,
+          referral.orbiter.name,
+          getDynamicMessage(templates.Orbiter, referral)
+        ),
+        sendWhatsAppTemplate(
+          referral.cosmoOrbiter.phone,
+          referral.cosmoOrbiter.name,
+          getDynamicMessage(templates.CosmOrbiter, referral)
+        ),
+      ]);
+    }
+  } catch (err) {
+    console.error(err);
+    Swal.fire("Error", "Status update failed", "error");
+  }
+};
+
 
     // Accept referral (My Referrals)
     const handleAccept = async (ref) => {
