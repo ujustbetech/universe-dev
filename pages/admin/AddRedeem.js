@@ -120,7 +120,7 @@ const AddRedeemption = () => {
     <Layout>
       <section className="admin-profile-container">
         <div className="admin-profile-header">
-          <h2>Add Redeemption</h2>
+          <h2>Add Redemption</h2>
           <button
             className="btn-back"
             onClick={() => window.history.back()}

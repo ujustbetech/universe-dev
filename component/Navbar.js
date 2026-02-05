@@ -48,7 +48,7 @@ const Navbar = (props) => {
               </span>
               <ul>
                 <li><Link href="/admin/AddRedeem">Add Redeem</Link></li>
-                <li><Link href="/admin/ManageReferrals">Manage Referrals</Link></li>
+                <li><Link href="/admin/ManageRedeem">Manage Redeems</Link></li>
               </ul>
             </li>
             {/* Referrals */}
