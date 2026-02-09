@@ -36,6 +36,7 @@ const ReferralDetails = () => {
   const [otherName, setOtherName] = useState("");
   const [otherPhone, setOtherPhone] = useState("");
   const [otherEmail, setOtherEmail] = useState("");
+const [recommendedOptions, setRecommendedOptions] = useState([]);
 
   // removed old selectedOption; using id-based selection now
   const [selectedOptionId, setSelectedOptionId] = useState("");
@@ -187,6 +188,69 @@ const ReferralDetails = () => {
 
     fetchCosmo();
   }, [id]);
+useEffect(() => {
+  if (!userDetails?.category1 && !userDetails?.category2) return;
+
+  const fetchRecommendations = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, COLLECTIONS.userDetail));
+
+      const list = [];
+
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+
+        // Skip same business
+        if (data?.UJBCode === userDetails.ujbCode) return;
+
+        // Match by Category1 / Category2
+        const matches =
+          data?.Category1 === userDetails.category1 ||
+          data?.Category2 === userDetails.category1 ||
+          data?.Category1 === userDetails.category2 ||
+          data?.Category2 === userDetails.category2;
+
+        if (!matches) return;
+
+        const servicesArr = data.services
+          ? Array.isArray(data.services)
+            ? data.services
+            : Object.values(data.services)
+          : [];
+
+        const productsArr = data.products
+          ? Array.isArray(data.products)
+            ? data.products
+            : Object.values(data.products)
+          : [];
+
+        servicesArr.forEach((s, index) =>
+          list.push({
+            id: `rec_service_${docSnap.id}_${index}`,
+            label: s.serviceName || s.name || "",
+            type: "service",
+            sourceUjb: data?.UJBCode,
+          })
+        );
+
+        productsArr.forEach((p, index) =>
+          list.push({
+            id: `rec_product_${docSnap.id}_${index}`,
+            label: p.productName || p.name || "",
+            type: "product",
+            sourceUjb: data?.UJBCode,
+          })
+        );
+      });
+
+      setRecommendedOptions(list.slice(0, 6)); // limit 6
+    } catch (err) {
+      console.error("Error fetching recommendations:", err);
+    }
+  };
+
+  fetchRecommendations();
+}, [userDetails]);
 
   const generateReferralId = async () => {
     const now = new Date();
@@ -698,22 +762,44 @@ const ReferralDetails = () => {
 
                   {dropdownOpen && (
                     <div className="dropdown-menu">
-                      {[...services, ...products].map((item, i) => {
-                        const label = item.serviceName || item.productName || item.label || "";
-                        return (
-                          <div
-                            key={i}
-                            className="dropdown-item"
-                            onClick={() => {
-                              setSelectedOptionId(item.id);
-                              setSelectedOptionLabel(label);
-                              setDropdownOpen(false);
-                            }}
-                          >
-                            {label}
-                          </div>
-                        );
-                      })}
+                     {/* OWN SERVICES & PRODUCTS */}
+{[...services, ...products].map((item, i) => {
+  const label = item.serviceName || item.productName || item.label || "";
+  return (
+    <div
+      key={`own_${i}`}
+      className="dropdown-item"
+      onClick={() => {
+        setSelectedOptionId(item.id);
+        setSelectedOptionLabel(label);
+        setDropdownOpen(false);
+      }}
+    >
+      {label}
+    </div>
+  );
+})}
+
+{/* RECOMMENDED SECTION */}
+{recommendedOptions.length > 0 && (
+  <>
+    <div className="dropdown-divider">Recommended</div>
+    {recommendedOptions.map((item, i) => (
+      <div
+        key={`rec_${i}`}
+        className="dropdown-item recommended"
+        onClick={() => {
+          setSelectedOptionId(item.id);
+          setSelectedOptionLabel(item.label);
+          setDropdownOpen(false);
+        }}
+      >
+        ⭐ {item.label}
+      </div>
+    ))}
+  </>
+)}
+
                     </div>
                   )}
                 </div>

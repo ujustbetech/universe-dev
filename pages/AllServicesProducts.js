@@ -53,33 +53,23 @@ const AllServicesProducts = ({
   const [selectedItem, setSelectedItem] = useState(null);
   const [userCache, setUserCache] = useState({});
 
-  // ⭐ RECOMMENDATION STATE
   const [recommendedItems, setRecommendedItems] = useState([]);
 
-  // 🔥 KEYWORD-BASED RECOMMENDATION LOGIC
+  // 🔥 KEYCATEGORY BASED RECOMMENDATION
   const findRecommendations = (currentItem) => {
-    if (!currentItem?.keywords) {
+    if (!currentItem?.keyCategory) {
       setRecommendedItems([]);
       return;
     }
 
-    const currentKeywords = currentItem.keywords
-      .toLowerCase()
-      .split(',')
-      .map((k) => k.trim())
-      .filter(Boolean);
+    const currentCategory = currentItem.keyCategory.trim().toLowerCase();
 
     const matches = items.filter((item) => {
-      if (item.id === currentItem.id) return false;
-      if (!item.keywords) return false;
-
-      const itemKeywords = item.keywords
-        .toLowerCase()
-        .split(',')
-        .map((k) => k.trim())
-        .filter(Boolean);
-
-      return currentKeywords.some((k) => itemKeywords.includes(k));
+      return (
+        item.id !== currentItem.id &&
+        item.keyCategory &&
+        item.keyCategory.trim().toLowerCase() === currentCategory
+      );
     });
 
     setRecommendedItems(matches);
@@ -95,6 +85,7 @@ const AllServicesProducts = ({
 
         snapshot.forEach((doc) => {
           const data = doc.data();
+
           const category1 = data?.Category1?.trim();
           const category2 = data?.Category2?.trim();
 
@@ -106,6 +97,7 @@ const AllServicesProducts = ({
 
           const ownerName = data?.Name || '—';
           const businessName = data?.BusinessName || '—';
+
           const ujbCode =
             data?.ujbCode ||
             data?.UJB ||
@@ -113,10 +105,13 @@ const AllServicesProducts = ({
             data?.ujb_code ||
             doc.id;
 
-          // ✅ SERVICES & PRODUCTS ARE ARRAYS
+          // ⭐ IMPORTANT: keyCategory from ROOT
+          const keyCategory = data?.keyCategory || '';
+
           const servicesArr = Array.isArray(data.services)
             ? data.services
             : [];
+
           const productsArr = Array.isArray(data.products)
             ? data.products
             : [];
@@ -132,7 +127,7 @@ const AllServicesProducts = ({
               description: s?.description || '—',
               imageURL: s?.imageURL || '',
               percentage: s?.agreedValue?.single?.value || '',
-              keywords: s?.keywords || '',
+              keyCategory: keyCategory,
               ownerName,
               businessName,
               category: category1 || category2 || '',
@@ -150,7 +145,7 @@ const AllServicesProducts = ({
               description: p?.description || '—',
               imageURL: p?.imageURL || '',
               percentage: p?.agreedValue?.single?.value || '',
-              keywords: p?.keywords || '',
+              keyCategory: keyCategory,
               ownerName,
               businessName,
               category: category1 || category2 || '',
@@ -170,12 +165,13 @@ const AllServicesProducts = ({
     fetchData();
   }, []);
 
-  // 🔥 INIT DISPLAY
+  // 🔥 INITIAL LOAD
   useEffect(() => {
     if (enableInfiniteScroll) {
       const initial = maxItems
         ? items.slice(0, maxItems)
         : items.slice(0, PAGE_SIZE);
+
       setDisplayedItems(initial);
       setNextIndex(initial.length);
     } else {
@@ -196,11 +192,13 @@ const AllServicesProducts = ({
 
       if (bottom) {
         setLoadingMore(true);
+
         setTimeout(() => {
           setDisplayedItems((prev) => [
             ...prev,
             ...items.slice(nextIndex, nextIndex + PAGE_SIZE),
           ]);
+
           setNextIndex((prev) => prev + PAGE_SIZE);
           setLoadingMore(false);
         }, 600);
@@ -211,7 +209,7 @@ const AllServicesProducts = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, [items, nextIndex, loadingMore, enableInfiniteScroll]);
 
-  // 🔥 FILTER
+  // 🔥 SEARCH + FILTER
   const filteredItems = useMemo(() => {
     const queryLower = searchQuery.toLowerCase();
 
@@ -219,7 +217,6 @@ const AllServicesProducts = ({
       const matchesQuery =
         item.name.toLowerCase().includes(queryLower) ||
         item.description.toLowerCase().includes(queryLower) ||
-        item.keywords?.toLowerCase().includes(queryLower) ||
         item.businessName?.toLowerCase().includes(queryLower);
 
       const matchesCategory =
@@ -268,8 +265,6 @@ const AllServicesProducts = ({
           </div>
         )}
 
-     
-
         {/* ⭐ ITEMS */}
         <div className={styles.OffersList}>
           {loading ? (
@@ -297,14 +292,13 @@ const AllServicesProducts = ({
       </section>
 
       {modalOpen && (
-       <ReferralModal
-  item={selectedItem}
-  recommendedItems={recommendedItems}   // ⭐ REQUIRED
-  onClose={() => setModalOpen(false)}
-  userCache={userCache}
-  setUserCache={setUserCache}
-/>
-
+        <ReferralModal
+          item={selectedItem}
+          recommendedItems={recommendedItems}
+          onClose={() => setModalOpen(false)}
+          userCache={userCache}
+          setUserCache={setUserCache}
+        />
       )}
     </main>
   );
