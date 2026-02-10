@@ -7,7 +7,9 @@ import {
   addDoc,
   doc,
   getDoc,
-  serverTimestamp
+  serverTimestamp,
+  onSnapshot,
+  query
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
@@ -27,6 +29,8 @@ const AddRedeemption = () => {
 
   const [redeemPercentage, setRedeemPercentage] = useState("");
 
+  const [redeemList, setRedeemList] = useState([]);
+
   // ================= LOAD USERS =================
   useEffect(() => {
     const fetchUsers = async () => {
@@ -35,14 +39,29 @@ const AddRedeemption = () => {
       );
 
       setUsers(
-        snapshot.docs.map(doc => ({
+        snapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         }))
       );
     };
 
     fetchUsers();
+  }, []);
+
+  // ================= REALTIME REDEMPTION LIST =================
+  useEffect(() => {
+    const q = query(collection(db, "redeemption"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setRedeemList(data);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // ================= SELECT COSMO =================
@@ -88,32 +107,34 @@ const AddRedeemption = () => {
         name: selectedCosmo.Name || "",
         phone: selectedCosmo.MobileNo || "",
         email: selectedCosmo.Email || "",
-        ujbCode: selectedCosmo.UJBCode || ""
+        ujbCode: selectedCosmo.UJBCode || "",
       },
       itemType,
       item: {
         name: item.name,
-        agreedValue
+        agreedValue,
       },
       redeemPercentage: Number(redeemPercentage),
       redeemAmount,
       status: "Pending",
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
     };
 
     await addDoc(collection(db, "redeemption"), data);
 
     alert("Redeemption added successfully!");
 
-    // ================= RESET =================
-    setSelectedCosmo(null);
-    setCosmoSearch("");
-    setServices([]);
-    setProducts([]);
     setSelectedService(null);
     setSelectedProduct(null);
     setRedeemPercentage("");
   };
+
+  // ================= FILTER LIST BY SELECTED COSMO =================
+  const filteredList = selectedCosmo
+    ? redeemList.filter(
+        (r) => r.cosmo?.ujbCode === selectedCosmo.UJBCode
+      )
+    : redeemList;
 
   // ================= RENDER =================
   return (
@@ -130,7 +151,6 @@ const AddRedeemption = () => {
         </div>
 
         <ul className="admin-profile-form">
-          {/* COSMO SEARCH */}
           <li className="form-group">
             <h4>Search Cosmo Orbiter</h4>
             <input
@@ -144,7 +164,6 @@ const AddRedeemption = () => {
                 .filter((u) => {
                   const name = String(u.Name || "").toLowerCase();
                   const category = String(u.Category || "").toLowerCase();
-
                   return (
                     category.includes("cosmo") &&
                     name.includes(cosmoSearch.toLowerCase())
@@ -161,7 +180,6 @@ const AddRedeemption = () => {
             </ul>
           </li>
 
-          {/* SERVICES */}
           {services.length > 0 && (
             <li className="form-group">
               <label>Select Service</label>
@@ -169,7 +187,7 @@ const AddRedeemption = () => {
                 value={selectedService?.name || ""}
                 onChange={(e) => {
                   setSelectedService(
-                    services.find(s => s.name === e.target.value)
+                    services.find((s) => s.name === e.target.value)
                   );
                   setSelectedProduct(null);
                 }}
@@ -184,7 +202,6 @@ const AddRedeemption = () => {
             </li>
           )}
 
-          {/* PRODUCTS */}
           {products.length > 0 && (
             <li className="form-group">
               <label>Select Product</label>
@@ -192,7 +209,7 @@ const AddRedeemption = () => {
                 value={selectedProduct?.name || ""}
                 onChange={(e) => {
                   setSelectedProduct(
-                    products.find(p => p.name === e.target.value)
+                    products.find((p) => p.name === e.target.value)
                   );
                   setSelectedService(null);
                 }}
@@ -207,7 +224,6 @@ const AddRedeemption = () => {
             </li>
           )}
 
-          {/* REDEEM % */}
           {(selectedService || selectedProduct) && (
             <li className="form-group">
               <label>Redeem Percentage (%)</label>
@@ -223,6 +239,23 @@ const AddRedeemption = () => {
         <button className="btn-submit" onClick={handleSubmit}>
           Submit Redeemption
         </button>
+
+        {/* ================= ADDED LIST BELOW ================= */}
+        <div className="redeem-list-section">
+          <h3 style={{ marginTop: "30px" }}>
+            Added Redemptions
+          </h3>
+
+          {filteredList.map((item) => (
+            <div key={item.id} className="summary-card">
+              <h4>{item.item?.name}</h4>
+              <p>Type: {item.itemType}</p>
+              <p>Redeem %: {item.redeemPercentage}%</p>
+              <p>Amount: ₹{item.redeemAmount}</p>
+              <strong>Status: {item.status}</strong>
+            </div>
+          ))}
+        </div>
       </section>
     </Layout>
   );

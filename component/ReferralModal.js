@@ -18,6 +18,7 @@ import { MdArrowBack } from 'react-icons/md';
 import { COLLECTIONS } from "/utility_collection";
 import { toast, Toaster } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/router';
 
 const db = getFirestore(app);
 
@@ -28,6 +29,7 @@ const ReferralModal = ({
   userCache,
   setUserCache
 }) => {
+const router = useRouter();
 
     const [userDetails, setUserDetails] = useState(null);
     const [orbiterDetails, setOrbiterDetails] = useState({ name: '', phone: '', email: '' });
@@ -439,33 +441,41 @@ const sendWhatsAppMessage = async (phone, parameters = []) => {
           </div>
         ))
       : recommendedItems.slice(0, 6).map((rec) => (
-          <div
-            key={rec.id}
-            className="modal-rec-card"
-            onClick={() => setSelectedOption(rec.name)}
-          >
-            <div className="modal-rec-img">
-              {rec.imageURL ? (
-                <img src={rec.imageURL} alt={rec.name} />
-              ) : (
-                <div className="modal-rec-placeholder" />
-              )}
+  <div
+    key={rec.id}
+    className="modal-rec-card"
+    onClick={() => {
+      if (rec.mainId) {
+        onClose();
+        router.push(`/BusinessDetails/${rec.mainId}`);
+      } else {
+        console.warn("No mainId found for recommended item");
+      }
+    }}
+  >
+    <div className="modal-rec-img">
+      {rec.imageURL ? (
+        <img src={rec.imageURL} alt={rec.name} />
+      ) : (
+        <div className="modal-rec-placeholder" />
+      )}
 
-              {rec.percentage && (
-                <span className="modal-rec-badge">
-                  {rec.percentage}%
-                </span>
-              )}
-            </div>
+      {rec.percentage && (
+        <span className="modal-rec-badge">
+          {rec.percentage}%
+        </span>
+      )}
+    </div>
 
-            <div className="modal-rec-info">
-              <p className="modal-rec-name">{rec.name}</p>
-              <span className="modal-rec-business">
-                {rec.businessName}
-              </span>
-            </div>
-          </div>
-        ))}
+    <div className="modal-rec-info">
+      <p className="modal-rec-name">{rec.name}</p>
+      <span className="modal-rec-business">
+        {rec.businessName}
+      </span>
+    </div>
+  </div>
+))}
+
   </div>
 </div>
 

@@ -10,7 +10,8 @@ import {
   serverTimestamp,
   query,
   where,
-  getDocs
+  onSnapshot,
+  updateDoc,
 } from "firebase/firestore";
 import Headertop from "../component/Header";
 import HeaderNav from "../component/HeaderNav";
@@ -59,7 +60,7 @@ const RequestRedeemption = () => {
 
   const [myRequests, setMyRequests] = useState([]);
 
-  /* ============ LOAD USER + NORMALIZE DATA ============ */
+  /* ============ LOAD USER ============ */
   useEffect(() => {
     const loadUser = async () => {
       const ujbCode = localStorage.getItem("mmUJBCode");
@@ -83,7 +84,6 @@ const RequestRedeemption = () => {
         Email: data.Email,
       });
 
-      // ✅ NORMALIZATION HAPPENS HERE (ONCE)
       setServices(normalizeItems(data.services));
       setProducts(normalizeItems(data.products));
     };
@@ -91,27 +91,28 @@ const RequestRedeemption = () => {
     loadUser();
   }, []);
 
-  /* ============ LOAD MY REQUESTS ============ */
+  /* ============ REALTIME MY REQUESTS ============ */
   useEffect(() => {
-    const fetchRequests = async () => {
-      const ujbCode = localStorage.getItem("mmUJBCode");
-      if (!ujbCode) return;
+    const ujbCode = localStorage.getItem("mmUJBCode");
+    if (!ujbCode) return;
 
-      const q = query(
-        collection(db, "redeemption"),
-        where("requestedBy", "==", ujbCode)
-      );
+    const q = query(
+      collection(db, "redeemption"),
+      where("requestedBy", "==", ujbCode)
+    );
 
-      const snap = await getDocs(q);
-      setMyRequests(
-        snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      );
-    };
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const liveData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setMyRequests(liveData);
+    });
 
-    fetchRequests();
+    return () => unsubscribe();
   }, []);
 
-  /* ============ SUBMIT REQUEST ============ */
+  /* ============ SUBMIT / EDIT REQUEST ============ */
   const submitRequest = async () => {
     if (!selectedItem || !redeemPercentage) {
       Swal.fire("Error", "Select item & percentage", "error");
@@ -122,34 +123,77 @@ const RequestRedeemption = () => {
     const redeemAmount =
       (agreedValue * Number(redeemPercentage)) / 100;
 
-    await addDoc(collection(db, "redeemption"), {
-      requestedBy: user.ujbCode,
-      cosmo: {
-        name: user.Name,
-        phone: user.MobileNo,
-        email: user.Email,
-        ujbCode: user.ujbCode
-      },
-      itemType,
-      item: {
-        name: selectedItem.name,
-        agreedValue
-      },
-      redeemPercentage: Number(redeemPercentage),
-      redeemAmount,
-      status: "Requested",
-      createdAt: serverTimestamp()
-    });
-
-    Swal.fire(
-      "Requested",
-      "Your redemption request has been sent",
-      "success"
+    const existing = myRequests.find(
+      (req) =>
+        req.item?.name === selectedItem.name &&
+        req.status === "Requested"
     );
+
+    if (existing) {
+      // 🔥 EDIT MODE
+      await updateDoc(
+        doc(db, "redeemption", existing.id),
+        {
+          redeemPercentage: Number(redeemPercentage),
+          redeemAmount,
+          updatedAt: serverTimestamp(),
+          statusLogs: [
+            ...(existing.statusLogs || []),
+            {
+              action: "Edited",
+              date: new Date(),
+            },
+          ],
+        }
+      );
+
+      Swal.fire("Updated", "Request updated successfully", "success");
+    } else {
+      // 🔥 CREATE MODE
+      await addDoc(collection(db, "redeemption"), {
+        requestedBy: user.ujbCode,
+        cosmo: {
+          name: user.Name,
+          phone: user.MobileNo,
+          email: user.Email,
+          ujbCode: user.ujbCode,
+        },
+        itemType,
+        item: {
+          name: selectedItem.name,
+          agreedValue,
+        },
+        redeemPercentage: Number(redeemPercentage),
+        redeemAmount,
+        status: "Requested",
+        statusLogs: [
+          {
+            action: "Created",
+            date: new Date(),
+          },
+        ],
+        createdAt: serverTimestamp(),
+      });
+
+      Swal.fire(
+        "Requested",
+        "Your redemption request has been sent",
+        "success"
+      );
+    }
 
     setSelectedItem(null);
     setRedeemPercentage("");
   };
+
+  /* ============ CHECK EXISTING REQUEST ============ */
+  const existingRequest =
+    selectedItem &&
+    myRequests.find(
+      (req) =>
+        req.item?.name === selectedItem.name &&
+        req.status === "Requested"
+    );
 
   /* ============ RENDER ============ */
   return (
@@ -168,7 +212,9 @@ const RequestRedeemption = () => {
             <div
               key={`service-${i}`}
               className={`summary-card ${
-                selectedItem?.name === s.name ? "completed" : "on-hold"
+                selectedItem?.name === s.name
+                  ? "completed"
+                  : "on-hold"
               }`}
               onClick={() => {
                 setSelectedItem(s);
@@ -184,7 +230,9 @@ const RequestRedeemption = () => {
             <div
               key={`product-${i}`}
               className={`summary-card ${
-                selectedItem?.name === p.name ? "completed" : "on-hold"
+                selectedItem?.name === p.name
+                  ? "completed"
+                  : "on-hold"
               }`}
               onClick={() => {
                 setSelectedItem(p);
@@ -200,33 +248,54 @@ const RequestRedeemption = () => {
         {/* ===== REQUEST FORM ===== */}
         {selectedItem && (
           <section className="container">
-            <div className="loginInput">
-              <input
-                type="number"
-                placeholder="Enter Redeem Percentage"
-                value={redeemPercentage}
-                onChange={(e) =>
-                  setRedeemPercentage(e.target.value)
-                }
-              />
-              <button className="login" onClick={submitRequest}>
-                Request Redemption
-              </button>
-            </div>
+            {existingRequest ? (
+              <p style={{ color: "red" }}>
+                Redemption already requested for this item.
+              </p>
+            ) : (
+              <div className="loginInput">
+                <input
+                  type="number"
+                  placeholder="Enter Redeem Percentage"
+                  value={redeemPercentage}
+                  onChange={(e) =>
+                    setRedeemPercentage(e.target.value)
+                  }
+                />
+                <button className="login" onClick={submitRequest}>
+                  Request Redemption
+                </button>
+              </div>
+            )}
           </section>
         )}
 
         {/* ===== STATUS LIST ===== */}
         <section className="container">
-          <h2 style={{ marginBottom: "10px" }}>My Requests</h2>
+          <h2 style={{ marginBottom: "10px" }}>
+            My Requests
+          </h2>
 
-          {myRequests.map(req => (
+          {myRequests.map((req) => (
             <div key={req.id} className="summary-card on-hold">
               <h3>{req.item?.name}</h3>
               <p>{req.itemType}</p>
               <p>{req.redeemPercentage}%</p>
               <p>₹{req.redeemAmount}</p>
               <strong>Status: {req.status}</strong>
+
+              {req.status === "Requested" && (
+                <button
+                  className="login"
+                  onClick={() => {
+                    setSelectedItem(req.item);
+                    setRedeemPercentage(req.redeemPercentage);
+                    setItemType(req.itemType);
+                  }}
+                >
+                  Edit
+                </button>
+              )}
             </div>
           ))}
         </section>
