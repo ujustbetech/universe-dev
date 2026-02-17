@@ -5,13 +5,13 @@ import { db } from "../firebaseConfig";
 import {
   doc,
   getDoc,
+  updateDoc,
   addDoc,
   collection,
   serverTimestamp,
   query,
   where,
   onSnapshot,
-  updateDoc,
 } from "firebase/firestore";
 import Headertop from "../component/Header";
 import HeaderNav from "../component/HeaderNav";
@@ -40,34 +40,28 @@ const normalizeValue = (value) => {
   return 0;
 };
 
-const normalizeItems = (items = []) => {
-  return items.map((item) => ({
-    name: normalizeName(item.name),
-    agreedValue: normalizeValue(item.agreedValue),
-  }));
-};
-
 /* ================= COMPONENT ================= */
 
-const RequestRedeemption = () => {
+const CCRedemption = () => {
   const [user, setUser] = useState(null);
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
+
+  const [mode, setMode] = useState("");
   const [services, setServices] = useState([]);
   const [products, setProducts] = useState([]);
-
   const [selectedItem, setSelectedItem] = useState(null);
-  const [itemType, setItemType] = useState("");
-  const [redeemPercentage, setRedeemPercentage] = useState("");
+
+  const [offerType, setOfferType] = useState("");
+  const [discountValue, setDiscountValue] = useState("");
+  const [customText, setCustomText] = useState("");
 
   const [myRequests, setMyRequests] = useState([]);
 
-  /* ============ LOAD USER ============ */
+  /* ================= LOAD USER ================= */
   useEffect(() => {
     const loadUser = async () => {
       const ujbCode = localStorage.getItem("mmUJBCode");
-      if (!ujbCode) {
-        Swal.fire("Error", "UJB Code not found", "error");
-        return;
-      }
+      if (!ujbCode) return;
 
       const snap = await getDoc(
         doc(db, COLLECTIONS.userDetail, ujbCode)
@@ -84,218 +78,299 @@ const RequestRedeemption = () => {
         Email: data.Email,
       });
 
-      setServices(normalizeItems(data.services));
-      setProducts(normalizeItems(data.products));
+      setAgreementAccepted(
+        data.ccRedemptionAgreementAccepted === true
+      );
+
+      // Normalize services
+      const normServices = (data.services || []).map((s) => ({
+        ...s,
+        name: normalizeName(s.name),
+        agreedValue: normalizeValue(s.agreedValue),
+        type: "service",
+      }));
+
+      // Normalize products
+      const normProducts = (data.products || []).map((p) => ({
+        ...p,
+        name: normalizeName(p.name),
+        agreedValue: normalizeValue(p.agreedValue),
+        type: "product",
+      }));
+
+      setServices(normServices);
+      setProducts(normProducts);
     };
 
     loadUser();
   }, []);
 
-  /* ============ REALTIME MY REQUESTS ============ */
+  /* ================= REALTIME MY REQUESTS ================= */
   useEffect(() => {
     const ujbCode = localStorage.getItem("mmUJBCode");
     if (!ujbCode) return;
 
     const q = query(
-      collection(db, "redeemption"),
+      collection(db, "ccredemption"),
       where("requestedBy", "==", ujbCode)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const liveData = snapshot.docs.map((doc) => ({
+      const data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      setMyRequests(liveData);
+      setMyRequests(data);
     });
 
     return () => unsubscribe();
   }, []);
 
-  /* ============ SUBMIT / EDIT REQUEST ============ */
+  /* ================= ACCEPT AGREEMENT ================= */
+  const acceptAgreement = async () => {
+    const ujbCode = localStorage.getItem("mmUJBCode");
+
+    await updateDoc(
+      doc(db, COLLECTIONS.userDetail, ujbCode),
+      {
+        ccRedemptionAgreementAccepted: true,
+        ccRedemptionAgreementAcceptedAt: serverTimestamp(),
+      }
+    );
+
+    setAgreementAccepted(true);
+
+    Swal.fire("Accepted", "Agreement accepted", "success");
+  };
+
+  /* ================= PREVENT DUPLICATE ================= */
+  const isDuplicate = () => {
+    return myRequests.some(
+      (req) =>
+        req.status === "Requested" &&
+        req.mode === mode &&
+        (mode === "all" ||
+          req.selectedItem?.name === selectedItem?.name)
+    );
+  };
+
+  /* ================= SUBMIT ================= */
   const submitRequest = async () => {
-    if (!selectedItem || !redeemPercentage) {
-      Swal.fire("Error", "Select item & percentage", "error");
+    if (!mode) {
+      Swal.fire("Error", "Select Mode", "error");
       return;
     }
 
-    const agreedValue = selectedItem.agreedValue;
-    const redeemAmount =
-      (agreedValue * Number(redeemPercentage)) / 100;
-
-    const existing = myRequests.find(
-      (req) =>
-        req.item?.name === selectedItem.name &&
-        req.status === "Requested"
-    );
-
-    if (existing) {
-      // 🔥 EDIT MODE
-      await updateDoc(
-        doc(db, "redeemption", existing.id),
-        {
-          redeemPercentage: Number(redeemPercentage),
-          redeemAmount,
-          updatedAt: serverTimestamp(),
-          statusLogs: [
-            ...(existing.statusLogs || []),
-            {
-              action: "Edited",
-              date: new Date(),
-            },
-          ],
-        }
-      );
-
-      Swal.fire("Updated", "Request updated successfully", "success");
-    } else {
-      // 🔥 CREATE MODE
-      await addDoc(collection(db, "redeemption"), {
-        requestedBy: user.ujbCode,
-        cosmo: {
-          name: user.Name,
-          phone: user.MobileNo,
-          email: user.Email,
-          ujbCode: user.ujbCode,
-        },
-        itemType,
-        item: {
-          name: selectedItem.name,
-          agreedValue,
-        },
-        redeemPercentage: Number(redeemPercentage),
-        redeemAmount,
-        status: "Requested",
-        statusLogs: [
-          {
-            action: "Created",
-            date: new Date(),
-          },
-        ],
-        createdAt: serverTimestamp(),
-      });
-
-      Swal.fire(
-        "Requested",
-        "Your redemption request has been sent",
-        "success"
-      );
+    if (mode === "single" && !selectedItem) {
+      Swal.fire("Error", "Select Product/Service", "error");
+      return;
     }
 
+    if (!offerType) {
+      Swal.fire("Error", "Select Offer Type", "error");
+      return;
+    }
+
+    if (
+      (offerType === "percent" || offerType === "rs") &&
+      !discountValue
+    ) {
+      Swal.fire("Error", "Enter Discount Value", "error");
+      return;
+    }
+
+    if (offerType === "other" && !customText) {
+      Swal.fire("Error", "Enter Custom Offer", "error");
+      return;
+    }
+
+    if (isDuplicate()) {
+      Swal.fire(
+        "Already Requested",
+        "You already have a pending request",
+        "warning"
+      );
+      return;
+    }
+
+    await addDoc(collection(db, "ccredemption"), {
+      requestedBy: user.ujbCode,
+      cosmo: user,
+      mode,
+      selectedItem: mode === "single" ? selectedItem : null,
+      offerType,
+      discountValue:
+        offerType === "percent" || offerType === "rs"
+          ? Number(discountValue)
+          : null,
+      customText:
+        offerType === "other" ? customText : null,
+      status: "Requested",
+      createdAt: serverTimestamp(),
+    });
+
+    Swal.fire("Submitted", "Request sent to admin", "success");
+
+    setMode("");
     setSelectedItem(null);
-    setRedeemPercentage("");
+    setOfferType("");
+    setDiscountValue("");
+    setCustomText("");
   };
 
-  /* ============ CHECK EXISTING REQUEST ============ */
-  const existingRequest =
-    selectedItem &&
-    myRequests.find(
-      (req) =>
-        req.item?.name === selectedItem.name &&
-        req.status === "Requested"
-    );
+  /* ================= AGREEMENT PAGE ================= */
+  if (!agreementAccepted) {
+    return (
+      <main className="pageContainer">
+        <Headertop />
+        <section className="HomepageMain">
+          <div className="container pageHeading">
+            <h1>CC Redemption Agreement</h1>
+          </div>
 
-  /* ============ RENDER ============ */
+          <div className="container loginInput">
+            <p>
+              By accepting this agreement, you agree
+              to provide genuine offers and honor
+              the mentioned discounts.
+            </p>
+
+            <button className="login" onClick={acceptAgreement}>
+              Accept Agreement
+            </button>
+          </div>
+
+          <HeaderNav />
+        </section>
+      </main>
+    );
+  }
+
+  /* ================= MAIN ================= */
   return (
     <main className="pageContainer">
       <Headertop />
-
       <section className="HomepageMain">
         <div className="container pageHeading">
-          <h1>Redemption</h1>
-          <p>Request & track your redemption</p>
+          <h1>CC Redemption</h1>
         </div>
 
-        {/* ===== SERVICES & PRODUCTS ===== */}
-        <section className="project-summary">
-          {services.map((s, i) => (
-            <div
-              key={`service-${i}`}
-              className={`summary-card ${
-                selectedItem?.name === s.name
-                  ? "completed"
-                  : "on-hold"
-              }`}
-              onClick={() => {
-                setSelectedItem(s);
-                setItemType("service");
-              }}
-            >
-              <h3>{s.name}</h3>
-              <p>Agreed: ₹{s.agreedValue}</p>
-            </div>
-          ))}
+        {/* MODE */}
+        <div className="container loginInput">
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value)}
+          >
+            <option value="">Select Mode</option>
+            <option value="single">Single Product</option>
+            <option value="all">All Products</option>
+          </select>
+        </div>
 
-          {products.map((p, i) => (
-            <div
-              key={`product-${i}`}
-              className={`summary-card ${
-                selectedItem?.name === p.name
-                  ? "completed"
-                  : "on-hold"
-              }`}
-              onClick={() => {
-                setSelectedItem(p);
-                setItemType("product");
-              }}
-            >
-              <h3>{p.name}</h3>
-              <p>Agreed: ₹{p.agreedValue}</p>
-            </div>
-          ))}
-        </section>
-
-        {/* ===== REQUEST FORM ===== */}
-        {selectedItem && (
-          <section className="container">
-            {existingRequest ? (
-              <p style={{ color: "red" }}>
-                Redemption already requested for this item.
-              </p>
-            ) : (
-              <div className="loginInput">
-                <input
-                  type="number"
-                  placeholder="Enter Redeem Percentage"
-                  value={redeemPercentage}
-                  onChange={(e) =>
-                    setRedeemPercentage(e.target.value)
-                  }
-                />
-                <button className="login" onClick={submitRequest}>
-                  Request Redemption
-                </button>
+        {/* SERVICE + PRODUCT LIST */}
+        {mode && (
+          <div className="project-summary">
+            {[...services, ...products].map((item, i) => (
+              <div
+                key={i}
+                className={`summary-card ${
+                  mode === "single" &&
+                  selectedItem?.name === item.name
+                    ? "completed"
+                    : "on-hold"
+                }`}
+                onClick={() =>
+                  mode === "single" &&
+                  setSelectedItem(item)
+                }
+                style={{
+                  cursor:
+                    mode === "single"
+                      ? "pointer"
+                      : "default",
+                  opacity:
+                    mode === "all" ? 0.6 : 1,
+                }}
+              >
+                <h3>{item.name}</h3>
+                <p>{item.type}</p>
+                <p>₹ {item.agreedValue}</p>
               </div>
-            )}
-          </section>
+            ))}
+          </div>
         )}
 
-        {/* ===== STATUS LIST ===== */}
+        {/* OFFER SECTION */}
+        {mode && (
+          <div className="container loginInput">
+            <select
+              value={offerType}
+              onChange={(e) =>
+                setOfferType(e.target.value)
+              }
+            >
+              <option value="">Select Offer</option>
+              <option value="percent">
+                X % Discount
+              </option>
+              <option value="rs">
+                X Rs Discount
+              </option>
+              <option value="bogo">
+                Buy 1 Get 1
+              </option>
+              <option value="other">Other</option>
+            </select>
+
+            {(offerType === "percent" ||
+              offerType === "rs") && (
+              <input
+                type="number"
+                placeholder="Enter Value"
+                value={discountValue}
+                onChange={(e) =>
+                  setDiscountValue(e.target.value)
+                }
+              />
+            )}
+
+            {offerType === "other" && (
+              <input
+                type="text"
+                placeholder="Enter Custom Offer"
+                value={customText}
+                onChange={(e) =>
+                  setCustomText(e.target.value)
+                }
+              />
+            )}
+
+            <button
+              className="login"
+              onClick={submitRequest}
+            >
+              Submit
+            </button>
+          </div>
+        )}
+
+        {/* PREVIOUS REQUESTS */}
         <section className="container">
-          <h2 style={{ marginBottom: "10px" }}>
-            My Requests
-          </h2>
+          <h2>My CC Requests</h2>
 
           {myRequests.map((req) => (
             <div key={req.id} className="summary-card on-hold">
-              <h3>{req.item?.name}</h3>
-              <p>{req.itemType}</p>
-              <p>{req.redeemPercentage}%</p>
-              <p>₹{req.redeemAmount}</p>
-              <strong>Status: {req.status}</strong>
-
-              {req.status === "Requested" && (
-                <button
-                  className="login"
-                  onClick={() => {
-                    setSelectedItem(req.item);
-                    setRedeemPercentage(req.redeemPercentage);
-                    setItemType(req.itemType);
-                  }}
-                >
-                  Edit
-                </button>
+              <h3>
+                {req.mode === "all"
+                  ? "All Products"
+                  : req.selectedItem?.name}
+              </h3>
+              <p>{req.offerType}</p>
+              {req.discountValue && (
+                <p>{req.discountValue}</p>
               )}
+              {req.customText && <p>{req.customText}</p>}
+              <strong>Status: {req.status}</strong>
             </div>
           ))}
         </section>
@@ -306,4 +381,4 @@ const RequestRedeemption = () => {
   );
 };
 
-export default RequestRedeemption;
+export default CCRedemption;

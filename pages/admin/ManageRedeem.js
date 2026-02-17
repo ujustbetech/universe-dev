@@ -3,136 +3,198 @@
 import React, { useEffect, useState } from "react";
 import {
   collection,
-  getDocs,
   updateDoc,
   doc,
   query,
-  orderBy
+  orderBy,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
+import Swal from "sweetalert2";
 import "../../src/app/styles/main.scss";
 
 const RedemptionRequests = () => {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [ccRequests, setCcRequests] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("All");
 
-  // ================= LOAD REQUESTS =================
-  const fetchRequests = async () => {
-    setLoading(true);
+  /* ================= REALTIME FETCH ================= */
 
+  useEffect(() => {
     const q = query(
-      collection(db, "redeemption"),
+      collection(db, "ccredemption"),
       orderBy("createdAt", "desc")
     );
 
-    const snap = await getDocs(q);
-    setRequests(
-      snap.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      }))
-    );
-
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchRequests();
-  }, []);
-
-  // ================= UPDATE STATUS =================
-  const updateStatus = async (id, status) => {
-    await updateDoc(doc(db, "redeemption", id), {
-      status,
-      updatedAt: new Date()
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setCcRequests(
+        snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+      );
     });
 
-    fetchRequests();
+    return () => unsubscribe();
+  }, []);
+
+  /* ================= UPDATE STATUS ================= */
+
+  const updateStatus = async (id, status) => {
+    const confirm = await Swal.fire({
+      title: `Confirm ${status}?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes",
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    await updateDoc(doc(db, "ccredemption", id), {
+      status,
+      updatedAt: new Date(),
+    });
+
+    Swal.fire("Updated", `Marked as ${status}`, "success");
   };
 
-  // ================= FILTERS =================
-  const requested = requests.filter(r => r.status === "Requested");
-  const approved = requests.filter(r => r.status === "Approved");
-  const rejected = requests.filter(r => r.status === "Rejected");
+  /* ================= STATUS BADGE ================= */
 
-  // ================= RENDER TABLE =================
-  const renderTable = (data, showActions = false) => (
-    <table className="admin-table">
-      <thead>
-        <tr>
-          <th>Cosmo</th>
-          <th>Item</th>
-          <th>Type</th>
-          <th>%</th>
-          <th>Amount</th>
-          <th>Status</th>
-          {showActions && <th>Action</th>}
-        </tr>
-      </thead>
-      <tbody>
-        {data.map((r) => (
-          <tr key={r.id}>
-            <td>{r.cosmo?.name}</td>
-            <td>{r.item?.name}</td>
-            <td>{r.itemType}</td>
-            <td>{r.redeemPercentage}%</td>
-            <td>₹{r.redeemAmount}</td>
-            <td>{r.status}</td>
+  const getStatusClass = (status) => {
+    if (status === "Approved") return "completed";
+    if (status === "Rejected") return "in-review";
+    return "on-hold";
+  };
 
-            {showActions && (
-              <td>
-                <button
-                  className="btn-submit"
-                  onClick={() => updateStatus(r.id, "Approved")}
-                >
-                  Approve
-                </button>
-                <button
-                  className="btn-back"
-                  style={{ marginLeft: "8px" }}
-                  onClick={() => updateStatus(r.id, "Rejected")}
-                >
-                  Reject
-                </button>
-              </td>
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+  /* ================= FILTER LOGIC ================= */
 
-  // ================= RENDER =================
+  const filteredRequests = ccRequests.filter((r) => {
+    const matchesSearch =
+      r.cosmo?.Name?.toLowerCase().includes(
+        searchTerm.toLowerCase()
+      ) || false;
+
+    const matchesStatus =
+      filterStatus === "All" ||
+      r.status === filterStatus;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  /* ================= RENDER ================= */
+
   return (
     <Layout>
       <section className="admin-profile-container">
         <div className="admin-profile-header">
-          <h2>Redemption Requests</h2>
+          <h2>CC Redemption Management</h2>
           <button className="btn-back" onClick={() => window.history.back()}>
             Back
           </button>
         </div>
 
-        {loading && <p>Loading...</p>}
+        {/* SEARCH + FILTER */}
+        <div style={{ display: "flex", gap: "15px", marginBottom: "20px" }}>
+          <input
+            type="text"
+            placeholder="Search by Cosmo Name"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ padding: "8px", width: "250px" }}
+          />
 
-        {/* REQUESTED */}
-        <h3 style={{ marginTop: "20px" }}>Requested</h3>
-        {requested.length > 0
-          ? renderTable(requested, true)
-          : <p>No pending requests</p>}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={{ padding: "8px" }}
+          >
+            <option value="All">All Status</option>
+            <option value="Requested">Requested</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
 
-        {/* APPROVED */}
-        <h3 style={{ marginTop: "30px" }}>Approved</h3>
-        {approved.length > 0
-          ? renderTable(approved)
-          : <p>No approved requests</p>}
+        {/* TABLE */}
+        <div className="admin-table-container">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Cosmo</th>
+                <th>Mode</th>
+                <th>Product</th>
+                <th>Offer</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
 
-        {/* REJECTED */}
-        <h3 style={{ marginTop: "30px" }}>Rejected</h3>
-        {rejected.length > 0
-          ? renderTable(rejected)
-          : <p>No rejected requests</p>}
+            <tbody>
+              {filteredRequests.length === 0 && (
+                <tr>
+                  <td colSpan="6">No Requests Found</td>
+                </tr>
+              )}
+
+              {filteredRequests.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.cosmo?.Name}</td>
+
+                  <td>{r.mode}</td>
+
+                  <td>
+                    {r.mode === "all"
+                      ? "All Products"
+                      : r.selectedItem?.name}
+                  </td>
+
+                  <td>
+                    {r.offerType === "percent" &&
+                      `${r.discountValue}% Discount`}
+                    {r.offerType === "rs" &&
+                      `₹${r.discountValue} Discount`}
+                    {r.offerType === "bogo" &&
+                      "Buy 1 Get 1"}
+                    {r.offerType === "other" &&
+                      r.customText}
+                  </td>
+
+                  <td>
+                    <span className={`status-badge ${getStatusClass(r.status)}`}>
+                      {r.status}
+                    </span>
+                  </td>
+
+                  <td>
+                    {r.status === "Requested" && (
+                      <>
+                        <button
+                          className="btn-submit"
+                          onClick={() =>
+                            updateStatus(r.id, "Approved")
+                          }
+                        >
+                          Approve
+                        </button>
+
+                        <button
+                          className="btn-back"
+                          style={{ marginLeft: "6px" }}
+                          onClick={() =>
+                            updateStatus(r.id, "Rejected")
+                          }
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </Layout>
   );

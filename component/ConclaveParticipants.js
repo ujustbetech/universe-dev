@@ -39,7 +39,7 @@ const [filteredUsers, setFilteredUsers] = useState({});
 
     const filtered = userList.filter(user =>
       user.name?.toLowerCase().includes(value.toLowerCase())
-    );
+    ); 
     setFilteredUsers(prev => ({
       ...prev,
       [`${index}_${key}`]: filtered,
