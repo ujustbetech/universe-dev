@@ -1,278 +1,293 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React,{useEffect,useState} from "react";
 import {
-  collection,
-  updateDoc,
-  doc,
-  query,
-  orderBy,
-  onSnapshot,
+collection,
+updateDoc,
+doc,
+query,
+orderBy,
+onSnapshot
 } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import {db} from "../../firebaseConfig";
 import Layout from "../../component/Layout";
 import Swal from "sweetalert2";
 import "../../src/app/styles/main.scss";
 
-const RedemptionRequests = () => {
-  const [ccRequests, setCcRequests] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("All");
+const RedemptionRequests=()=>{
 
-  /* ================= REALTIME FETCH ================= */
+const[ccRequests,setCcRequests]=useState([]);
+const[searchTerm,setSearchTerm]=useState("");
+const[filterStatus,setFilterStatus]=useState("All");
 
-  useEffect(() => {
-    const q = query(
-      collection(db, "ccredemption"),
-      orderBy("createdAt", "desc")
-    );
 
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setCcRequests(
-        snap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-      );
-    });
+/* ================= FETCH ================= */
 
-    return () => unsubscribe();
-  }, []);
+useEffect(()=>{
 
-  /* ================= APPROVE ================= */
+const q=query(
+collection(db,"CCRedemption"),
+orderBy("createdAt","desc")
+);
 
-  const handleApprove = async (id) => {
-    const { value: formValues } = await Swal.fire({
-      title: "Approve Redemption",
-      html:
-        `<select id="swal-category" class="swal2-input">
-            <option value="">Select Category</option>
-            <option value="R">Relation</option>
-            <option value="H">Health</option>
-            <option value="W">Wealth</option>
-        </select>` +
-        `<input id="swal-points" class="swal2-input" placeholder="Points Required" type="number">`,
-      showCancelButton: true,
-      confirmButtonText: "Approve",
-      preConfirm: () => {
-        const category = document.getElementById("swal-category").value;
-        const points = document.getElementById("swal-points").value;
+const unsubscribe=onSnapshot(q,(snap)=>{
+setCcRequests(
+snap.docs.map(d=>({
+id:d.id,
+...d.data()
+}))
+);
+});
 
-        if (!category || !points) {
-          Swal.showValidationMessage("All fields required");
-          return false;
-        }
+return()=>unsubscribe();
 
-        return {
-          category,
-          points: Number(points),
-        };
-      },
-    });
+},[]);
 
-    if (!formValues) return;
 
-    await updateDoc(doc(db, "ccredemption", id), {
-      status: "Approved",
-      redemptionCategory: formValues.category,
-      pointsRequired: formValues.points,
-      updatedAt: new Date(),
-    });
 
-    Swal.fire("Approved!", "Redemption updated", "success");
-  };
+/* ================= APPROVE ================= */
 
-  /* ================= EDIT ================= */
+const handleApprove=async(request)=>{
 
-  const handleEdit = async (request) => {
-    const { value: formValues } = await Swal.fire({
-      title: "Edit Redemption",
-      html:
-        `<select id="swal-category" class="swal2-input">
-            <option value="R" ${
-              request.redemptionCategory === "R" ? "selected" : ""
-            }>Relation</option>
-            <option value="H" ${
-              request.redemptionCategory === "H" ? "selected" : ""
-            }>Health</option>
-            <option value="W" ${
-              request.redemptionCategory === "W" ? "selected" : ""
-            }>Wealth</option>
-        </select>` +
-        `<input id="swal-points" class="swal2-input" type="number" value="${
-          request.pointsRequired || ""
-        }" placeholder="Points Required">`,
-      showCancelButton: true,
-      confirmButtonText: "Update",
-      preConfirm: () => {
-        const category = document.getElementById("swal-category").value;
-        const points = document.getElementById("swal-points").value;
+const {value:category}=await Swal.fire({
 
-        if (!category || !points) {
-          Swal.showValidationMessage("All fields required");
-          return false;
-        }
+title:"Select Category",
 
-        return {
-          category,
-          points: Number(points),
-        };
-      },
-    });
+input:"select",
 
-    if (!formValues) return;
+inputOptions:{
+R:"Relation",
+H:"Health",
+W:"Wealth"
+},
 
-    await updateDoc(doc(db, "ccredemption", request.id), {
-      redemptionCategory: formValues.category,
-      pointsRequired: formValues.points,
-      updatedAt: new Date(),
-    });
+inputPlaceholder:"Select Category",
+showCancelButton:true
 
-    Swal.fire("Updated!", "Changes saved", "success");
-  };
+});
 
-  /* ================= REJECT ================= */
+if(!category)return;
 
-  const handleReject = async (id) => {
-    const confirm = await Swal.fire({
-      title: "Reject Request?",
-      icon: "warning",
-      showCancelButton: true,
-    });
+await updateDoc(doc(db,"CCRedemption",request.id),{
 
-    if (!confirm.isConfirmed) return;
+status:"Approved",
+redemptionCategory:category,
+updatedAt:new Date()
 
-    await updateDoc(doc(db, "ccredemption", id), {
-      status: "Rejected",
-      updatedAt: new Date(),
-    });
+});
 
-    Swal.fire("Rejected", "Request rejected", "success");
-  };
+Swal.fire("Approved!","Deal Live","success");
 
-  /* ================= FILTER ================= */
+};
 
-  const filteredRequests = ccRequests.filter((r) => {
-    const matchesSearch =
-      r.cosmo?.Name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      false;
 
-    const matchesStatus =
-      filterStatus === "All" || r.status === filterStatus;
 
-    return matchesSearch && matchesStatus;
-  });
+/* ================= EDIT ================= */
 
-  /* ================= RENDER ================= */
+const handleEdit=async(request)=>{
 
-  return (
-    <Layout>
-      <section className="admin-profile-container">
-        <div className="admin-profile-header">
-          <h2>CC Redemption Management</h2>
-        </div>
+const {value:category}=await Swal.fire({
 
-        {/* SEARCH + FILTER */}
-        <div className="admin-controls">
-          <input
-            type="text"
-            placeholder="Search Cosmo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+title:"Edit Category",
 
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="All">All</option>
-            <option value="Requested">Requested</option>
-            <option value="Approved">Approved</option>
-            <option value="Rejected">Rejected</option>
-          </select>
-        </div>
+input:"select",
 
-        {/* TABLE */}
-        <div className="admin-table-container">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Cosmo</th>
-                <th>Product</th>
-                <th>Category</th>
-                <th>Points</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+inputOptions:{
+R:"Relation",
+H:"Health",
+W:"Wealth"
+},
 
-            <tbody>
-              {filteredRequests.length === 0 && (
-                <tr>
-                  <td colSpan="6">No Requests Found</td>
-                </tr>
-              )}
+inputValue:request.redemptionCategory,
+showCancelButton:true
 
-              {filteredRequests.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.cosmo?.Name}</td>
+});
 
-                  <td>
-                    {r.mode === "all"
-                      ? "All Products"
-                      : r.selectedItem?.name}
-                  </td>
+if(!category)return;
 
-                  <td>
-                    {r.redemptionCategory === "R" && "Relation"}
-                    {r.redemptionCategory === "H" && "Health"}
-                    {r.redemptionCategory === "W" && "Wealth"}
-                    {!r.redemptionCategory && "-"}
-                  </td>
+await updateDoc(doc(db,"CCRedemption",request.id),{
 
-                  <td>{r.pointsRequired || "-"}</td>
+redemptionCategory:category,
+updatedAt:new Date()
 
-                  <td>
-                    <span className={`status-badge ${r.status}`}>
-                      {r.status}
-                    </span>
-                  </td>
+});
 
-                  <td className="action-group">
-                    {r.status === "Requested" && (
-                      <>
-                        <button
-                          className="btn-success"
-                          onClick={() => handleApprove(r.id)}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          className="btn-danger"
-                          onClick={() => handleReject(r.id)}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
+Swal.fire("Updated!","Category Updated","success");
 
-                    {r.status === "Approved" && (
-                      <button
-                        className="btn-edit"
-                        onClick={() => handleEdit(r)}
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </Layout>
-  );
+};
+
+
+
+/* ================= REJECT ================= */
+
+const handleReject=async(id)=>{
+
+const confirm=await Swal.fire({
+title:"Reject?",
+showCancelButton:true
+});
+
+if(!confirm.isConfirmed)return;
+
+await updateDoc(doc(db,"CCRedemption",id),{
+status:"Rejected",
+updatedAt:new Date()
+});
+
+Swal.fire("Rejected","","success");
+
+};
+
+
+
+/* ================= FILTER ================= */
+
+const filtered=ccRequests.filter(r=>{
+
+const matchSearch=
+r.cosmo?.Name
+?.toLowerCase()
+.includes(searchTerm.toLowerCase());
+
+const matchStatus=
+filterStatus==="All"||
+r.status===filterStatus;
+
+return matchSearch&&matchStatus;
+
+});
+
+
+
+/* ================= ITEM NAME ================= */
+
+const getItemName=(r)=>{
+
+if(r.mode==="all") return "All";
+
+if(r.mode==="single")
+return r.selectedItem?.name||"-";
+
+if(r.mode==="multiple")
+return r.multipleItems
+?.map(i=>i.name)
+.join(", ");
+
+return "-";
+
+};
+
+
+
+return(
+
+<Layout>
+
+<section className="admin-profile-container">
+
+<h2>CC Deal Management</h2>
+
+<input
+placeholder="Search Cosmo"
+value={searchTerm}
+onChange={(e)=>setSearchTerm(e.target.value)}
+/>
+
+<select
+value={filterStatus}
+onChange={(e)=>setFilterStatus(e.target.value)}
+>
+<option value="All">All</option>
+<option value="Requested">Requested</option>
+<option value="Approved">Approved</option>
+<option value="Rejected">Rejected</option>
+</select>
+
+
+
+<table className="admin-table">
+
+<thead>
+<tr>
+<th>Cosmo</th>
+<th>Product</th>
+<th>Original %</th>
+<th>Enhanced %</th>
+<th>Final %</th>
+<th>Category</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+
+{filtered.map(r=>(
+
+<tr key={r.id}>
+
+<td>{r.cosmo?.Name}</td>
+
+<td>{getItemName(r)}</td>
+
+<td>{r.agreedPercentage?.originalPercent??"-"}</td>
+<td>{r.agreedPercentage?.enhancedPercent??"-"}</td>
+<td>{r.agreedPercentage?.finalAgreedPercent??"-"}</td>
+
+<td>
+{r.redemptionCategory==="R"&&"Relation"}
+{r.redemptionCategory==="H"&&"Health"}
+{r.redemptionCategory==="W"&&"Wealth"}
+{!r.redemptionCategory&&"-"}
+</td>
+
+<td>{r.status}</td>
+
+<td>
+
+{r.status==="Requested"&&(
+<>
+<button
+className="btn-success"
+onClick={()=>handleApprove(r)}
+>
+Approve
+</button>
+
+<button
+className="btn-danger"
+onClick={()=>handleReject(r.id)}
+>
+Reject
+</button>
+</>
+)}
+
+{r.status==="Approved"&&(
+<button
+className="btn-edit"
+onClick={()=>handleEdit(r)}
+>
+Edit
+</button>
+)}
+
+</td>
+
+</tr>
+
+))}
+
+</tbody>
+
+</table>
+
+</section>
+
+</Layout>
+
+);
+
 };
 
 export default RedemptionRequests;

@@ -8,8 +8,6 @@ import {
   doc,
   getDoc,
   serverTimestamp,
-  onSnapshot,
-  query,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
@@ -28,14 +26,43 @@ const AddRedeemption = () => {
 
   const [mode, setMode] = useState("");
   const [selectedItem, setSelectedItem] = useState(null);
+  const [multipleItems, setMultipleItems] = useState([]);
 
-  /* 🔥 SOP CC MODEL STATES */
+  /* CC MODEL STATES (UNTOUCHED) */
   const [ccModel, setCcModel] = useState("");
   const [discountPercent, setDiscountPercent] = useState("");
   const [additionalPercent, setAdditionalPercent] = useState("");
   const [freeOfferType, setFreeOfferType] = useState("");
 
-  const [redeemList, setRedeemList] = useState([]);
+  /* AGREED % STATES */
+  const [originalPercent, setOriginalPercent] = useState(0);
+  const [enhanceRequired, setEnhanceRequired] = useState("");
+  const [enhancedPercent, setEnhancedPercent] = useState(0);
+  const [finalPercent, setFinalPercent] = useState(0);
+
+  /* GET ORIGINAL AGREED % */
+  const getOriginalPercent = (item) => {
+
+    if (!item?.agreedValue) return 0;
+
+    if (
+      item.agreedValue.mode === "single" &&
+      item.agreedValue.single?.type === "percentage"
+    ) {
+      return Number(item.agreedValue.single.value || 0);
+    }
+
+    if (
+      item.agreedValue.mode === "multiple" &&
+      item.agreedValue.multiple?.slabs?.length
+    ) {
+      return Number(
+        item.agreedValue.multiple.slabs[0]?.value || 0
+      );
+    }
+
+    return 0;
+  };
 
   /* LOAD USERS */
   useEffect(() => {
@@ -51,20 +78,9 @@ const AddRedeemption = () => {
     fetchUsers();
   }, []);
 
-  /* REALTIME LIST */
-  useEffect(() => {
-    const q = query(collection(db, "ccredemption"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setRedeemList(snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })));
-    });
-    return () => unsubscribe();
-  }, []);
-
   /* SELECT COSMO */
   const handleCosmoSelect = async (user) => {
+
     setSelectedCosmo(user);
     setCosmoSearch(user.Name || "");
 
@@ -78,31 +94,45 @@ const AddRedeemption = () => {
     }
   };
 
+  /* MODE CHANGE */
+  const handleModeChange = (val) => {
+
+    setMode(val);
+    setSelectedItem(null);
+    setMultipleItems([]);
+    setOriginalPercent(0);
+    setEnhancedPercent(0);
+    setEnhanceRequired("");
+    setFinalPercent(0);
+
+    if (val === "all") {
+
+      const allItems = [...services, ...products];
+
+      let total = 0;
+      let count = 0;
+
+      allItems.forEach(item => {
+        const percent = getOriginalPercent(item);
+        if (percent > 0) {
+          total += percent;
+          count++;
+        }
+      });
+
+      if (count > 0) {
+        const avg = Math.round(total / count);
+        setOriginalPercent(avg);
+        setFinalPercent(avg);
+      }
+    }
+  };
+
   /* SUBMIT */
   const handleSubmit = async () => {
 
     if (!selectedCosmo || !mode || !ccModel) {
       Swal.fire("Error", "Complete required fields", "error");
-      return;
-    }
-
-    if (mode === "single" && !selectedItem) {
-      Swal.fire("Error", "Select Product/Service", "error");
-      return;
-    }
-
-    if (ccModel === "DISCOUNT" && !discountPercent) {
-      Swal.fire("Error", "Enter Discount %", "error");
-      return;
-    }
-
-    if (ccModel === "ADDITIONAL_PERCENT" && !additionalPercent) {
-      Swal.fire("Error", "Enter Additional %", "error");
-      return;
-    }
-
-    if (ccModel === "FREE_OFFER" && !freeOfferType) {
-      Swal.fire("Error", "Select Free Offer Type", "error");
       return;
     }
 
@@ -119,8 +149,22 @@ const AddRedeemption = () => {
 
       mode,
       selectedItem: mode === "single" ? selectedItem : null,
+      multipleItems: mode === "multiple" ? multipleItems : [],
+      allItems: mode === "all",
 
-      /* 🔥 SOP MODEL STRUCTURE */
+      agreedPercentage: {
+        originalPercent: Number(originalPercent),
+        enhancementApplied: enhanceRequired,
+        enhancedPercent:
+          enhanceRequired === "YES"
+            ? Number(enhancedPercent)
+            : 0,
+        finalAgreedPercent:
+          enhanceRequired === "YES"
+            ? Number(finalPercent)
+            : Number(originalPercent),
+      },
+
       ccModel: {
         type: ccModel,
 
@@ -144,19 +188,11 @@ const AddRedeemption = () => {
       },
 
       modelLocked: true,
-
       status: "Approved",
       createdAt: serverTimestamp(),
     });
 
     Swal.fire("Success", "CC Product Added", "success");
-
-    setMode("");
-    setSelectedItem(null);
-    setCcModel("");
-    setDiscountPercent("");
-    setAdditionalPercent("");
-    setFreeOfferType("");
   };
 
   return (
@@ -197,26 +233,31 @@ const AddRedeemption = () => {
           <li className="form-group">
             <select
               value={mode}
-              onChange={(e) => setMode(e.target.value)}
+              onChange={(e) => handleModeChange(e.target.value)}
             >
               <option value="">Select Mode</option>
               <option value="single">Single</option>
+              <option value="multiple">Multiple</option>
               <option value="all">All</option>
             </select>
           </li>
 
-          {/* ITEM */}
+          {/* SINGLE */}
           {mode === "single" && (
             <li className="form-group">
               <select
-                value={selectedItem?.name || ""}
                 onChange={(e) => {
+
                   const allItems = [...services, ...products];
-                  setSelectedItem(
-                    allItems.find(
-                      (i) => i.name === e.target.value
-                    )
+                  const selected = allItems.find(
+                    (i) => i.name === e.target.value
                   );
+
+                  setSelectedItem(selected);
+
+                  const percent = getOriginalPercent(selected);
+                  setOriginalPercent(percent);
+                  setFinalPercent(percent);
                 }}
               >
                 <option value="">Select Item</option>
@@ -229,6 +270,57 @@ const AddRedeemption = () => {
                 )}
               </select>
             </li>
+          )}
+
+          {/* ORIGINAL */}
+          {originalPercent > 0 && (
+            <li className="form-group">
+              <label>Original Agreed %</label>
+              <input value={originalPercent} disabled />
+            </li>
+          )}
+
+          {/* ENHANCE */}
+          {originalPercent > 0 && (
+            <li className="form-group">
+              <label>Enhancement Required?</label>
+              <select
+                value={enhanceRequired}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEnhanceRequired(val);
+                  if (val === "NO") {
+                    setEnhancedPercent(0);
+                    setFinalPercent(originalPercent);
+                  }
+                }}
+              >
+                <option value="">Select</option>
+                <option value="YES">YES</option>
+                <option value="NO">NO</option>
+              </select>
+            </li>
+          )}
+
+          {enhanceRequired === "YES" && (
+            <>
+              <li className="form-group">
+                <input
+                  type="number"
+                  placeholder="Enhanced %"
+                  onChange={(e) => {
+                    const extra = Number(e.target.value || 0);
+                    setEnhancedPercent(extra);
+                    setFinalPercent(originalPercent + extra);
+                  }}
+                />
+              </li>
+
+              <li className="form-group">
+                <label>Final Agreed %</label>
+                <input value={finalPercent} disabled />
+              </li>
+            </>
           )}
 
           {/* CC MODEL */}

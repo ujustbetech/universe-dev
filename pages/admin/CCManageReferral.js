@@ -1,158 +1,172 @@
-import React, { useEffect, useState } from "react";
-import { db } from "../../firebaseConfig";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { useRouter } from "next/router";
+import React,{useEffect,useState} from "react";
+import {db} from "../../firebaseConfig";
+import {
+collection,
+getDocs,
+deleteDoc,
+doc
+} from "firebase/firestore";
+import {useRouter} from "next/router";
 import "../../src/app/styles/main.scss";
 import Layout from "../../component/Layout";
+import Swal from "sweetalert2";
 
-const ManageCCReferral = () => {
-  const [referrals, setReferrals] = useState([]);
-  const router = useRouter();
+const ManageCCReferral=()=>{
 
-  /* ================= FETCH ================= */
+const [referrals,setReferrals]=useState([]);
+const router=useRouter();
 
-  useEffect(() => {
-    fetchReferrals();
-  }, []);
 
-  const fetchReferrals = async () => {
-    const referralSnap = await getDocs(
-      collection(db, "ccreferral")
-    );
+/* ================= FETCH ================= */
 
-    const data = referralSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+useEffect(()=>{
+fetchReferrals();
+},[]);
 
-    setReferrals(data);
-  };
+const fetchReferrals=async()=>{
 
-  /* ================= DELETE ================= */
+const snap=await getDocs(collection(db,"CCReferral"));
 
-  const handleDelete = async (docId) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this CC referral?"
-    );
-    if (!confirmed) return;
+const data=snap.docs.map(d=>({
+id:d.id,
+...d.data()
+}));
 
-    await deleteDoc(doc(db, "ccreferral", docId));
-    fetchReferrals();
-  };
+setReferrals(data);
 
-  /* ================= EDIT REDIRECT ================= */
+};
 
-  const handleEdit = (id) => {
-    router.push(`/ccreferral/${id}`);
-  };
 
-  return (
-    <Layout>
-      <section className="c-userslist box">
-        <h2>Manage CC Referrals</h2>
+/* ================= DELETE ================= */
 
-        {referrals.length === 0 ? (
-          <p>No CC referrals found.</p>
-        ) : (
-          <table className="table-class">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Orbiter</th>
-                <th>Cosmo</th>
-                <th>Category</th>
-                <th>Item</th>
-                <th>Points</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+const handleDelete=async(id)=>{
 
-            <tbody>
-              {referrals
-                .sort(
-                  (a, b) =>
-                    (b.createdAt?.seconds || 0) -
-                    (a.createdAt?.seconds || 0)
-                )
-                .map((ref, index) => (
-                  <tr key={ref.id}>
-                    <td>{index + 1}</td>
-                    <td>{ref.orbiter?.name || "—"}</td>
-                    <td>{ref.cosmo?.name || "—"}</td>
+const confirm=await Swal.fire({
+title:"Delete Referral?",
+showCancelButton:true
+});
 
-                    <td>
-                      {ref.category === "R"
-                        ? "Relation"
-                        : ref.category === "H"
-                        ? "Health"
-                        : ref.category === "W"
-                        ? "Wealth"
-                        : "—"}
-                    </td>
+if(!confirm.isConfirmed)return;
 
-                    <td>{ref.itemName || "—"}</td>
-                    <td>{ref.pointsRequired || 0}</td>
+await deleteDoc(doc(db,"CCReferral",id));
 
-                    <td>
-                      <span
-                        className={`status-badge ${
-                          ref.status === "Approved"
-                            ? "completed"
-                            : ref.status === "Rejected"
-                            ? "in-review"
-                            : "on-hold"
-                        }`}
-                      >
-                        {ref.status}
-                      </span>
-                    </td>
+fetchReferrals();
 
-                    <td>
-                      {ref.createdAt?.seconds
-                        ? new Date(
-                            ref.createdAt.seconds * 1000
-                          ).toLocaleString()
-                        : "—"}
-                    </td>
+};
 
-                    <td>
-                      <button
-                        className="m-button-7"
-                        style={{
-                          marginRight: "6px",
-                          backgroundColor: "#f16f06",
-                          color: "white",
-                        }}
-                        onClick={() =>
-                          handleEdit(ref.id)
-                        }
-                      >
-                        ✏ Edit
-                      </button>
 
-                      <button
-                        className="m-button-7"
-                        style={{
-                          backgroundColor: "#FF0000",
-                          color: "white",
-                        }}
-                        onClick={() =>
-                          handleDelete(ref.id)
-                        }
-                      >
-                        🗑 Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </Layout>
-  );
+/* ================= REDIRECT EDIT ================= */
+
+const handleEdit=(id)=>{
+
+router.push(`/ccreferral/${id}`);
+
+};
+
+
+/* ================= SORT ================= */
+
+const sorted=referrals.sort(
+(a,b)=>
+(b.createdAt?.seconds||0)-
+(a.createdAt?.seconds||0)
+);
+
+
+/* ================= RENDER ================= */
+
+return(
+
+<Layout>
+
+<section className="c-userslist box">
+
+<h2>Manage CC Referrals</h2>
+
+<table className="table-class">
+
+<thead>
+<tr>
+<th>#</th>
+<th>Orbiter</th>
+<th>Cosmo</th>
+<th>Category</th>
+<th>Item</th>
+<th>Original%</th>
+<th>Enhanced%</th>
+<th>Final%</th>
+<th>Status</th>
+<th>Date</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody>
+
+{sorted.map((ref,index)=>(
+
+<tr key={ref.id}>
+
+<td>{index+1}</td>
+
+<td>{ref.orbiter?.name||"-"}</td>
+
+<td>{ref.cosmo?.name||"-"}</td>
+
+<td>
+{ref.category==="R"&&"Relation"}
+{ref.category==="H"&&"Health"}
+{ref.category==="W"&&"Wealth"}
+{!ref.category&&"-"}
+</td>
+
+<td>{ref.itemName||"-"}</td>
+
+<td>{ref.agreedPercentage?.originalPercent||0}</td>
+<td>{ref.agreedPercentage?.enhancedPercent||0}</td>
+<td>{ref.agreedPercentage?.finalAgreedPercent||0}</td>
+
+<td>{ref.status||"Pending"}</td>
+
+<td>
+{ref.createdAt?.seconds?
+new Date(
+ref.createdAt.seconds*1000
+).toLocaleString():"-"}
+</td>
+
+<td>
+
+<button
+className="btn-edit"
+onClick={()=>handleEdit(ref.id)}
+>
+Edit
+</button>
+
+<button
+className="btn-danger"
+onClick={()=>handleDelete(ref.id)}
+>
+Delete
+</button>
+
+</td>
+
+</tr>
+
+))}
+
+</tbody>
+
+</table>
+
+</section>
+
+</Layout>
+
+);
+
 };
 
 export default ManageCCReferral;
