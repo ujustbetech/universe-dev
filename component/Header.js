@@ -1,43 +1,49 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { useAuth } from "../context/authContext";
 import Swal from "sweetalert2";
-import { COLLECTIONS } from "/utility_collection";
 import { BiSolidCoinStack } from "react-icons/bi";
 
 const Headertop = () => {
   const { user, logout } = useAuth();
-
   const [cpPoints, setCPPoints] = useState(0);
   const router = useRouter();
 
+  /* ================= FETCH CP POINTS ================= */
+
   useEffect(() => {
-    if (!user) return;
-    console.log("user not there");
-    
-     fetchCPPoints(user.phoneNumber);
+    if (!user?.ujbCode) return;
+
+    fetchCPPoints(user.ujbCode);
   }, [user]);
 
- const fetchCPPoints = async (phone) => {
-  if (!phone) return;
+  const fetchCPPoints = async (ujbCode) => {
+    try {
+      const activitiesRef = collection(
+        db,
+        "CPBoard",
+        ujbCode,
+        "activities"
+      );
 
-  const activitiesRef = collection(doc(db, 'Orbiters', phone), 'activities');
-  const snap = await getDocs(activitiesRef);
+      const snap = await getDocs(activitiesRef);
 
-  let total = 0;
-  snap.forEach(doc => {
-    const pts = Number(doc.data()?.points) || 0;
-    total += pts;
-  });
+      let total = 0;
 
-  setCPPoints(total);
-};
+      snap.forEach((doc) => {
+        const pts = Number(doc.data()?.points) || 0;
+        total += pts;
+      });
 
+      setCPPoints(total);
+    } catch (err) {
+      console.error("Error fetching CP points:", err);
+    }
+  };
 
   const getInitials = (name) =>
-   
     name ? name.split(" ").map((w) => w[0]).join("") : "";
 
   const handleLogout = () => {
@@ -60,13 +66,17 @@ const Headertop = () => {
           <img src="/ujustlogo.png" alt="Logo" className="logo" />
           <div className="beta">BETA</div>
         </div>
+
         <div className="headerRight">
-       <button
-  onClick={() => router.push(`/cp-details/${user.ujbCode}`)}
-  className="reward-btn"
->
-  <BiSolidCoinStack size={18} /> CP: {cpPoints}
-</button>
+          {/* 🔥 Correct CP Button */}
+          <button
+            onClick={() =>
+              router.push(`/cp-details/${user.ujbCode}`)
+            }
+            className="reward-btn"
+          >
+            <BiSolidCoinStack size={18} /> CP: {cpPoints}
+          </button>
 
           <div className="userName" onClick={handleLogout}>
             <span>{getInitials(user.name)}</span>

@@ -5,6 +5,7 @@ export const COLLECTIONS = {
   monthlyMeeting: process.env.NEXT_PUBLIC_COLLECTION_MONTHLY_MEETING,
   pageVisit: process.env.NEXT_PUBLIC_COLLECTION_PAGE_VISIT,
   referral: process.env.NEXT_PUBLIC_COLLECTION_REFERRAL,
+   ccreferral: process.env.NEXT_PUBLIC_COLLECTION_CCREFERRAL,
   birthdayCanva: process.env.NEXT_PUBLIC_COLLECTION_BIRTHDAY_CANVA,
   userDetail: process.env.NEXT_PUBLIC_COLLECTION_USER_DETAIL,
   prospect: process.env.NEXT_PUBLIC_COLLECTION_PROSPECT,

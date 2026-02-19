@@ -20,12 +20,15 @@ const db = getFirestore(app);
 
 const DealsForYou = () => {
   const [deals, setDeals] = useState([]);
+  const [activeTab, setActiveTab] = useState("R");
   const [orbiterDetails, setOrbiterDetails] = useState(null);
+  const [balances, setBalances] = useState({ R: 0, H: 0, W: 0 });
+
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [leadDescription, setLeadDescription] = useState("");
 
-  /* ================= LOAD LOGGED ORBITER ================= */
+  /* ================= LOAD USER + BALANCE ================= */
 
   useEffect(() => {
     const stored = localStorage.getItem("mmUJBCode");
@@ -43,17 +46,35 @@ const DealsForYou = () => {
         email: data.Email,
         ujbCode: data.UJBCode,
       });
+
+      const actSnap = await getDocs(
+        collection(db, "CPBoard", stored, "activities")
+      );
+
+      let R = 0,
+        H = 0,
+        W = 0;
+
+      actSnap.forEach((doc) => {
+        const d = doc.data();
+        const pts = Number(d.points || 0);
+
+        if (d.categories?.includes("R")) R += pts;
+        if (d.categories?.includes("H")) H += pts;
+        if (d.categories?.includes("W")) W += pts;
+      });
+
+      setBalances({ R, H, W });
     };
 
     fetchUser();
   }, []);
 
-  /* ================= FETCH APPROVED DEALS ================= */
+  /* ================= FETCH DEALS ================= */
 
   useEffect(() => {
     const fetchDeals = async () => {
       const snapshot = await getDocs(collection(db, "ccredemption"));
-
       const approved = snapshot.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((d) => d.status === "Approved");
@@ -64,159 +85,108 @@ const DealsForYou = () => {
     fetchDeals();
   }, []);
 
-  /* ================= ID GENERATOR ================= */
-  /* FORMAT: ccref/26-27/000001 */
-
-  const generateReferralId = async () => {
-    const now = new Date();
-    const year1 = String(now.getFullYear()).slice(-2);
-    const year2 = String(now.getFullYear() + 1).slice(-2);
-
-    const prefix = `ccref/${year1}-${year2}/`;
-
-    const snap = await getDocs(collection(db, "ccreferral"));
-
-    let last = 0;
-
-    snap.forEach((doc) => {
-      const id = doc.data().referralId;
-      if (id?.startsWith(prefix)) {
-        const match = id.match(/\/(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1]);
-          if (num > last) last = num;
-        }
-      }
-    });
-
-    return `${prefix}${String(last + 1).padStart(6, "0")}`;
-  };
-
-  /* ================= NORMALIZE AGREED VALUE ================= */
-
-  const normalizeItem = (item) => {
-    if (!item) return null;
-
-    const it = JSON.parse(JSON.stringify(item));
-
-    if (!it.agreedValue && it.percentage != null) {
-      it.agreedValue = {
-        mode: "single",
-        single: { type: "percentage", value: String(it.percentage) },
-        multiple: { slabs: [], itemSlabs: [] },
-      };
-    }
-
-    return it;
-  };
-
   /* ================= PASS REFERRAL ================= */
 
-  const handlePassReferral = async () => {
-    if (!selectedDeal) return;
+ const handlePassReferral = async () => {
+  if (!selectedDeal) {
+    toast.error("No deal selected");
+    return;
+  }
 
-    if (!orbiterDetails) {
-      toast.error("User not loaded");
-      return;
-    }
+  if (!orbiterDetails) {
+    toast.error("User not loaded");
+    return;
+  }
 
-    if (!leadDescription.trim()) {
-      toast.error("Enter lead description");
-      return;
-    }
+  if (!leadDescription.trim()) {
+    toast.error("Enter lead description");
+    return;
+  }
 
-    const cosmoCode = selectedDeal.cosmo?.ujbCode;
+  const category = selectedDeal.redemptionCategory;
+  const required = Number(selectedDeal.pointsRequired || 0);
+  const currentBalance = balances[category] || 0;
 
-    if (cosmoCode === orbiterDetails.ujbCode) {
-      toast.error("You cannot refer your own deal");
-      return;
-    }
+  if (currentBalance < required) {
+    toast.error(
+      `You need ${required - currentBalance} more points`
+    );
+    return;
+  }
 
-    try {
-      const referralId = await generateReferralId();
+  try {
+    /* ================= SAVE REFERRAL FIRST ================= */
 
-      const cosmoSnap = await getDoc(
-        doc(db, COLLECTIONS.userDetail, cosmoCode)
-      );
+  const referralData = {
+  referralSource: "CCDeal",
+  referralType: "CC",
+  status: "Pending",
+  createdAt: new Date(),
 
-      if (!cosmoSnap.exists()) {
-        toast.error("Cosmo not found");
-        return;
+  category,
+  pointsRequired: required,
+
+  orbiter: orbiterDetails,
+  cosmo: selectedDeal.cosmo || null,
+
+  itemType: selectedDeal.mode || null,
+  itemName: selectedDeal.selectedItem?.name || null,
+  itemDescription: selectedDeal.selectedItem?.description || null,
+  itemImage: selectedDeal.selectedItem?.imageURL || null,
+
+  offerType: selectedDeal.offerType || null,
+  discountValue: selectedDeal.discountValue || null,
+  customText: selectedDeal.customText || null,
+
+  leadDescription: leadDescription || null,
+};
+
+await addDoc(collection(db, "ccreferral"), referralData);
+
+
+    await addDoc(collection(db, "ccreferral"), referralData);
+
+    /* ================= DEDUCT CP POINTS ================= */
+
+    await addDoc(
+      collection(
+        db,
+        "CPBoard",
+        orbiterDetails.ujbCode,
+        "activities"
+      ),
+      {
+        activityName: "Deal Redemption",
+        purpose: `Redeemed for ${selectedDeal.selectedItem?.name}`,
+        points: -required,
+        categories: [category],
+        addedAt: new Date(),
       }
+    );
 
-      const cosmoData = cosmoSnap.data();
+    /* ================= UPDATE UI ================= */
 
-      const selectedItem =
-        selectedDeal.mode === "all"
-          ? { type: "all", label: "All Products" }
-          : selectedDeal.selectedItem;
+    setBalances((prev) => ({
+      ...prev,
+      [category]: prev[category] - required,
+    }));
 
-      const finalItem = normalizeItem(selectedItem);
+    toast.success("Referral Sent & Points Deducted");
 
-      const data = {
-        referralId,
-        referralSource: "CCDeal",
-        referralType: "CC",
+    setModalOpen(false);
+    setLeadDescription("");
+    setSelectedDeal(null);
 
-        dealStatus: "Pending",
-        timestamp: new Date(),
-        lastUpdated: new Date(),
+  } catch (err) {
+    console.error("Referral Error:", err);
+    toast.error("Something went wrong");
+  }
+};
 
-        cosmoUjbCode: cosmoCode,
 
-        cosmoOrbiter: {
-          name: cosmoData.Name,
-          phone: cosmoData.MobileNo,
-          email: cosmoData.Email,
-          ujbCode: cosmoData.UJBCode,
-        },
-
-        orbiter: orbiterDetails,
-
-        service:
-          selectedDeal.itemType === "service" ? finalItem : null,
-
-        product:
-          selectedDeal.itemType === "product" ? finalItem : null,
-
-        offerType: selectedDeal.offerType || null,
-        discountValue: selectedDeal.discountValue || null,
-        customText: selectedDeal.customText || null,
-
-        leadDescription,
-
-        dealLogs: [],
-        followups: [],
-        statusLogs: [],
-      };
-
-      await addDoc(collection(db, "ccreferral"), data);
-
-      toast.success("CC Referral Sent Successfully!");
-
-      setLeadDescription("");
-      setModalOpen(false);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to send referral");
-    }
-  };
-
-  const formatOffer = (deal) => {
-    if (deal.offerType === "percent")
-      return `${deal.discountValue}% OFF`;
-
-    if (deal.offerType === "rs")
-      return `₹${deal.discountValue} OFF`;
-
-    if (deal.offerType === "bogo")
-      return "Buy 1 Get 1 Free";
-
-    if (deal.offerType === "other")
-      return deal.customText;
-
-    return "";
-  };
+  const filteredDeals = deals.filter(
+    (d) => d.redemptionCategory === activeTab
+  );
 
   return (
     <main className="pageContainer">
@@ -225,76 +195,106 @@ const DealsForYou = () => {
       <section className="HomepageMain">
         <div className="container pageHeading">
           <h1>🔥 Deals For You</h1>
+
+          <div className="balance-bar">
+            <span>❤️ Relation: {balances.R}</span>
+            <span>💚 Health: {balances.H}</span>
+            <span>💰 Wealth: {balances.W}</span>
+          </div>
         </div>
 
-        <section className="deals-grid">
-          {deals.map((deal) => (
-            <div key={deal.id} className="deal-card">
+        {/* CATEGORY TABS */}
+        <div className="category-tabs">
+          {["R", "H", "W"].map((c) => (
+            <button
+              key={c}
+              className={activeTab === c ? "active" : ""}
+              onClick={() => setActiveTab(c)}
+            >
+              {c === "R" ? "Relation" : c === "H" ? "Health" : "Wealth"}
+            </button>
+          ))}
+        </div>
 
-              {deal.mode !== "all" &&
-                deal.selectedItem?.imageURL && (
-                  <div className="deal-image-wrapper">
-                    <img
-                      src={deal.selectedItem.imageURL}
-                      alt={deal.selectedItem?.name}
-                    />
-                    <div className="deal-badge">
-                      {formatOffer(deal)}
-                    </div>
-                  </div>
+        {/* DEAL CARDS */}
+        <section className="deals-grid">
+          {filteredDeals.map((deal) => {
+            const insufficient =
+              balances[deal.redemptionCategory] < deal.pointsRequired;
+
+            return (
+              <div key={deal.id} className="deal-card">
+                {deal.selectedItem?.imageURL && (
+                  <img
+                    src={deal.selectedItem.imageURL}
+                    className="deal-img"
+                    alt={deal.selectedItem.name}
+                  />
                 )}
 
-              <h3 className="deal-title">
-                {deal.mode === "all"
-                  ? "All Products"
-                  : deal.selectedItem?.name}
-              </h3>
+                <div className="deal-discount">
+                  {deal.offerType === "percent" &&
+                    `${deal.discountValue}% OFF`}
+                  {deal.offerType === "rs" &&
+                    `₹${deal.discountValue} OFF`}
+                  {deal.offerType === "bogo" &&
+                    "Buy 1 Get 1"}
+                </div>
 
-              {deal.selectedItem?.description && (
-                <p className="deal-description">
-                  {deal.selectedItem.description}
+                <h3>{deal.selectedItem?.name}</h3>
+
+                <p className="deal-desc">
+                  {deal.selectedItem?.description}
                 </p>
-              )}
 
-              <p className="deal-business">
-                Offered by:{" "}
-                {deal.cosmo?.Name || deal.cosmo?.name}
-              </p>
+                <p className="deal-points">
+                  🎯 Required: {deal.pointsRequired} Points
+                </p>
 
-              <button
-                className="deal-btn"
-                onClick={() => {
-                  setSelectedDeal(deal);
-                  setModalOpen(true);
-                }}
-              >
-                🚀 Pass Referral
-              </button>
-            </div>
-          ))}
+                {insufficient && (
+                  <p className="need-more">
+                    You need{" "}
+                    {deal.pointsRequired -
+                      balances[deal.redemptionCategory]}{" "}
+                    more points
+                  </p>
+                )}
+
+                <button
+                  disabled={insufficient}
+                  onClick={() => {
+                    setSelectedDeal(deal);
+                    setModalOpen(true);
+                  }}
+                >
+                  Redeem
+                </button>
+              </div>
+            );
+          })}
         </section>
 
         <HeaderNav />
       </section>
 
+      {/* MODAL */}
       {modalOpen && (
         <div className="ref-modal-overlay">
           <div className="ref-modal-content">
-            <h3>Pass CC Referral</h3>
+            <h3>Confirm Redemption</h3>
+
+            <p>
+              <strong>{selectedDeal?.selectedItem?.name}</strong>
+            </p>
 
             <textarea
-              placeholder="Short description of lead"
+              placeholder="Lead description"
               value={leadDescription}
               onChange={(e) => setLeadDescription(e.target.value)}
             />
 
-            <button onClick={handlePassReferral}>
-              Send Referral
-            </button>
-
-            <button onClick={() => setModalOpen(false)}>
-              Cancel
-            </button>
+            <button onClick={handlePassReferral}>Confirm</button>
+            <button onClick={() => setModalOpen(false)}>Cancel</button>
           </div>
         </div>
       )}

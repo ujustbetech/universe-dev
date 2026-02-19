@@ -18,6 +18,7 @@ import Swal from "sweetalert2";
 import "../../src/app/styles/main.scss";
 
 const AddRedeemption = () => {
+
   const [users, setUsers] = useState([]);
   const [cosmoSearch, setCosmoSearch] = useState("");
   const [selectedCosmo, setSelectedCosmo] = useState(null);
@@ -28,47 +29,41 @@ const AddRedeemption = () => {
   const [mode, setMode] = useState("");
   const [selectedItem, setSelectedItem] = useState(null);
 
-  const [offerType, setOfferType] = useState("");
-  const [discountValue, setDiscountValue] = useState("");
-  const [customText, setCustomText] = useState("");
+  /* 🔥 SOP CC MODEL STATES */
+  const [ccModel, setCcModel] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
+  const [additionalPercent, setAdditionalPercent] = useState("");
+  const [freeOfferType, setFreeOfferType] = useState("");
 
   const [redeemList, setRedeemList] = useState([]);
 
-  /* ================= LOAD USERS ================= */
+  /* LOAD USERS */
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(
         collection(db, COLLECTIONS.userDetail)
       );
-
-      setUsers(
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-      );
+      setUsers(snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })));
     };
-
     fetchUsers();
   }, []);
 
-  /* ================= REALTIME LIST ================= */
+  /* REALTIME LIST */
   useEffect(() => {
     const q = query(collection(db, "ccredemption"));
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setRedeemList(
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-      );
+      setRedeemList(snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })));
     });
-
     return () => unsubscribe();
   }, []);
 
-  /* ================= SELECT COSMO ================= */
+  /* SELECT COSMO */
   const handleCosmoSelect = async (user) => {
     setSelectedCosmo(user);
     setCosmoSearch(user.Name || "");
@@ -83,144 +78,123 @@ const AddRedeemption = () => {
     }
   };
 
-  /* ================= PREVENT DUPLICATE ================= */
-  const isDuplicate = () => {
-    if (!selectedCosmo) return false;
-
-    return redeemList.some(
-      (r) =>
-        r.cosmo?.ujbCode === selectedCosmo.UJBCode &&
-        r.status === "Approved"
-    );
-  };
-
-  /* ================= SUBMIT ================= */
+  /* SUBMIT */
   const handleSubmit = async () => {
-    if (!selectedCosmo || !mode || !offerType) {
+
+    if (!selectedCosmo || !mode || !ccModel) {
       Swal.fire("Error", "Complete required fields", "error");
       return;
     }
 
     if (mode === "single" && !selectedItem) {
-      Swal.fire("Error", "Select product/service", "error");
+      Swal.fire("Error", "Select Product/Service", "error");
       return;
     }
 
-    if (
-      (offerType === "percent" || offerType === "rs") &&
-      !discountValue
-    ) {
-      Swal.fire("Error", "Enter discount value", "error");
+    if (ccModel === "DISCOUNT" && !discountPercent) {
+      Swal.fire("Error", "Enter Discount %", "error");
       return;
     }
 
-    if (offerType === "other" && !customText) {
-      Swal.fire("Error", "Enter custom offer", "error");
+    if (ccModel === "ADDITIONAL_PERCENT" && !additionalPercent) {
+      Swal.fire("Error", "Enter Additional %", "error");
       return;
     }
 
-    if (isDuplicate()) {
-      Swal.fire(
-        "Duplicate Found",
-        "CC Redemption already exists",
-        "warning"
-      );
+    if (ccModel === "FREE_OFFER" && !freeOfferType) {
+      Swal.fire("Error", "Select Free Offer Type", "error");
       return;
     }
 
     await addDoc(collection(db, "ccredemption"), {
+
       requestedBy: selectedCosmo.UJBCode,
+
       cosmo: {
         Name: selectedCosmo.Name,
         MobileNo: selectedCosmo.MobileNo,
         Email: selectedCosmo.Email,
         ujbCode: selectedCosmo.UJBCode,
       },
+
       mode,
-      selectedItem:
-        mode === "single" ? selectedItem : null,
-      offerType,
-      discountValue:
-        offerType === "percent" || offerType === "rs"
-          ? Number(discountValue)
-          : null,
-      customText:
-        offerType === "other" ? customText : null,
+      selectedItem: mode === "single" ? selectedItem : null,
+
+      /* 🔥 SOP MODEL STRUCTURE */
+      ccModel: {
+        type: ccModel,
+
+        discountPercent:
+          ccModel === "DISCOUNT"
+            ? Number(discountPercent)
+            : null,
+
+        additionalPercent:
+          ccModel === "ADDITIONAL_PERCENT"
+            ? Number(additionalPercent)
+            : null,
+
+        freeOfferType:
+          ccModel === "FREE_OFFER"
+            ? freeOfferType
+            : null,
+
+        appliesOnPaidOnly:
+          ccModel === "FREE_OFFER",
+      },
+
+      modelLocked: true,
+
       status: "Approved",
       createdAt: serverTimestamp(),
     });
 
-    Swal.fire("Success", "CC Redemption Added", "success");
+    Swal.fire("Success", "CC Product Added", "success");
 
     setMode("");
     setSelectedItem(null);
-    setOfferType("");
-    setDiscountValue("");
-    setCustomText("");
+    setCcModel("");
+    setDiscountPercent("");
+    setAdditionalPercent("");
+    setFreeOfferType("");
   };
-
-  /* ================= STATUS BADGE ================= */
-  const getStatusClass = (status) => {
-    if (status === "Approved") return "completed";
-    if (status === "Rejected") return "in-review";
-    return "on-hold";
-  };
-
-  /* ================= FILTER LIST ================= */
-  const filteredList = selectedCosmo
-    ? redeemList.filter(
-        (r) => r.cosmo?.ujbCode === selectedCosmo.UJBCode
-      )
-    : redeemList;
-
-  /* ================= RENDER ================= */
 
   return (
     <Layout>
       <section className="admin-profile-container">
-        <div className="admin-profile-header">
-          <h2>Manual CC Redemption Entry</h2>
-          <button
-            className="btn-back"
-            onClick={() => window.history.back()}
-          >
-            Back
-          </button>
-        </div>
+
+        <h2>Add CC Product (SOP Model)</h2>
 
         <ul className="admin-profile-form">
+
           {/* COSMO SEARCH */}
           <li className="form-group">
-            <h4>Search Cosmo Orbiter</h4>
             <input
               type="text"
+              placeholder="Search Cosmo"
               value={cosmoSearch}
               onChange={(e) => setCosmoSearch(e.target.value)}
             />
-
             {cosmoSearch && (
               <ul className="search-results">
-                {users
-                  .filter((u) =>
-                    u.Name?.toLowerCase().includes(
-                      cosmoSearch.toLowerCase()
-                    )
+                {users.filter((u) =>
+                  u.Name?.toLowerCase().includes(
+                    cosmoSearch.toLowerCase()
                   )
-                  .map((user) => (
-                    <li
-                      key={user.id}
-                      onClick={() => handleCosmoSelect(user)}
-                    >
-                      {user.Name}
-                    </li>
-                  ))}
+                ).map((user) => (
+                  <li
+                    key={user.id}
+                    onClick={() => handleCosmoSelect(user)}
+                  >
+                    {user.Name}
+                  </li>
+                ))}
               </ul>
             )}
           </li>
 
           {/* MODE */}
           <li className="form-group">
-            <label>Mode</label>
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
@@ -231,17 +205,13 @@ const AddRedeemption = () => {
             </select>
           </li>
 
-          {/* SINGLE ITEM */}
+          {/* ITEM */}
           {mode === "single" && (
             <li className="form-group">
-              <label>Select Product/Service</label>
               <select
                 value={selectedItem?.name || ""}
                 onChange={(e) => {
-                  const allItems = [
-                    ...services,
-                    ...products,
-                  ];
+                  const allItems = [...services, ...products];
                   setSelectedItem(
                     allItems.find(
                       (i) => i.name === e.target.value
@@ -249,7 +219,7 @@ const AddRedeemption = () => {
                   );
                 }}
               >
-                <option value="">-- Select --</option>
+                <option value="">Select Item</option>
                 {[...services, ...products].map(
                   (item, i) => (
                     <option key={i} value={item.name}>
@@ -261,94 +231,68 @@ const AddRedeemption = () => {
             </li>
           )}
 
-          {/* OFFER TYPE */}
+          {/* CC MODEL */}
           <li className="form-group">
-            <label>Offer Type</label>
             <select
-              value={offerType}
-              onChange={(e) =>
-                setOfferType(e.target.value)
-              }
+              value={ccModel}
+              onChange={(e) => setCcModel(e.target.value)}
             >
-              <option value="">Select Offer</option>
-              <option value="percent">
-                X % Discount
-              </option>
-              <option value="rs">
-                X Rs Discount
-              </option>
-              <option value="bogo">
-                Buy 1 Get 1
-              </option>
-              <option value="other">Other</option>
+              <option value="">CC Participation Model</option>
+              <option value="DISCOUNT">Discount on Cost</option>
+              <option value="ADDITIONAL_PERCENT">Special Referral %</option>
+              <option value="FREE_OFFER">Free Product / Service</option>
             </select>
           </li>
 
-          {(offerType === "percent" ||
-            offerType === "rs") && (
+          {ccModel === "DISCOUNT" && (
             <li className="form-group">
               <input
                 type="number"
-                placeholder="Enter Value"
-                value={discountValue}
+                placeholder="Enter Discount %"
+                value={discountPercent}
                 onChange={(e) =>
-                  setDiscountValue(e.target.value)
+                  setDiscountPercent(e.target.value)
                 }
               />
             </li>
           )}
 
-          {offerType === "other" && (
+          {ccModel === "ADDITIONAL_PERCENT" && (
             <li className="form-group">
               <input
-                type="text"
-                placeholder="Enter Custom Offer"
-                value={customText}
+                type="number"
+                placeholder="Enter Additional %"
+                value={additionalPercent}
                 onChange={(e) =>
-                  setCustomText(e.target.value)
+                  setAdditionalPercent(e.target.value)
                 }
               />
             </li>
           )}
+
+          {ccModel === "FREE_OFFER" && (
+            <li className="form-group">
+              <select
+                value={freeOfferType}
+                onChange={(e) =>
+                  setFreeOfferType(e.target.value)
+                }
+              >
+                <option value="">Select Free Model</option>
+                <option value="BOGO">Buy 1 Get 1</option>
+                <option value="COMBO">Combo Offer</option>
+                <option value="DEMO">Free Demo</option>
+                <option value="ADDON">Add-on Service</option>
+              </select>
+            </li>
+          )}
+
         </ul>
 
         <button className="btn-submit" onClick={handleSubmit}>
-          Add CC Redemption
+          Add CC Product
         </button>
 
-        {/* LIST */}
-        <div style={{ marginTop: "30px" }}>
-          <h3>Existing CC Redemptions</h3>
-
-          {filteredList.length === 0 && (
-            <p>No records found</p>
-          )}
-
-          {filteredList.map((item) => (
-            <div key={item.id} className="summary-card">
-              <h4>
-                {item.mode === "all"
-                  ? "All Products"
-                  : item.selectedItem?.name}
-              </h4>
-              <p>Offer: {item.offerType}</p>
-              {item.discountValue && (
-                <p>Value: {item.discountValue}</p>
-              )}
-              {item.customText && (
-                <p>{item.customText}</p>
-              )}
-
-              <span
-                className={`status-badge ${getStatusClass(
-                  item.status
-                )}`}
-              >
-                {item.status}
-              </span>
-            </div>
-          ))}
-        </div>
       </section>
     </Layout>
   );

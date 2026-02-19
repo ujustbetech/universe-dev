@@ -1318,6 +1318,56 @@ td:contains("Lost") {
 }
 
 /* ================= RESPONSIVE ================= */
+/* ================= POINT CARDS ================= */
+
+.pointsCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.pointCard {
+  background: linear-gradient(135deg, #0f172a, #1e3a8a);
+  color: white;
+  padding: 20px;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  transition: 0.3s ease;
+}
+
+.pointCard:hover {
+  transform: translateY(-5px);
+}
+
+.pointCard h4 {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.pointCard h2 {
+  font-size: 28px;
+  margin-top: 10px;
+}
+
+/* Different subtle shades */
+
+.relationCard {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+}
+
+.healthCard {
+  background: linear-gradient(135deg, #065f46, #10b981);
+}
+
+.wealthCard {
+  background: linear-gradient(135deg, #7c2d12, #f59e0b);
+}
+
+.totalCard {
+  background: linear-gradient(135deg, #312e81, #6366f1);
+}
 
 @media (max-width: 1024px) {
   div[style*="gridTemplateColumns"] {

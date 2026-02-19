@@ -61,6 +61,8 @@ const Navbar = (props) => {
               <ul>
                 <li><Link href="/admin/AddReferral">Add Referrals</Link></li>
                 <li><Link href="/admin/ManageReferrals">Manage Referrals</Link></li>
+                     <li><Link href="/admin/CCAddReferral">Add CC Referrals</Link></li>
+                <li><Link href="/admin/CCManageReferral">Manage CC Referrals</Link></li>
               </ul>
             </li>
 
