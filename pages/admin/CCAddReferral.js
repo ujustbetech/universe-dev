@@ -5,271 +5,261 @@ import {
   collection,
   getDocs,
   addDoc,
-  doc,
-  getDoc,
   query,
-  orderBy,
-  limit,
+  where,
   serverTimestamp,
-  updateDoc,
+  orderBy,
+  limit
 } from "firebase/firestore";
+
 import { db } from "../../firebaseConfig";
 import Layout from "../../component/Layout";
-import { COLLECTIONS } from "/utility_collection";
 import "../../src/app/styles/main.scss";
 
 const Profiling = () => {
-  const [users, setUsers] = useState([]);
 
-  const [selectedOrbiter, setSelectedOrbiter] = useState(null);
-  const [selectedCosmo, setSelectedCosmo] = useState(null);
-
-  const [selectedService, setSelectedService] = useState(null);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-
+  const [approvedDeals, setApprovedDeals] = useState([]);
+  const [selectedDeal, setSelectedDeal] = useState(null);
   const [leadDescription, setLeadDescription] = useState("");
 
-  /* ================= MODULE TYPE ================= */
-  const [referralModule, setReferralModule] = useState("Normal");
+  /* ================= LOAD APPROVED CC DEALS ================= */
 
-  /* ================= CC FIELDS ================= */
-  const [ccCategory, setCcCategory] = useState("R");
-  const [pointsRequired, setPointsRequired] = useState("");
-  const [autoDeduct, setAutoDeduct] = useState(false);
-
-  /* ================= LOAD USERS ================= */
   useEffect(() => {
-    const fetchUsers = async () => {
-      const snapshot = await getDocs(
-        collection(db, COLLECTIONS.userDetail)
+
+    const fetchDeals = async () => {
+
+      const q = query(
+        collection(db,"CCRedemption"),
+        where("status","==","Approved")
       );
-      setUsers(
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+
+      const snap = await getDocs(q);
+
+      setApprovedDeals(
+        snap.docs.map(d=>({
+          id:d.id,
+          ...d.data()
         }))
       );
-    };
-    fetchUsers();
-  }, []);
 
-  /* ===================================================== */
-  /* =============== CC REFERRAL ID GENERATOR ============ */
-  /* ===================================================== */
+    };
+
+    fetchDeals();
+
+  },[]);
+
+  /* ================= REFERRAL ID ================= */
 
   const generateCCReferralId = async () => {
+
     const now = new Date();
-    const year1 = now.getFullYear() % 100;
-    const year2 = (now.getFullYear() + 1) % 100;
+    const y1 = now.getFullYear() % 100;
+    const y2 = (now.getFullYear()+1)%100;
 
-    const prefix = `CCRef/${year1}-${year2}/`;
+    const prefix=`CCRef/${y1}-${y2}/`;
 
-    const q = query(
-      collection(db, "ccreferral"),
-      orderBy("referralId", "desc"),
+    const q=query(
+      collection(db,"ccreferral"),
+      orderBy("referralId","desc"),
       limit(1)
     );
 
-    const snapshot = await getDocs(q);
+    const snap=await getDocs(q);
 
-    let lastNum = 0;
+    let last=0;
 
-    if (!snapshot.empty) {
-      const lastId = snapshot.docs[0].data().referralId;
-      const match = lastId?.match(/\/(\d{4})$/);
-      if (match) lastNum = parseInt(match[1], 10);
+    if(!snap.empty){
+
+      const lastId=snap.docs[0].data().referralId;
+      const match=lastId?.match(/\/(\d{4})$/);
+
+      if(match) last=parseInt(match[1],10);
+
     }
 
-    return `${prefix}${String(lastNum + 1).padStart(4, "0")}`;
+    return `${prefix}${String(last+1).padStart(4,"0")}`;
+
   };
 
-  /* ===================================================== */
-  /* ================= AUTO DEDUCT LOGIC ================= */
-  /* ===================================================== */
+  /* ================= SUBMIT ================= */
 
-  const deductCP = async (orbiter, category, points) => {
-    if (!orbiter?.UJBCode) return;
+ const handleSubmit=async()=>{
+
+  if(!selectedDeal){
+    alert("Select CC Deal");
+    return;
+  }
+
+  if(!leadDescription.trim()){
+    alert("Enter Requirement");
+    return;
+  }
+
+  /* ================= CC ELIGIBILITY CHECK ================= */
+
+  const orbiterUjb =
+    selectedDeal?.orbiter?.ujbCode;
+
+  const eligible =
+    await checkOrbiterCCBalance(orbiterUjb);
+
+  if(!eligible){
+
+    alert(
+      "Minimum 250 CC Points required to create CC Referral"
+    );
+
+    return;
+  }
+
+  /* ================= CREATE REFERRAL ================= */
+
+  try{
+
+    const referralId=
+      await generateCCReferralId();
 
     await addDoc(
-      collection(db, "CPBoard", orbiter.UJBCode, "activities"),
-      {
-        activityName: "CC Deal Redemption",
-        purpose: "Admin created CC referral",
-        points: -Number(points),
-        categories: [category],
-        addedAt: serverTimestamp(),
-      }
-    );
-  };
+      collection(db,"ccreferral"),{
 
-  /* ===================================================== */
-  /* ================= SUBMIT ============================ */
-  /* ===================================================== */
+      referralId,
+      referralType:"CC",
+      referralSource:"CC",
 
-  const handleSubmit = async () => {
-    if (!selectedOrbiter || !selectedCosmo) {
-      alert("Select Orbiter and Cosmo");
-      return;
-    }
+      status:"Pending",
+      createdAt:serverTimestamp(),
 
-    try {
-      /* ================= CC MODULE ================= */
+      /* ================= LOCKED CC DATA ================= */
 
-      if (referralModule === "CC") {
-        if (!pointsRequired) {
-          alert("Enter Points Required");
-          return;
-        }
+      ccRedemptionId:selectedDeal.id,
+      category:selectedDeal.redemptionCategory,
 
-        const referralId = await generateCCReferralId();
+      agreedPercentage:selectedDeal.agreedPercentage,
+      ccModel:selectedDeal.ccModel,
 
-        const ccData = {
-          referralId,
-          referralType: "CC",
-          referralSource: "Admin",
+      /* ================= USERS ================= */
 
-          createdAt: serverTimestamp(),
-          status: "Pending",
+      orbiter:{
+        name:selectedDeal.orbiter?.name,
+        phone:selectedDeal.orbiter?.phone,
+        email:selectedDeal.orbiter?.email,
+        ujbCode:selectedDeal.orbiter?.ujbCode
+      },
 
-          category: ccCategory,
-          pointsRequired: Number(pointsRequired),
+      cosmo:{
+        name:selectedDeal.cosmo?.name,
+        phone:selectedDeal.cosmo?.phone,
+        email:selectedDeal.cosmo?.email,
+        ujbCode:selectedDeal.cosmo?.ujbCode
+      },
 
-          orbiter: {
-            name: selectedOrbiter.Name,
-            phone: selectedOrbiter.MobileNo,
-            email: selectedOrbiter.Email,
-            ujbCode: selectedOrbiter.UJBCode,
-          },
+      /* ================= SERVICE ================= */
 
-          cosmo: {
-            name: selectedCosmo.Name,
-            phone: selectedCosmo.MobileNo,
-            email: selectedCosmo.Email,
-            ujbCode: selectedCosmo.UJBCode,
-          },
+      itemType:selectedDeal.itemType,
+      itemName:selectedDeal.itemName,
+      itemDescription:selectedDeal.itemDescription,
 
-          itemType: selectedService ? "service" : "product",
-          itemName:
-            selectedService?.name ||
-            selectedProduct?.name ||
-            null,
+      leadDescription,
 
-          itemDescription:
-            selectedService?.description ||
-            selectedProduct?.description ||
-            null,
+      /* ================= CC TAG ================= */
 
-          leadDescription: leadDescription || null,
-        };
+      ccTagged:true
 
-        await addDoc(collection(db, "ccreferral"), ccData);
+    });
 
-        /* ===== AUTO DEDUCT ===== */
-        if (autoDeduct) {
-          await deductCP(
-            selectedOrbiter,
-            ccCategory,
-            pointsRequired
-          );
-        }
+    alert("CC Referral Created Successfully");
 
-        alert("CC Referral Created Successfully!");
-        return;
-      }
+    setSelectedDeal(null);
+    setLeadDescription("");
 
-      /* ================= NORMAL REFERRAL ================= */
+  }catch(err){
 
-      const data = {
-        referralType: "Normal",
-        createdAt: serverTimestamp(),
-        orbiter: selectedOrbiter,
-        cosmo: selectedCosmo,
-        service: selectedService || null,
-        product: selectedProduct || null,
-        leadDescription,
-      };
+    console.error(err);
+    alert("Error Creating CC Referral");
 
-      await addDoc(collection(db, COLLECTIONS.referral), data);
+  }
 
-      alert("Normal Referral Submitted Successfully!");
-    } catch (error) {
-      console.error(error);
-      alert("Error submitting referral");
-    }
-  };
+};
 
-  /* ===================================================== */
-  /* ================= UI ================================ */
-  /* ===================================================== */
+  /* ================= UI ================= */
 
-  return (
+  return(
+
     <Layout>
-      <section className="admin-profile-container">
-        <h2>Add Referral</h2>
 
-        {/* MODULE SELECT */}
+      <section className="admin-profile-container">
+
+        <h2>Create CC Referral</h2>
+
         <div className="form-group">
-          <label>Referral Module</label>
+
+          <label>Select Approved CC Deal</label>
+
           <select
-            value={referralModule}
-            onChange={(e) =>
-              setReferralModule(e.target.value)
-            }
+            onChange={(e)=>{
+
+              const deal=approvedDeals.find(
+                d=>d.id===e.target.value
+              );
+
+              setSelectedDeal(deal);
+
+            }}
           >
-            <option value="Normal">Normal</option>
-            <option value="CC">CC Referral</option>
+
+            <option>Select</option>
+
+            {approvedDeals.map(d=>(
+
+              <option key={d.id} value={d.id}>
+
+                {d.itemName} | {d.cosmo?.name}
+
+              </option>
+
+            ))}
+
           </select>
+
         </div>
 
-        {/* CC EXTRA FIELDS */}
-        {referralModule === "CC" && (
-          <>
-            <div className="form-group">
-              <label>Category</label>
-              <select
-                value={ccCategory}
-                onChange={(e) =>
-                  setCcCategory(e.target.value)
-                }
-              >
-                <option value="R">Relation</option>
-                <option value="H">Health</option>
-                <option value="W">Wealth</option>
-              </select>
-            </div>
+        {selectedDeal&&(
 
-            <div className="form-group">
-              <label>Points Required</label>
-              <input
-                type="number"
-                value={pointsRequired}
-                onChange={(e) =>
-                  setPointsRequired(e.target.value)
-                }
-              />
-            </div>
+          <div className="cc-info-box">
 
-            <div className="form-group">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={autoDeduct}
-                  onChange={() =>
-                    setAutoDeduct(!autoDeduct)
-                  }
-                />
-                Auto Deduct CP
-              </label>
-            </div>
-          </>
+            <p>
+              Final Agreed % :
+              {selectedDeal.agreedPercentage?.finalAgreedPercent}%
+            </p>
+
+            <p>
+              Model :
+              {selectedDeal.ccModel?.type}
+            </p>
+
+          </div>
+
         )}
 
-        <button className="btn-submit" onClick={handleSubmit}>
-          Submit Referral
+        <textarea
+          placeholder="Requirement"
+          value={leadDescription}
+          onChange={(e)=>setLeadDescription(e.target.value)}
+        />
+
+        <button
+          className="btn-submit"
+          onClick={handleSubmit}
+        >
+          Submit CC Referral
         </button>
+
       </section>
+
     </Layout>
+
   );
+
 };
 
 export default Profiling;

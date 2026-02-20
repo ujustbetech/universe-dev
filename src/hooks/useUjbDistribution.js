@@ -28,11 +28,18 @@ export function useUjbDistribution({
     CosmoMentor: cosmoOrbiter?.mentorName || "Cosmo Mentor",
   };
 
-  const fieldMap = {
+const isCCReferral = referralData?.referralSource === "CC";
+
+const fieldMap = isCCReferral
+? {
+    Orbiter: "paidToOrbiter",
+  }
+: {
     Orbiter: "paidToOrbiter",
     OrbiterMentor: "paidToOrbiterMentor",
     CosmoMentor: "paidToCosmoMentor",
   };
+
 
   /**
    * PAY FROM UJB

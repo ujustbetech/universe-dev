@@ -60,25 +60,81 @@ export const calculateAgreedFromItem = (dealAmount, item) => {
    DEAL DISTRIBUTION  ✅ THIS WAS MISSING
 ------------------------------------------------- */
 
-export const buildDealDistribution = (dealValue, referralData) => {
+export const buildDealDistribution = (dealValue, referralData = {}) => {
+
   const deal = toNumber(dealValue);
 
-  const item =
-    referralData?.service ||
-    referralData?.product ||
-    referralData?.services?.[0] ||
-    referralData?.products?.[0] ||
-    null;
+  const isCC =
+    referralData?.referralSource === "CC";
 
-  const agreedAmount = calculateAgreedFromItem(deal, item);
+  /* ================= CC REFERRAL FIX =================
+     Convert agreedPercentage into virtual agreedValue
+     so that discount / slabs logic works
+  ==================================================== */
 
-  const r2 = (n) => Math.round(n * 100) / 100;
+  const item = isCC
+    ? {
+        agreedValue: referralData?.agreedPercentage
+          ? {
+              mode: "single",
+              single: {
+                type: "percentage",
+                value:
+                  referralData?.agreedPercentage
+                    ?.finalAgreedPercent || 0,
+              },
+            }
+          : null,
+      }
+    : (
+        referralData?.service ||
+        referralData?.product ||
+        referralData?.services?.[0] ||
+        referralData?.products?.[0] ||
+        null
+      );
 
-  const orbiterShare = r2(agreedAmount * 0.5);
-  const orbiterMentorShare = r2(agreedAmount * 0.15);
-  const cosmoMentorShare = r2(agreedAmount * 0.15);
+  const agreedAmount =
+    calculateAgreedFromItem(deal, item);
 
-  let ujustbeShare = r2(agreedAmount * 0.2);
+  const r2 = (n) =>
+    Math.round(n * 100) / 100;
+
+  /* ================= CC MODEL ================= */
+
+  if (isCC) {
+
+    const orbiterShare =
+      r2(agreedAmount * 0.5);
+
+    const ujustbeShare =
+      r2(agreedAmount * 0.5);
+
+    return {
+      dealValue: deal,
+      agreedAmount,
+      orbiterShare,
+      orbiterMentorShare: 0,
+      cosmoMentorShare: 0,
+      ujustbeShare,
+      referralType: "CC",
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /* ================= REGULAR MODEL ================= */
+
+  const orbiterShare =
+    r2(agreedAmount * 0.5);
+
+  const orbiterMentorShare =
+    r2(agreedAmount * 0.15);
+
+  const cosmoMentorShare =
+    r2(agreedAmount * 0.15);
+
+  let ujustbeShare =
+    r2(agreedAmount * 0.2);
 
   const total =
     orbiterShare +
@@ -86,31 +142,24 @@ export const buildDealDistribution = (dealValue, referralData) => {
     cosmoMentorShare +
     ujustbeShare;
 
-  const diff = r2(agreedAmount - total);
-  if (diff !== 0) ujustbeShare = r2(ujustbeShare + diff);
+  const diff =
+    r2(agreedAmount - total);
 
-  let percentage = 0;
-  if (
-    item?.agreedValue?.mode === "single" &&
-    item.agreedValue.single?.type === "percentage"
-  ) {
-    percentage = toNumber(item.agreedValue.single.value);
-  } else {
-    percentage = toNumber(item?.percentage);
-  }
+  if (diff !== 0)
+    ujustbeShare =
+      r2(ujustbeShare + diff);
 
   return {
     dealValue: deal,
-    percentage,
     agreedAmount,
     orbiterShare,
     orbiterMentorShare,
     cosmoMentorShare,
     ujustbeShare,
+    referralType: "REGULAR",
     timestamp: new Date().toISOString(),
   };
 };
-
 /* -------------------------------------------------
    ADJUSTMENT CALC (ALREADY FIXED)
 ------------------------------------------------- */

@@ -386,31 +386,37 @@ if (payoutModal.open && payoutModal.preview) {
 
 
   // Open payout modal for a slot (manual)
-  const openPayoutModal = ({ cosmoPaymentId, slot, amount }) => {
-    const logical = n(amount);
-    const info = getRecipientInfo(slot);
+ const openPayoutModal = ({ cosmoPaymentId, slot, amount }) => {
 
-    setPayoutModal({
-      open: true,
-      cosmoPaymentId: cosmoPaymentId || null,
-      slot,
-      logicalAmount: logical,
-      recipientUjb: info.ujb,
-      recipientName: info.name,
-      preview: null,
-      modeOfPayment: "",
-      transactionRef: "",
-      paymentDate: new Date().toISOString().split("T")[0],
-      processing: false,
-    });
+  
 
-    // fetch preview (non-blocking)
-    (async () => {
-      try {
-        const lastDeal = dealLogs?.[dealLogs.length - 1];
-        const dealValue = lastDeal?.dealValue || null;
+  const logical = n(amount);
+  const info = getRecipientInfo(slot);
 
-        const preview = await adjustment.applyAdjustmentForRole({
+  setPayoutModal({
+    open: true,
+    cosmoPaymentId: cosmoPaymentId || null,
+    slot,
+    logicalAmount: logical,
+    recipientUjb: info.ujb,
+    recipientName: info.name,
+    preview: null,
+    modeOfPayment: "",
+    transactionRef: "",
+    paymentDate: new Date().toISOString().split("T")[0],
+    processing: false,
+  });
+
+  (async () => {
+    try {
+      const lastDeal =
+        dealLogs?.[dealLogs.length - 1];
+
+      const dealValue =
+        lastDeal?.dealValue || null;
+
+      const preview =
+        await adjustment.applyAdjustmentForRole({
           role: slot,
           requestedAmount: logical,
           dealValue,
@@ -419,291 +425,40 @@ if (payoutModal.open && payoutModal.preview) {
           referral: { id },
         });
 
-        setPayoutModal((p) => ({ ...p, preview }));
-      } catch (err) {
-        setPayoutModal((p) => ({ ...p, preview: { error: "Preview failed" } }));
-      }
-    })();
-  };
+      setPayoutModal(p => ({
+        ...p,
+        preview
+      }));
+
+    } catch {
+      setPayoutModal(p => ({
+        ...p,
+        preview:{error:"Preview failed"}
+      }));
+    }
+  })();
+
+};
+const isCC =
+  referralData?.referralSource === "CC";
+
+if(
+  isCC &&
+  (payoutModal.slot === "OrbiterMentor" ||
+   payoutModal.slot === "CosmoMentor")
+){
+  alert("Mentor payout blocked in CC Referral");
+  setPayoutModal(p=>({...p,processing:false}));
+  return;
+}
+
 
   const closePayoutModal = () => {
     setPayoutModal((p) => ({ ...p, open: false, preview: null }));
   };
 
   // Confirm payout => commit adjustment and create UJB payout
-  const confirmPayout = async () => {
-    const {
-      cosmoPaymentId,
-      slot,
-      logicalAmount,
-      recipientUjb,
-      modeOfPayment,
-      transactionRef,
-      paymentDate,
-    } = payoutModal;
 
-    if (!slot || logicalAmount <= 0) {
-      alert("Invalid payout slot or amount");
-      return;
-    }
-
-    if (!modeOfPayment) {
-      alert("Please select mode of payment");
-      return;
-    }
-
-    if (!transactionRef) {
-      alert("Transaction / reference required");
-      return;
-    }
-
-    // Slot cap check: ensure not paying more than slot remaining for that cosmo payment
-    // compute remaining for this cosmo payment & slot from payments array
-    const cosmoPayment =
-      (payments || []).find(
-        (p) =>
-          p.paymentId === payoutModal.cosmoPaymentId ||
-          p.meta?.belongsToPaymentId === payoutModal.cosmoPaymentId
-      ) || null;
-
-
-    // We'll rely on server-side check via remaining computed earlier in UI, but still prevent obvious overshoot:
-    // For simplicity here we compute paid so far for this cosmo payment & slot:
-    const paidForThisPaymentAndSlot = (payments || [])
-      .filter(
-        (p) =>
-          p.meta?.isUjbPayout === true &&
-          p.meta?.belongsToPaymentId === payoutModal.cosmoPaymentId &&
-          p.meta?.slot === slot
-      )
-     .reduce((s, p) => {
-  if (typeof p?.meta?.logicalAmount === "number") {
-    return s + n(p.meta.logicalAmount);
-  }
-  return s + n(p.amountReceived);
-}, 0);
-
-
-    // Find the cosmo distribution for this cosmo payment so we know slot total
-    const cosmoEntry = (payments || []).find(
-      (p) => p.paymentId === payoutModal.cosmoPaymentId || p.meta?.paymentId === payoutModal.cosmoPaymentId
-    );
-
-    // If cosmoEntry available compute slotTotal
-    let slotTotal = null;
-    if (cosmoEntry && cosmoEntry.distribution) {
-      slotTotal = n(cosmoEntry.distribution[slot === "Orbiter" ? "orbiter" : slot === "OrbiterMentor" ? "orbiterMentor" : "cosmoMentor"]);
-    }
-
-    // If slotTotal known, ensure not overpaying logicalAmount beyond remaining
-    if (slotTotal != null) {
-      const remaining = Math.max(slotTotal - paidForThisPaymentAndSlot, 0);
-      if (logicalAmount > remaining) {
-        if (!confirm(`Requested amount ₹${logicalAmount} exceeds remaining for this slot (₹${remaining}). Do you want to proceed and pay only remaining ₹${remaining}?`)) {
-          return;
-        }
-      }
-    }
-
-    setPayoutModal((p) => ({ ...p, processing: true }));
-
-    try {
-      const lastDeal = dealLogs?.[dealLogs.length - 1];
-      const dealValue = lastDeal?.dealValue || null;
-
-      // 1) Apply adjustment (commit)
-      const adjResult = await adjustment.applyAdjustmentForRole({
-        role: slot,
-        requestedAmount: logicalAmount,
-        dealValue,
-        ujbCode: recipientUjb,
-        referral: { id },
-      });
-
-   const { deducted = 0, newGlobalRemaining } = adjResult || {};
-
-// gross after adjustment
-const adjustedGross = Math.max(logicalAmount - deducted, 0);
-
-// TDS calculation
-const recipientInfo = getRecipientInfo(slot);
-const isNri = recipientInfo.payeeType === "nri";
-
-const { gross, tds, net, rate } =
-  calculateUjbTDS(adjustedGross, isNri);
-
-
-
-      // ✅ EARLY UJB BALANCE CHECK (CRITICAL FIX)
-      const availableBalance = Number(referralData?.ujbBalance || 0);
-
-    if (net > 0 && net > availableBalance) {
-  alert(
-    `Insufficient UJB balance.\n\n` +
-    `Net payable: ₹${net}\n` +
-    `Available balance: ₹${availableBalance}`
-  );
-  setPayoutModal((p) => ({ ...p, processing: false }));
-  return;
-}
-
-    
-      // ✅ CASE: FULLY ADJUSTED — LOG ONLY (NO CASH PAYOUT)
-  if (adjustedGross <= 0 && deducted > 0) {
-
-        const adjustmentOnlyEntry = {
-          paymentId: `ADJ-${Date.now()}`,
-          paymentFrom: "UJustBe",
-          paymentTo: slot,
-          paymentToName: payoutModal.recipientName,
-          amountReceived: 0,
-          paymentDate,
-          createdAt: new Date(),
-          comment: "Fully adjusted against pending fees",
-          meta: {
-            isUjbPayout: true,
-            isAdjustmentOnly: true,
-            slot,
-            belongsToPaymentId: payoutModal.cosmoPaymentId || null,
-            adjustment: {
-              deducted,
-              cashPaid: 0,
-              previousRemaining: newGlobalRemaining + deducted,
-              newRemaining: newGlobalRemaining,
-            },
-          },
-        };
-
-        // 🔐 LOG ONLY — NO BALANCE CHANGE
-        await updateDoc(doc(db, COLLECTIONS.ccreferral, id), {
-          payments: arrayUnion(adjustmentOnlyEntry),
-        });
-
-        // Update UI immediately
-        setPayments((prev = []) => [...prev, adjustmentOnlyEntry]);
-
-        closePayoutModal();
-        return;
-      }
-
-const hasAnyReferralClosure = async (ujbCode) => {
-  const q = query(
-    collection(db, "CPBoard", ujbCode, "activities"),
-    where("activityNo", "in", ["CLOSE_SELF", "CLOSE_THIRD", "CLOSE_PROSPECT"])
-  );
-  const snap = await getDocs(q);
-  return !snap.empty;
-};
-
-const addCpClosure = async ({ orbiter, type }) => {
-  await ensureCpBoardUser(orbiter);
-
-  const map = {
-    SELF: {
-      activityNo: "CLOSE_SELF",
-      name: "Referral Closure passed by Self",
-      points: 150,
-      purpose: "Rewards contribution in completing referral process personally.",
-    },
-    THIRD: {
-      activityNo: "CLOSE_THIRD",
-      name: "Referral Closure passed for Third Party",
-      points: 125,
-      purpose: "Recognizes collaborative closures creating mutual growth.",
-    },
-    PROSPECT: {
-      activityNo: "CLOSE_PROSPECT",
-      name: "Referral Closure passed by Prospect",
-      points: 200,
-      purpose: "Acknowledges direct business closure driven by new member’s initiative.",
-    },
-  };
-
-  const cfg = map[type];
-  if (!cfg) return;
-
-  await addDoc(
-    collection(db, "CPBoard", orbiter.ujbCode, "activities"),
-    {
-      activityNo: cfg.activityNo,
-      activityName: cfg.name,
-      points: cfg.points,
-      categories: ["R"],
-      purpose: cfg.purpose,
-      source: "ReferralClosure",
-      month: new Date().toLocaleString("default", {
-        month: "short",
-        year: "numeric",
-      }),
-      addedAt: serverTimestamp(),
-    }
-  );
-
-  await updateCategoryTotals(orbiter, ["R"], cfg.points);
-};
-
-
-      // 2) Perform UJB payout (actual cash = cashToPay; logical increment = logicalAmount)
- const payRes =await ujb.payFromSlot({
-  recipient: slot,
-
-  // 💰 BANK
-  amount: net,
-
-  // 📘 ACCOUNTING (ABSOLUTELY REQUIRED)
-  logicalAmount: gross,
-  tdsAmount: tds,
-
-  fromPaymentId: payoutModal.cosmoPaymentId,
-  modeOfPayment,
-  transactionRef,
-  paymentDate,
-
-  adjustmentMeta:
-    deducted > 0
-      ? {
-          deducted,
-          cashPaid: net,
-        }
-      : undefined,
-});
-
-
-
-
-      if (payRes?.error) {
-        alert(payRes.error || "Payout failed");
-        setPayoutModal((p) => ({ ...p, processing: false }));
-        return;
-      }
-
-      // optional: send WhatsApp notifications (preserve earlier behavior)
-      try {
-        const refId = referralData?.referralId || id;
-        // notify recipient (if phone exists)
-        const recipientPhone =
-          slot === "Orbiter" ? orbiter?.phone : slot === "OrbiterMentor" ? orbiter?.mentorPhone : cosmoOrbiter?.mentorPhone;
-        if (recipientPhone) {
-          const msg = `Hello ${slot === "Orbiter" ? orbiter?.name : slot === "OrbiterMentor" ? orbiter?.mentorName : cosmoOrbiter?.mentorName}, a payout of ₹${logicalAmount} (cash: ₹${cashToPay}) for referral ${refId} has been processed.`;
-          await sendWhatsAppMessage(recipientPhone, [
-            slot === "Orbiter" ? orbiter?.name : slot === "OrbiterMentor" ? orbiter?.mentorName : cosmoOrbiter?.mentorName,
-            msg,
-          ]);
-        }
-      } catch (err) {
-        // silent per preference
-      }
-
-      // update local payments (use onPaymentsUpdate in hook already pushing entry; but ensure UI updates)
-      // setPayments handled by useUjbDistribution via onPaymentsUpdate
-
-      closePayoutModal();
-    } catch (err) {
-      console.error("confirmPayout error:", err);
-      alert("Payout failed");
-      setPayoutModal((p) => ({ ...p, processing: false }));
-    }
-  };
 
   // small helper to normalize payment id when different shapes
   const cosmoPaymentIdFrom = (pid) => pid;
