@@ -28,31 +28,29 @@ export function useUjbDistribution({
     CosmoMentor: cosmoOrbiter?.mentorName || "Cosmo Mentor",
   };
 
-const isCCReferral = referralData?.referralSource === "CC";
+  // 🔥 CC CHECK
+  const isCCReferral = referralData?.referralSource === "CC";
 
-const fieldMap = isCCReferral
-? {
-    Orbiter: "paidToOrbiter",
-  }
-: {
-    Orbiter: "paidToOrbiter",
-    OrbiterMentor: "paidToOrbiterMentor",
-    CosmoMentor: "paidToCosmoMentor",
-  };
+  // 🔥🔥🔥 MAIN FIX HERE
+  const collectionName = isCCReferral
+    ? "ccreferal"        // ✅ YOUR REAL COLLECTION NAME
+    : COLLECTIONS.referral;
 
+  const fieldMap = isCCReferral
+    ? {
+        Orbiter: "paidToOrbiter",
+      }
+    : {
+        Orbiter: "paidToOrbiter",
+        OrbiterMentor: "paidToOrbiterMentor",
+        CosmoMentor: "paidToCosmoMentor",
+      };
 
-  /**
-   * PAY FROM UJB
-   * ─────────────────────────────
-   * amount        = NET paid to person
-   * logicalAmount = GROSS (slot completion)
-   * tdsAmount     = TDS withheld
-   */
   const payFromSlot = async ({
     recipient,
-    amount,          // NET
-    logicalAmount,   // GROSS ✅
-    tdsAmount,       // TDS ✅
+    amount,
+    logicalAmount,
+    tdsAmount,
     fromPaymentId,
     modeOfPayment,
     transactionRef,
@@ -87,44 +85,41 @@ const fieldMap = isCCReferral
         paymentFrom: "UJustBe",
         paymentTo: recipient,
         paymentToName: recipientNameMap[recipient],
-        amountReceived: netAmount, // ✅ NET
+        amountReceived: netAmount,
         paymentDate,
         modeOfPayment,
         transactionRef,
         createdAt: Timestamp.now(),
-
         meta: {
           isUjbPayout: true,
           slot: recipient,
           belongsToPaymentId: fromPaymentId || null,
-
-          // 🔥 CRITICAL FIELDS (DO NOT REMOVE)
           logicalAmount: grossAmount,
           tdsAmount: tds,
-
           adjustment: adjustmentMeta || null,
         },
       };
 
-      // Remove ONLY undefined (keep 0 values)
       Object.keys(entry).forEach(
         (k) => entry[k] === undefined && delete entry[k]
       );
 
-      await updateDoc(doc(db, COLLECTIONS.referral, referralId), {
-        ujbBalance: increment(-netAmount),              // NET only
-        payments: arrayUnion(entry),
-        [fieldMap[recipient]]: increment(grossAmount), // ✅ GROSS credited
-      });
+      await updateDoc(
+        doc(db, collectionName, referralId),
+        {
+          ujbBalance: increment(-netAmount),
+          payments: arrayUnion(entry),
+          [fieldMap[recipient]]: increment(grossAmount),
+        }
+      );
 
-      // Local optimistic update
       onPaymentsUpdate?.((prev = []) => [...prev, entry]);
 
       return { success: true };
     } catch (err) {
-      console.error("UJB payout error:", err);
-      setError("Payout failed");
-      return { error: "Payout failed" };
+      console.error("🔥 UJB payout error:", err);
+      setError(err.message);
+      return { error: err.message };
     } finally {
       setIsSubmitting(false);
     }
